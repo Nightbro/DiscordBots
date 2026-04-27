@@ -1,0 +1,18 @@
+# Environment — never commit real tokens
+.env
+
+# Downloaded audio cache
+suno-bot/downloads/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/

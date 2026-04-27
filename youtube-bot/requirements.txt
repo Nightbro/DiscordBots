@@ -1,0 +1,7 @@
+discord.py
+yt-dlp
+PyNaCl
+davey
+python-dotenv
+certifi
+aiohttp==3.9.5
