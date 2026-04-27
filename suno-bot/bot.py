@@ -26,6 +26,8 @@ from pathlib import Path
 import discord
 from discord.ext import commands
 import yt_dlp
+from mutagen.mp3 import MP3
+from mutagen.id3 import ID3, TIT2, TPE1, TALB, ID3NoHeaderError
 from dotenv import load_dotenv
 
 # --- Paths ---
@@ -51,15 +53,21 @@ YDL_INFO = {
     'default_search': 'ytsearch',
 }
 
-# Download + convert to MP3
+# Download + convert to MP3 + embed title/artist/album tags
 YDL_DOWNLOAD = {
     **YDL_INFO,
     'outtmpl': str(DOWNLOADS_DIR / '%(id)s.%(ext)s'),
-    'postprocessors': [{
-        'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'mp3',
-        'preferredquality': '192',
-    }],
+    'postprocessors': [
+        {
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        },
+        {
+            'key': 'FFmpegMetadata',
+            'add_metadata': True,
+        },
+    ],
 }
 
 # Local file playback — no reconnect flags needed
@@ -99,15 +107,31 @@ def is_suno_url(query: str) -> bool:
     return bool(SUNO_RE.search(query))
 
 
-def format_duration(seconds) -> str:
+def duration_tag(seconds) -> str:
+    """Returns ' `[M:SS]`' or '' when duration is unknown — never shows [?:??]."""
     if not seconds:
-        return '?:??'
+        return ''
     m, s = divmod(int(seconds), 60)
     h, m = divmod(m, 60)
-    return f'{h}:{m:02}:{s:02}' if h else f'{m}:{s:02}'
+    t = f'{h}:{m:02}:{s:02}' if h else f'{m}:{s:02}'
+    return f' `[{t}]`'
 
 
 # ── Download logic ────────────────────────────────────────────────────────────
+
+def tag_mp3(path: Path, title: str, artist: str = 'Suno AI', album: str = 'Suno'):
+    """Write ID3 tags into an MP3 file. Silently skips on failure."""
+    try:
+        try:
+            tags = ID3(str(path))
+        except ID3NoHeaderError:
+            tags = ID3()
+        tags['TIT2'] = TIT2(encoding=3, text=title)
+        tags['TPE1'] = TPE1(encoding=3, text=artist)
+        tags['TALB'] = TALB(encoding=3, text=album)
+        tags.save(str(path))
+    except Exception as e:
+        print(f'Warning: could not write ID3 tags to {path.name}: {e}')
 
 def download_youtube(query: str) -> dict:
     """
@@ -143,16 +167,18 @@ def download_suno(url: str) -> dict:
     download the MP3 from Suno's CDN if not cached, return a track dict.
     """
     title     = 'Unknown Suno Track'
+    artist    = 'Suno AI'
     duration  = 0
     song_uuid = None
 
-    # yt-dlp knows how to resolve Suno URLs and gives us the UUID in info['id']
+    # yt-dlp resolves Suno URLs and gives us the UUID in info['id']
     try:
         with yt_dlp.YoutubeDL(YDL_INFO) as ydl:
             info = ydl.extract_info(url, download=False)
             if 'entries' in info:
                 info = info['entries'][0]
         title    = info.get('title', title)
+        artist   = info.get('uploader') or info.get('creator') or artist
         duration = info.get('duration') or 0
         raw_id   = info.get('id', '')
         if re.fullmatch(
@@ -185,10 +211,12 @@ def download_suno(url: str) -> dict:
         req = urllib.request.Request(cdn_url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=60, context=_SSL_CTX) as resp:
             cached.write_bytes(resp.read())
+        tag_mp3(cached, title=title, artist=artist)
 
     return {
         'file': str(cached),
         'title': title,
+        'artist': artist,
         'duration': duration,
         'webpage_url': url,
     }
@@ -232,8 +260,7 @@ async def play_next(guild_id: int, channel: discord.TextChannel):
         asyncio.run_coroutine_threadsafe(play_next(guild_id, channel), bot.loop)
 
     vc.play(source, after=after)
-    dur = format_duration(track['duration'])
-    await channel.send(f'Now playing: **{track["title"]}** `[{dur}]`')
+    await channel.send(f'Now playing: **{track["title"]}**{duration_tag(track["duration"])}')
 
 
 # ── Playlist persistence ──────────────────────────────────────────────────────
@@ -274,11 +301,9 @@ async def play(ctx: commands.Context, *, query: str):
 
     state = get_state(ctx.guild.id)
     state['queue'].append(track)
-    dur = format_duration(track['duration'])
-
     if state['voice_client'].is_playing() or state['voice_client'].is_paused():
         await ctx.send(
-            f'Added to queue: **{track["title"]}** `[{dur}]` '
+            f'Added to queue: **{track["title"]}**{duration_tag(track["duration"])} '
             f'(#{len(state["queue"])})'
         )
     else:
@@ -341,7 +366,7 @@ async def show_queue(ctx: commands.Context):
     if not state['queue']:
         return await ctx.send('The queue is empty.')
     lines = [
-        f'`{i}.` **{t["title"]}** `[{format_duration(t["duration"])}]`'
+        f'`{i}.` **{t["title"]}**{duration_tag(t["duration"])}'
         for i, t in enumerate(state['queue'], 1)
     ]
     await ctx.send('**Queue:**\n' + '\n'.join(lines))
@@ -441,7 +466,7 @@ async def playlist_show(ctx: commands.Context, *, name: str):
     if not tracks:
         return await ctx.send(f'**{name}** is empty.')
     lines = [
-        f'`{i}.` **{t["title"]}** `[{format_duration(t["duration"])}]`'
+        f'`{i}.` **{t["title"]}**{duration_tag(t["duration"])}'
         for i, t in enumerate(tracks, 1)
     ]
     await ctx.send(f'**{name}** ({len(tracks)} tracks):\n' + '\n'.join(lines))

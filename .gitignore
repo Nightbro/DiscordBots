@@ -1,6 +1,9 @@
 # Environment — never commit real tokens
 .env
 
+# Windows shortcuts
+Music Discord Bot
+
 # Downloaded audio cache
 suno-bot/downloads/
 
