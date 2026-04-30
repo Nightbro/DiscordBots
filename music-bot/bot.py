@@ -2,7 +2,7 @@
 import ssl
 import certifi
 
-def _patched_ssl_context(purpose=ssl.Purpose.SERVER_AUTH, *, cafile=None, capath=None, cadata=None):
+def _patched_ssl_context(purpose=ssl.Purpose.SERVER_AUTH, *, cafile=None, capath=None, cadata=None, **_):
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     ctx.load_verify_locations(cafile or certifi.where(), capath, cadata)
     return ctx
@@ -19,8 +19,10 @@ import os
 import re
 import json
 import asyncio
+import logging
 import urllib.request
 from collections import deque
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import discord
@@ -31,25 +33,66 @@ from mutagen.id3 import ID3, TIT2, TPE1, TALB, ID3NoHeaderError
 from dotenv import load_dotenv
 
 # --- Paths ---
-BASE_DIR      = Path(__file__).parent
-DOWNLOADS_DIR = BASE_DIR / 'downloads'
+BASE_DIR       = Path(__file__).parent
+DOWNLOADS_DIR  = BASE_DIR / 'downloads'
+LOGS_DIR       = BASE_DIR / 'logs'
 PLAYLISTS_FILE = BASE_DIR / 'playlists.json'
 DOWNLOADS_DIR.mkdir(exist_ok=True)
+LOGS_DIR.mkdir(exist_ok=True)
 
-# --- Suno URL patterns ---
+# --- Logging ---
+_fmt = logging.Formatter(
+    fmt='%(asctime)s [%(levelname)-8s] %(name)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+)
+
+_file_handler = RotatingFileHandler(
+    LOGS_DIR / 'music-bot.log',
+    maxBytes=5 * 1024 * 1024,
+    backupCount=3,
+    encoding='utf-8',
+)
+_file_handler.setLevel(logging.DEBUG)
+_file_handler.setFormatter(_fmt)
+
+_console_handler = logging.StreamHandler()
+_console_handler.setLevel(logging.INFO)
+_console_handler.setFormatter(_fmt)
+
+logging.basicConfig(level=logging.DEBUG, handlers=[_file_handler, _console_handler])
+logging.getLogger('discord').setLevel(logging.WARNING)
+logging.getLogger('discord.http').setLevel(logging.WARNING)
+
+log = logging.getLogger('music-bot')
+
+# --- URL patterns ---
 SUNO_RE = re.compile(
     r'(?:https?://)?(?:www\.)?(?:suno\.com|app\.suno\.ai)/(?:song|s)/([a-zA-Z0-9-]+)'
 )
 SUNO_UUID_RE = re.compile(
     r'/song/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'
 )
+YOUTUBE_ID_RE = re.compile(
+    r'(?:youtube\.com/(?:watch\?.*?v=|shorts/)|youtu\.be/)([a-zA-Z0-9_-]{11})'
+)
 
 # --- yt-dlp options ---
-# Info-only (no download) — used to read metadata and check cache key
+class _YDLLogger:
+    def debug(self, msg):
+        if not msg.startswith('[debug] '):
+            log.debug('yt-dlp: %s', msg)
+    def info(self, msg):
+        log.info('yt-dlp: %s', msg)
+    def warning(self, msg):
+        log.warning('yt-dlp: %s', msg)
+    def error(self, msg):
+        log.error('yt-dlp: %s', msg)
+
 YDL_INFO = {
     'format': 'bestaudio/best',
     'noplaylist': True,
     'quiet': True,
+    'logger': _YDLLogger(),
     'default_search': 'ytsearch',
 }
 
@@ -108,7 +151,7 @@ def is_suno_url(query: str) -> bool:
 
 
 def duration_tag(seconds) -> str:
-    """Returns ' `[M:SS]`' or '' when duration is unknown — never shows [?:??]."""
+    """Returns ' `[M:SS]`' or '' when duration is unknown."""
     if not seconds:
         return ''
     m, s = divmod(int(seconds), 60)
@@ -120,7 +163,6 @@ def duration_tag(seconds) -> str:
 # ── Download logic ────────────────────────────────────────────────────────────
 
 def tag_mp3(path: Path, title: str, artist: str = 'Suno AI', album: str = 'Suno'):
-    """Write ID3 tags into an MP3 file. Silently skips on failure."""
     try:
         try:
             tags = ID3(str(path))
@@ -131,13 +173,44 @@ def tag_mp3(path: Path, title: str, artist: str = 'Suno AI', album: str = 'Suno'
         tags['TALB'] = TALB(encoding=3, text=album)
         tags.save(str(path))
     except Exception as e:
-        print(f'Warning: could not write ID3 tags to {path.name}: {e}')
+        log.warning('Could not write ID3 tags to %s: %s', path.name, e)
+
+
+def read_cached_mp3(path: Path, webpage_url: str = '') -> dict:
+    """Build a track dict from an already-cached MP3 using its ID3 tags."""
+    title = 'Unknown'
+    duration = 0
+    try:
+        audio = MP3(str(path))
+        duration = int(audio.info.length)
+    except Exception:
+        pass
+    try:
+        tags = ID3(str(path))
+        if 'TIT2' in tags:
+            title = str(tags['TIT2'])
+    except Exception:
+        pass
+    log.debug('Cache hit: %s (%s)', title, path.name)
+    return {
+        'file': str(path),
+        'title': title,
+        'duration': duration,
+        'webpage_url': webpage_url,
+        'from_cache': True,
+    }
+
 
 def download_youtube(query: str) -> dict:
-    """
-    Fetch metadata, check local cache, download + convert to MP3 if needed.
-    Returns a track dict with a guaranteed local 'file' path.
-    """
+    # Fast path: direct YouTube URL whose ID we can extract without a network call
+    m = YOUTUBE_ID_RE.search(query)
+    if m:
+        cached = DOWNLOADS_DIR / f'{m.group(1)}.mp3'
+        if cached.exists():
+            return read_cached_mp3(cached, query)
+
+    # Need network: search query, or direct URL not yet cached
+    log.info('Fetching info for: %s', query)
     with yt_dlp.YoutubeDL(YDL_INFO) as ydl:
         info = ydl.extract_info(query, download=False)
         if 'entries' in info:
@@ -149,29 +222,43 @@ def download_youtube(query: str) -> dict:
     source_url = info.get('webpage_url', query)
     cached     = DOWNLOADS_DIR / f'{video_id}.mp3'
 
-    if not cached.exists():
-        with yt_dlp.YoutubeDL(YDL_DOWNLOAD) as ydl:
-            ydl.extract_info(source_url, download=True)
+    if cached.exists():
+        track = read_cached_mp3(cached, source_url)
+        track['title'] = title
+        track['duration'] = duration
+        return track
+
+    log.info('Downloading: %s', title)
+    with yt_dlp.YoutubeDL(YDL_DOWNLOAD) as ydl:
+        ydl.extract_info(source_url, download=True)
+    log.info('Download complete: %s', title)
 
     return {
         'file': str(cached),
         'title': title,
         'duration': duration,
         'webpage_url': source_url,
+        'from_cache': False,
     }
 
 
 def download_suno(url: str) -> dict:
-    """
-    Resolve the Suno song UUID (handles both /song/<uuid> and /s/<shortid>),
-    download the MP3 from Suno's CDN if not cached, return a track dict.
-    """
+    # Fast path: UUID is already in the URL (full /song/<uuid> links)
+    m = SUNO_UUID_RE.search(url)
+    if m:
+        cached = DOWNLOADS_DIR / f'{m.group(1)}.mp3'
+        if cached.exists():
+            track = read_cached_mp3(cached, url)
+            track.setdefault('artist', 'Suno AI')
+            return track
+
+    # Need to resolve UUID via yt-dlp (short /s/<id> links)
     title     = 'Unknown Suno Track'
     artist    = 'Suno AI'
     duration  = 0
     song_uuid = None
 
-    # yt-dlp resolves Suno URLs and gives us the UUID in info['id']
+    log.info('Resolving Suno URL: %s', url)
     try:
         with yt_dlp.YoutubeDL(YDL_INFO) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -186,17 +273,16 @@ def download_suno(url: str) -> dict:
         ):
             song_uuid = raw_id
         else:
-            m = SUNO_UUID_RE.search(info.get('webpage_url', ''))
-            if m:
-                song_uuid = m.group(1)
-    except Exception:
-        pass
+            m2 = SUNO_UUID_RE.search(info.get('webpage_url', ''))
+            if m2:
+                song_uuid = m2.group(1)
+    except Exception as e:
+        log.warning('yt-dlp could not resolve Suno URL (%s), falling back to URL parse', e)
 
-    # Fallback: UUID might already be in the original URL
     if not song_uuid:
-        m = SUNO_UUID_RE.search(url)
-        if m:
-            song_uuid = m.group(1)
+        m2 = SUNO_UUID_RE.search(url)
+        if m2:
+            song_uuid = m2.group(1)
 
     if not song_uuid:
         raise ValueError(
@@ -206,12 +292,18 @@ def download_suno(url: str) -> dict:
 
     cached = DOWNLOADS_DIR / f'{song_uuid}.mp3'
 
-    if not cached.exists():
-        cdn_url = f'https://cdn1.suno.ai/{song_uuid}.mp3'
-        req = urllib.request.Request(cdn_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=60, context=_SSL_CTX) as resp:
-            cached.write_bytes(resp.read())
-        tag_mp3(cached, title=title, artist=artist)
+    if cached.exists():
+        track = read_cached_mp3(cached, url)
+        track['artist'] = artist
+        return track
+
+    log.info('Downloading Suno track: %s (%s)', title, song_uuid)
+    cdn_url = f'https://cdn1.suno.ai/{song_uuid}.mp3'
+    req = urllib.request.Request(cdn_url, headers={'User-Agent': 'Mozilla/5.0'})
+    with urllib.request.urlopen(req, timeout=60, context=_SSL_CTX) as resp:
+        cached.write_bytes(resp.read())
+    tag_mp3(cached, title=title, artist=artist)
+    log.info('Download complete: %s', title)
 
     return {
         'file': str(cached),
@@ -219,6 +311,7 @@ def download_suno(url: str) -> dict:
         'artist': artist,
         'duration': duration,
         'webpage_url': url,
+        'from_cache': False,
     }
 
 
@@ -248,6 +341,7 @@ async def play_next(guild_id: int, channel: discord.TextChannel):
             loop = asyncio.get_event_loop()
             track = await loop.run_in_executor(None, download_track, track['webpage_url'])
         except Exception as e:
+            log.error('Failed to download playlist track "%s": %s', track.get('title'), e, exc_info=True)
             await channel.send(f'Failed to download track: `{e}` — skipping.')
             await play_next(guild_id, channel)
             return
@@ -256,10 +350,11 @@ async def play_next(guild_id: int, channel: discord.TextChannel):
 
     def after(error):
         if error:
-            print(f'Player error: {error}')
+            log.error('Player error in guild %s: %s', guild_id, error, exc_info=error)
         asyncio.run_coroutine_threadsafe(play_next(guild_id, channel), bot.loop)
 
     vc.play(source, after=after)
+    log.info('Now playing in guild %s: %s', guild_id, track["title"])
     await channel.send(f'Now playing: **{track["title"]}**{duration_tag(track["duration"])}')
 
 
@@ -277,7 +372,7 @@ def save_playlists(data: dict):
 
 def track_to_storable(track: dict) -> dict:
     """Strip the local file path before saving — paths may change across restarts."""
-    return {k: v for k, v in track.items() if k != 'file'}
+    return {k: v for k, v in track.items() if k not in ('file', 'from_cache')}
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -290,21 +385,24 @@ async def play(ctx: commands.Context, *, query: str):
     if not await ensure_voice(ctx):
         return
 
+    log.info('Play request from %s in guild %s: %r', ctx.author, ctx.guild.id, query)
     label = 'Suno track' if is_suno_url(query) else f'`{query}`'
-    await ctx.send(f'Downloading {label}...')
+    await ctx.send(f'Loading {label}...')
 
     try:
         loop = asyncio.get_event_loop()
         track = await loop.run_in_executor(None, download_track, query)
     except Exception as e:
+        log.error('Download failed for %r: %s', query, e, exc_info=True)
         return await ctx.send(f'Could not download: `{e}`')
 
     state = get_state(ctx.guild.id)
     state['queue'].append(track)
     if state['voice_client'].is_playing() or state['voice_client'].is_paused():
+        cache_note = ' *(cached)*' if track.get('from_cache') else ''
         await ctx.send(
-            f'Added to queue: **{track["title"]}**{duration_tag(track["duration"])} '
-            f'(#{len(state["queue"])})'
+            f'Added to queue: **{track["title"]}**{duration_tag(track["duration"])}'
+            f'{cache_note} (#{len(state["queue"])})'
         )
     else:
         await play_next(ctx.guild.id, ctx.channel)
@@ -399,6 +497,7 @@ async def cleanup(ctx: commands.Context):
     files = list(DOWNLOADS_DIR.glob('*.mp3'))
     for f in files:
         f.unlink(missing_ok=True)
+    log.info('Cleanup: deleted %d cached file(s) (requested by %s)', len(files), ctx.author)
     await ctx.send(f'Deleted {len(files)} cached file(s).')
 
 
@@ -429,6 +528,7 @@ async def playlist_save(ctx: commands.Context, *, name: str):
     gid  = str(ctx.guild.id)
     data.setdefault(gid, {})[name] = [track_to_storable(t) for t in state['queue']]
     save_playlists(data)
+    log.info('Playlist saved: "%s" (%d tracks) by %s', name, len(state['queue']), ctx.author)
     await ctx.send(f'Saved **{name}** with {len(state["queue"])} track(s).')
 
 
@@ -442,6 +542,7 @@ async def playlist_load(ctx: commands.Context, *, name: str):
         return await ctx.send(f'No playlist named **{name}**. Use `!pl list` to see all.')
     state = get_state(ctx.guild.id)
     state['queue'].extend(tracks)
+    log.info('Playlist loaded: "%s" (%d tracks) by %s', name, len(tracks), ctx.author)
     await ctx.send(f'Loaded **{name}** — {len(tracks)} track(s) added to queue.')
     if not (state['voice_client'].is_playing() or state['voice_client'].is_paused()):
         await play_next(ctx.guild.id, ctx.channel)
@@ -486,9 +587,11 @@ async def playlist_add(ctx: commands.Context, name: str, *, url: str):
         loop  = asyncio.get_event_loop()
         track = await loop.run_in_executor(None, download_track, url)
     except Exception as e:
+        log.error('Failed to add track to playlist "%s": %s', name, e, exc_info=True)
         return await ctx.send(f'Could not fetch track: `{e}`')
     data[gid][name].append(track_to_storable(track))
     save_playlists(data)
+    log.info('Track added to playlist "%s": %s (by %s)', name, track['title'], ctx.author)
     await ctx.send(f'Added **{track["title"]}** to **{name}**.')
 
 
@@ -514,6 +617,7 @@ async def playlist_delete(ctx: commands.Context, *, name: str):
         return await ctx.send(f'No playlist named **{name}**.')
     del data[gid][name]
     save_playlists(data)
+    log.info('Playlist deleted: "%s" by %s', name, ctx.author)
     await ctx.send(f'Deleted playlist **{name}**.')
 
 
@@ -523,9 +627,24 @@ async def playlist_delete(ctx: commands.Context, *, name: str):
 
 @bot.event
 async def on_ready():
-    print(f'Logged in as {bot.user} (ID: {bot.user.id})')
-    print(f'Download cache: {DOWNLOADS_DIR}')
-    print('Bot is ready.')
+    log.info('Logged in as %s (ID: %s)', bot.user, bot.user.id)
+    log.info('Download cache: %s', DOWNLOADS_DIR)
+    log.info('Log file: %s', LOGS_DIR / 'music-bot.log')
+    log.info('Bot is ready.')
+
+
+@bot.event
+async def on_command_error(ctx: commands.Context, error: commands.CommandError):
+    if isinstance(error, commands.CommandNotFound):
+        return
+    if isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send(f'Missing argument: `{error.param.name}`')
+        return
+    log.error(
+        'Unhandled command error — command: %s | user: %s | guild: %s | error: %s',
+        ctx.command, ctx.author, ctx.guild.id, error,
+        exc_info=error,
+    )
 
 
 @bot.event
@@ -539,4 +658,4 @@ token = os.getenv('DISCORD_TOKEN')
 if not token:
     raise ValueError('DISCORD_TOKEN not set in .env file')
 
-bot.run(token)
+bot.run(token, log_handler=None)

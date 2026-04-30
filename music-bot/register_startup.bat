@@ -1,8 +1,8 @@
 @echo off
-:: Registers the Suno bot to start automatically at Windows login.
+:: Registers the Music bot to start automatically at Windows login.
 :: Run this script once as Administrator.
 
-set TASK_NAME=SunoDiscordBot
+set TASK_NAME=MusicDiscordBot
 set VBS_PATH=%~dp0start_silent.vbs
 
 echo Registering "%TASK_NAME%" in Task Scheduler...

@@ -5,7 +5,7 @@
 Music Discord Bot
 
 # Downloaded audio cache
-suno-bot/downloads/
+*/downloads/
 
 # Python
 __pycache__/
