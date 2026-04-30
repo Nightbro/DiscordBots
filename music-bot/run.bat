@@ -1,8 +1,8 @@
 @echo off
-title Suno Discord Bot
+title Music Discord Bot
 color 0D
 echo ============================================
-echo         Suno Discord Bot Launcher
+echo         Music Discord Bot Launcher
 echo ============================================
 echo.
 
@@ -52,6 +52,8 @@ if %errorlevel% neq 0 (
     pause
     exit /b 1
 )
+:: Always upgrade yt-dlp — YouTube changes frequently and old versions break silently
+pip install -q -U yt-dlp
 echo Dependencies ready!
 echo.
 
