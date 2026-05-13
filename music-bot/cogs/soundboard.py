@@ -17,11 +17,37 @@ _YES = '✅'
 _NO  = '❌'
 
 
+_PANEL_TIMEOUT = 300  # seconds of inactivity before panel is deleted
+
+
 class SoundboardCog(commands.Cog, name='Soundboard'):
     def __init__(self, bot):
         self.bot = bot
-        # guild_id -> (message_id, {emoji_str: sound_name})
-        self._panels: dict[int, tuple[int, dict[str, str]]] = {}
+        # guild_id -> (discord.Message, {emoji_str: sound_name})
+        self._panels: dict[int, tuple] = {}
+        # guild_id -> inactivity asyncio.Task
+        self._panel_tasks: dict[int, asyncio.Task] = {}
+
+    # ── Panel timeout ─────────────────────────────────────────────────────────
+
+    async def _panel_timeout(self, guild_id: int):
+        await asyncio.sleep(_PANEL_TIMEOUT)
+        panel = self._panels.pop(guild_id, None)
+        self._panel_tasks.pop(guild_id, None)
+        if panel:
+            panel_msg, _ = panel
+            try:
+                await panel_msg.delete()
+            except discord.HTTPException:
+                pass
+
+    def _reset_panel_timer(self, guild_id: int):
+        existing = self._panel_tasks.pop(guild_id, None)
+        if existing:
+            existing.cancel()
+        self._panel_tasks[guild_id] = asyncio.get_event_loop().create_task(
+            self._panel_timeout(guild_id)
+        )
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -83,7 +109,8 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
             await msg.add_reaction(entry['emoji'])
             emoji_map[entry['emoji']] = name
 
-        self._panels[ctx.guild.id] = (msg.id, emoji_map)
+        self._panels[ctx.guild.id] = (msg, emoji_map)
+        self._reset_panel_timer(ctx.guild.id)
 
     async def _play_from_reaction(
         self,
@@ -228,8 +255,8 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         if panel is None:
             return
 
-        panel_msg_id, emoji_map = panel
-        if payload.message_id != panel_msg_id:
+        panel_msg, emoji_map = panel
+        if payload.message_id != panel_msg.id:
             return
 
         emoji_str = str(payload.emoji)
@@ -244,11 +271,11 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
             return
 
         try:
-            message = await channel.fetch_message(payload.message_id)
-            await message.remove_reaction(payload.emoji, member)
+            await panel_msg.remove_reaction(payload.emoji, member)
         except discord.HTTPException:
             pass
 
+        self._reset_panel_timer(payload.guild_id)
         await self._play_from_reaction(guild, channel, member, sound_name)
 
 

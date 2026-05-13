@@ -101,12 +101,23 @@ class TestSendPanel:
         msg = _panel_msg(ctx.guild.id)
         ctx.send = AsyncMock(return_value=msg)
 
-        await cog._send_panel(ctx)
+        with patch.object(cog, '_reset_panel_timer'):
+            await cog._send_panel(ctx)
 
         assert ctx.guild.id in cog._panels
-        stored_msg_id, emoji_map = cog._panels[ctx.guild.id]
-        assert stored_msg_id == msg.id
+        stored_msg, emoji_map = cog._panels[ctx.guild.id]
+        assert stored_msg is msg
         assert emoji_map['💥'] == 'boom'
+
+    async def test_panel_starts_timer(self, cog, ctx, sound_file):
+        sbc.add_sound(ctx.guild.id, 'boom', '💥', str(sound_file), 'src')
+        msg = _panel_msg(ctx.guild.id)
+        ctx.send = AsyncMock(return_value=msg)
+
+        with patch.object(cog, '_reset_panel_timer') as mock_reset:
+            await cog._send_panel(ctx)
+
+        mock_reset.assert_called_once_with(ctx.guild.id)
 
     async def test_sb_group_calls_panel(self, cog, ctx):
         with patch.object(cog, '_send_panel', new=AsyncMock()) as mock_panel:
@@ -386,7 +397,11 @@ class TestPlayFromReaction:
 
 class TestOnRawReactionAdd:
     def _register_panel(self, cog, guild_id, msg_id, emoji_map):
-        cog._panels[guild_id] = (msg_id, emoji_map)
+        panel_msg = AsyncMock()
+        panel_msg.id = msg_id
+        panel_msg.remove_reaction = AsyncMock()
+        cog._panels[guild_id] = (panel_msg, emoji_map)
+        return panel_msg
 
     async def test_ignores_bot_own_reaction(self, cog, mock_bot, sound_file):
         mock_bot.user = MagicMock()
@@ -423,7 +438,6 @@ class TestOnRawReactionAdd:
         guild = MagicMock()
         guild.id = 1
         channel = AsyncMock()
-        channel.fetch_message = AsyncMock(return_value=AsyncMock())
         guild.get_channel = MagicMock(return_value=channel)
         mock_bot.get_guild = MagicMock(return_value=guild)
 
@@ -435,16 +449,12 @@ class TestOnRawReactionAdd:
         mock_bot.user = MagicMock(id=99)
         guild_id = 111222333
         sbc.add_sound(guild_id, 'boom', '💥', str(sound_file), 'src')
-        self._register_panel(cog, guild_id, 9999, {'💥': 'boom'})
+        panel_msg = self._register_panel(cog, guild_id, 9999, {'💥': 'boom'})
 
         state = get_state(mock_bot, guild_id)
         state['voice_client'] = voice_client
 
-        panel_msg = AsyncMock()
-        panel_msg.remove_reaction = AsyncMock()
         channel = AsyncMock()
-        channel.fetch_message = AsyncMock(return_value=panel_msg)
-
         member = MagicMock()
         member.id = 42
         member.mention = '<@42>'
@@ -459,11 +469,41 @@ class TestOnRawReactionAdd:
         payload = _make_payload(guild_id, 9999, '💥', member, channel_id=5)
         payload.user_id = 42
 
-        with patch('cogs.soundboard.discord.FFmpegPCMAudio', return_value=MagicMock()):
+        with patch.object(cog, '_reset_panel_timer'), \
+             patch('cogs.soundboard.discord.FFmpegPCMAudio', return_value=MagicMock()):
             await cog.on_raw_reaction_add(payload)
 
         panel_msg.remove_reaction.assert_called_once()
         voice_client.play.assert_called_once()
+
+    async def test_reaction_resets_timer(self, cog, mock_bot, sound_file, voice_client):
+        mock_bot.user = MagicMock(id=99)
+        guild_id = 111222333
+        sbc.add_sound(guild_id, 'boom', '💥', str(sound_file), 'src')
+        self._register_panel(cog, guild_id, 9999, {'💥': 'boom'})
+
+        state = get_state(mock_bot, guild_id)
+        state['voice_client'] = voice_client
+
+        channel = AsyncMock()
+        member = MagicMock()
+        member.id = 42
+        member.voice = MagicMock()
+        member.voice.channel = voice_client.channel
+
+        guild = MagicMock()
+        guild.id = guild_id
+        guild.get_channel = MagicMock(return_value=channel)
+        mock_bot.get_guild = MagicMock(return_value=guild)
+
+        payload = _make_payload(guild_id, 9999, '💥', member, channel_id=5)
+        payload.user_id = 42
+
+        with patch.object(cog, '_reset_panel_timer') as mock_reset, \
+             patch('cogs.soundboard.discord.FFmpegPCMAudio', return_value=MagicMock()):
+            await cog.on_raw_reaction_add(payload)
+
+        mock_reset.assert_called_once_with(guild_id)
 
     async def test_reaction_no_guild_in_cache(self, cog, mock_bot):
         mock_bot.user = MagicMock(id=99)
@@ -474,6 +514,80 @@ class TestOnRawReactionAdd:
         payload.user_id = 42
         # Should not raise
         await cog.on_raw_reaction_add(payload)
+
+
+# ---------------------------------------------------------------------------
+# TestPanelTimeout
+# ---------------------------------------------------------------------------
+
+class TestPanelTimeout:
+    async def test_timeout_deletes_message(self, cog):
+        panel_msg = AsyncMock()
+        panel_msg.delete = AsyncMock()
+        cog._panels[1] = (panel_msg, {'💥': 'boom'})
+
+        with patch('cogs.soundboard.asyncio.sleep', new=AsyncMock()):
+            await cog._panel_timeout(1)
+
+        panel_msg.delete.assert_called_once()
+        assert 1 not in cog._panels
+
+    async def test_timeout_clears_task_entry(self, cog):
+        panel_msg = AsyncMock()
+        panel_msg.delete = AsyncMock()
+        cog._panels[1] = (panel_msg, {})
+        cog._panel_tasks[1] = MagicMock()
+
+        with patch('cogs.soundboard.asyncio.sleep', new=AsyncMock()):
+            await cog._panel_timeout(1)
+
+        assert 1 not in cog._panel_tasks
+
+    async def test_timeout_silent_on_http_error(self, cog):
+        panel_msg = AsyncMock()
+        panel_msg.delete = AsyncMock(side_effect=discord.HTTPException(MagicMock(), 'gone'))
+        cog._panels[1] = (panel_msg, {})
+
+        with patch('cogs.soundboard.asyncio.sleep', new=AsyncMock()):
+            await cog._panel_timeout(1)  # should not raise
+
+    async def test_timeout_noop_when_panel_already_gone(self, cog):
+        # Panel may have been replaced by a new one before timeout fires
+        with patch('cogs.soundboard.asyncio.sleep', new=AsyncMock()):
+            await cog._panel_timeout(999)  # unknown guild — should not raise
+
+    async def test_reset_timer_cancels_old_task(self, cog):
+        old_task = MagicMock()
+        cog._panel_tasks[1] = old_task
+        captured = []
+
+        def capture(coro):
+            captured.append(coro)
+            return MagicMock()
+
+        with patch('cogs.soundboard.asyncio.get_event_loop') as mock_loop:
+            mock_loop.return_value.create_task = capture
+            cog._reset_panel_timer(1)
+
+        for c in captured:
+            c.close()
+        old_task.cancel.assert_called_once()
+
+    async def test_reset_timer_creates_new_task(self, cog):
+        captured = []
+        new_task = MagicMock()
+
+        def capture(coro):
+            captured.append(coro)
+            return new_task
+
+        with patch('cogs.soundboard.asyncio.get_event_loop') as mock_loop:
+            mock_loop.return_value.create_task = capture
+            cog._reset_panel_timer(1)
+
+        for c in captured:
+            c.close()
+        assert cog._panel_tasks[1] is new_task
 
 
 # ---------------------------------------------------------------------------
