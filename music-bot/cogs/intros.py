@@ -18,6 +18,7 @@ log = logging.getLogger('music-bot.intros')
 
 _YES = '✅'
 _NO  = '❌'
+_NO_REACTION = ('🇳', '🇴')  # react N O to reject a command
 
 
 def _trigger_label(trigger: str, entry: dict) -> str:
@@ -35,7 +36,12 @@ class IntrosCog(commands.Cog, name='Intros'):
     def __init__(self, bot):
         self.bot = bot
 
-    # ── Helpers ───────────────────────────────────────────────────────────────
+    # ── Helpers ──────────────────────────────────────────────────────────────
+
+    async def _reject_not_in_channel(self, ctx: commands.Context):
+        """React 🇳🇴 to the command message when the invoker isn't in the bot's voice channel."""
+        for emoji in _NO_REACTION:
+            await ctx.message.add_reaction(emoji)
 
     async def _ask_to_join(self, ctx: commands.Context) -> bool:
         """Prompt the invoking user with ✅/❌ to decide whether the bot should join.
@@ -293,9 +299,13 @@ class IntrosCog(commands.Cog, name='Intros'):
             if not await self._ask_to_join(ctx):
                 return
             if not ctx.author.voice:
-                return await ctx.send("You need to be in a voice channel for me to join.")
+                await self._reject_not_in_channel(ctx)
+                return
             state['voice_client'] = await ctx.author.voice.channel.connect()
             vc = state['voice_client']
+        elif not ctx.author.voice or ctx.author.voice.channel != vc.channel:
+            await self._reject_not_in_channel(ctx)
+            return
 
         if vc.is_playing() or vc.is_paused():
             return await ctx.send('Cannot play intro while audio is already playing.')
