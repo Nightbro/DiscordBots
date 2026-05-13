@@ -18,7 +18,6 @@ log = logging.getLogger('music-bot.intros')
 
 _YES = '✅'
 _NO  = '❌'
-_NO_REACTION = ('🇳', '🇴')  # react N O to reject a command
 
 
 def _trigger_label(trigger: str, entry: dict) -> str:
@@ -37,11 +36,6 @@ class IntrosCog(commands.Cog, name='Intros'):
         self.bot = bot
 
     # ── Helpers ──────────────────────────────────────────────────────────────
-
-    async def _reject_not_in_channel(self, ctx: commands.Context):
-        """React 🇳🇴 to the command message when the invoker isn't in the bot's voice channel."""
-        for emoji in _NO_REACTION:
-            await ctx.message.add_reaction(emoji)
 
     async def _ask_to_join(self, ctx: commands.Context) -> bool:
         """Prompt the invoking user with ✅/❌ to decide whether the bot should join.
@@ -297,13 +291,13 @@ class IntrosCog(commands.Cog, name='Intros'):
 
         # User must be in a voice channel before anything else
         if not ctx.author.voice:
-            await self._reject_not_in_channel(ctx)
+            await ctx.send("I will not listen to someone who doesn't even have the courage to show up.")
             return
 
         if vc is not None and vc.is_connected():
             # Bot already in voice — user must be in the same channel
             if ctx.author.voice.channel != vc.channel:
-                await self._reject_not_in_channel(ctx)
+                await ctx.send("Sorry, I cannot hear you — I am kinda busy.")
                 return
         else:
             # Bot not in voice — ask to join
