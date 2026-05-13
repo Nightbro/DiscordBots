@@ -77,6 +77,7 @@ def ctx(mock_bot, voice_channel):
     c.send = AsyncMock()
     c.channel = MagicMock()
     c.message.attachments = []
+    c.message.add_reaction = AsyncMock()
     return c
 
 

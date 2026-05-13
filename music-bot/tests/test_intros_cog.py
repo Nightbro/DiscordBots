@@ -626,7 +626,7 @@ class TestIntroTrigger:
         ctx.author.voice.channel.connect.assert_called_once()
         new_vc.play.assert_called_once()
 
-    async def test_user_not_in_voice_after_confirm(self, cog, ctx, mock_bot):
+    async def test_user_not_in_voice_after_confirm_reacts_no(self, cog, ctx, mock_bot):
         member = MagicMock(spec=discord.Member)
         ctx.author.voice = None
         with patch("cogs.intros.commands.MemberConverter") as mock_conv:
@@ -635,11 +635,25 @@ class TestIntroTrigger:
                 state = get_state(mock_bot, ctx.guild.id)
                 state["voice_client"] = None
                 await cog.intro_trigger.callback(cog, ctx, member_str="@Someone")
-        assert any("You need to be in a voice channel" in str(c) for c in ctx.send.call_args_list)
+        reacted = [c.args[0] for c in ctx.message.add_reaction.call_args_list]
+        assert '🇳' in reacted and '🇴' in reacted
+
+    async def test_user_in_different_channel_reacts_no(self, cog, ctx, mock_bot, voice_client):
+        member = MagicMock(spec=discord.Member)
+        voice_client.channel = MagicMock()           # bot is in some channel
+        ctx.author.voice.channel = MagicMock()       # user is in a different channel
+        with patch("cogs.intros.commands.MemberConverter") as mock_conv:
+            mock_conv.return_value.convert = AsyncMock(return_value=member)
+            state = get_state(mock_bot, ctx.guild.id)
+            state["voice_client"] = voice_client
+            await cog.intro_trigger.callback(cog, ctx, member_str="@Someone")
+        reacted = [c.args[0] for c in ctx.message.add_reaction.call_args_list]
+        assert '🇳' in reacted and '🇴' in reacted
 
     async def test_refuses_while_playing(self, cog, ctx, mock_bot, voice_client):
         member = MagicMock(spec=discord.Member)
         voice_client.is_playing.return_value = True
+        voice_client.channel = ctx.author.voice.channel  # same channel as invoker
         with patch("cogs.intros.commands.MemberConverter") as mock_conv:
             mock_conv.return_value.convert = AsyncMock(return_value=member)
             state = get_state(mock_bot, ctx.guild.id)
@@ -652,6 +666,7 @@ class TestIntroTrigger:
         member.guild = ctx.guild
         member.id = 99
         member.display_name = "Alice"
+        voice_client.channel = ctx.author.voice.channel
         with patch("cogs.intros.commands.MemberConverter") as mock_conv:
             mock_conv.return_value.convert = AsyncMock(return_value=member)
             with patch("cogs.intros.get_user_intro", return_value=None):
@@ -666,6 +681,7 @@ class TestIntroTrigger:
         member.id = 42
         member.display_name = "Bob"
         voice_client.play = MagicMock()
+        voice_client.channel = ctx.author.voice.channel
 
         intro = tmp_path / "intro.mp3"
         intro.write_bytes(b"fake")
