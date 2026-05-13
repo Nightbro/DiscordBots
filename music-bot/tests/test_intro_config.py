@@ -146,3 +146,42 @@ class TestGetUserIntro:
             with patch("utils.intro_config._INTRO_FILE", tmp_path / "nope.mp3"):
                 from utils.intro_config import get_user_intro
                 assert get_user_intro(99, 42) == server
+
+
+class TestAutoJoin:
+    def _write_cfg(self, tmp_path, data):
+        f = tmp_path / "config.json"
+        f.write_text(json.dumps(data))
+        return f
+
+    def test_defaults_to_false(self, tmp_path):
+        cfg = self._write_cfg(tmp_path, {})
+        with patch("utils.intro_config.INTRO_CONFIG_FILE", cfg):
+            from utils.intro_config import get_auto_join
+            assert get_auto_join(99) is False
+
+    def test_returns_true_when_set(self, tmp_path):
+        cfg = self._write_cfg(tmp_path, {"99": {"_auto_join": True}})
+        with patch("utils.intro_config.INTRO_CONFIG_FILE", cfg):
+            from utils.intro_config import get_auto_join
+            assert get_auto_join(99) is True
+
+    def test_set_auto_join_persists(self, tmp_path):
+        cfg = self._write_cfg(tmp_path, {})
+        with patch("utils.intro_config.INTRO_CONFIG_FILE", cfg):
+            from utils.intro_config import set_auto_join, get_auto_join
+            set_auto_join(99, True)
+            assert get_auto_join(99) is True
+            set_auto_join(99, False)
+            assert get_auto_join(99) is False
+
+    def test_set_auto_join_preserves_other_keys(self, tmp_path):
+        cfg = self._write_cfg(tmp_path, {
+            "99": {"bot": {"file": "/some.mp3", "source": "x"}}
+        })
+        with patch("utils.intro_config.INTRO_CONFIG_FILE", cfg):
+            from utils.intro_config import set_auto_join, load_intro_config
+            set_auto_join(99, True)
+            data = load_intro_config()
+            assert data["99"]["bot"]["source"] == "x"
+            assert data["99"]["_auto_join"] is True
