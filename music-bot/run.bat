@@ -1,6 +1,7 @@
 @echo off
 title Music Discord Bot
 color 0D
+
 echo ============================================
 echo         Music Discord Bot Launcher
 echo ============================================
@@ -57,7 +58,7 @@ pip install -q -U yt-dlp
 echo Dependencies ready!
 echo.
 
-:: ── Fix SSL cert issue (Miniconda Windows cert store bug) ──
+:: ── Fix SSL cert issue ────────────────────────
 echo Fixing SSL certificates...
 for /f "delims=" %%i in ('python -c "import certifi; print(certifi.where())"') do set SSL_CERT_FILE=%%i
 set REQUESTS_CA_BUNDLE=%SSL_CERT_FILE%
@@ -81,16 +82,23 @@ if %errorlevel% equ 0 (
 echo Configuration looks good!
 echo.
 
-:: ── Launch Bot ────────────────────────────────
+:: ── Run loop ───────────────────────────────────
+:run_bot
 echo ============================================
-echo  Bot is starting... Close this window to stop the bot.
+echo  Bot is starting...
 echo ============================================
 echo.
 python bot.py
-
-:: If bot crashes, show error
 echo.
 echo ============================================
-echo  Bot stopped or crashed.
+echo  Bot stopped (exit code: %errorlevel%)
 echo ============================================
-pause
+echo.
+echo  [R] Restart bot
+echo  [Q] Quit
+echo.
+set /p choice="  Your choice: "
+if /i "%choice%"=="R" goto :run_bot
+if /i "%choice%"=="Q" exit /b 0
+:: Default to restart on any other input
+goto :run_bot
