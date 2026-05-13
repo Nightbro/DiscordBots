@@ -50,7 +50,20 @@
 - `INTRO_ON_BOT_JOIN` and `INTRO_ON_USER_JOIN` in `.env` act as global on/off switches.
 - **Auto-join** (`!intro autojoin on`) — bot connects automatically when the first non-bot member joins any voice channel it isn't already in. Setting is per-server and persisted in `intro_config.json`.
 
-## Sources supported by `!play` and `!intro set`
+## Soundboard (`!soundboard` / `!sb`)
+
+| Command | Description |
+|---|---|
+| `!sb add <name> <emoji> [url/search]` | Add a sound. Attach an MP3 **or** provide a YouTube/Suno/search URL. |
+| `!sb remove <name>` | Remove a sound and delete its file. |
+| `!sb trigger <name>` | Play a sound (bot must be idle in voice). |
+| `!sb list` | List all sounds configured for this server. |
+
+### Soundboard behaviour
+- Sounds are per-server and stored persistently.
+- `!sb trigger` uses the same voice rules as `!intro trigger`: user must be in a voice channel, and if the bot is already playing audio, the command is rejected.
+
+## Sources supported by `!play`, `!intro set`, and `!sb add`
 - YouTube URLs and short links (`youtu.be/…`)
 - YouTube search queries (e.g. `!play never gonna give you up`)
 - Suno song URLs (`suno.com/song/…` or `app.suno.ai/s/…`)
