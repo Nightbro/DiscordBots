@@ -27,19 +27,6 @@
 | `!pl remove <name> <number>` | Remove a track from a playlist by its number. |
 | `!pl delete <name>` | Delete a playlist entirely. |
 
-## Reactions (`!react`)
-
-| Command | Description |
-|---|---|
-| `!react add <msg_id> <emoji>` | Add a reaction to a message in the current channel. |
-| `!react count <msg_id> [emoji]` | Show reaction counts (all emojis, or one specific). |
-| `!react remove <msg_id> <emoji> [@user]` | Remove a reaction. Removes the bot's own if no @user given (requires **Manage Messages** to remove others'). |
-| `!react watch <msg_id> <emoji> [response]` | Fire a message when someone reacts with emoji to that message. |
-| `!react unwatch <msg_id> <emoji>` | Remove a watch trigger. |
-| `!react watches` | List all active triggers for this server. |
-
-**Watch response placeholders:** `{user}` (mention), `{emoji}`. Default: `{user} reacted with {emoji}`.
-
 ## Intro Sounds (`!intro` / `!in`)
 
 | Command | Description |
