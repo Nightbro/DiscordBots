@@ -237,7 +237,7 @@ class IntrosCog(commands.Cog, name='Intros'):
         vc: discord.VoiceClient = state['voice_client']
 
         if vc is None or not vc.is_connected():
-            return await ctx.send('Not connected to a voice channel.')
+            return await ctx.send("I'm not in a voice channel. Use `!join` to bring me in first.")
         if vc.is_playing() or vc.is_paused():
             return await ctx.send('Cannot play intro while audio is already playing.')
 
