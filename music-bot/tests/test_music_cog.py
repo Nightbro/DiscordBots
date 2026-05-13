@@ -58,6 +58,43 @@ class TestJoin:
         await cog.join.callback(cog, ctx_no_voice)
         ctx_no_voice.send.assert_called_with("You need to be in a voice channel.")
 
+    async def test_join_plays_intro_on_fresh_connect(self, cog, ctx, voice_client, tmp_path):
+        intro = tmp_path / "intro.mp3"
+        intro.write_bytes(b"fake")
+
+        # Simulate _ensure_voice setting just_connected=True (fresh connection)
+        async def fake_ensure_voice(_ctx):
+            state = get_state(cog.bot, _ctx.guild.id)
+            state["voice_client"] = voice_client
+            state["just_connected"] = True
+            return True
+
+        with patch.object(cog, "_ensure_voice", side_effect=fake_ensure_voice):
+            with patch("cogs.music._INTRO_ON_BOT_JOIN", True):
+                with patch("cogs.music.get_intro_file", return_value=intro):
+                    with patch("cogs.music.discord.FFmpegPCMAudio"):
+                        await cog.join.callback(cog, ctx)
+
+        voice_client.play.assert_called_once()
+
+    async def test_join_no_intro_when_already_connected(self, cog, ctx, voice_client, tmp_path):
+        intro = tmp_path / "intro.mp3"
+        intro.write_bytes(b"fake")
+
+        # Simulate _ensure_voice setting just_connected=False (already connected)
+        async def fake_ensure_voice(_ctx):
+            state = get_state(cog.bot, _ctx.guild.id)
+            state["voice_client"] = voice_client
+            state["just_connected"] = False
+            return True
+
+        with patch.object(cog, "_ensure_voice", side_effect=fake_ensure_voice):
+            with patch("cogs.music._INTRO_ON_BOT_JOIN", True):
+                with patch("cogs.music.get_intro_file", return_value=intro):
+                    await cog.join.callback(cog, ctx)
+
+        voice_client.play.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # !skip / !pause / !resume

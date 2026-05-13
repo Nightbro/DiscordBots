@@ -7,7 +7,7 @@ import discord
 from discord.ext import commands
 
 from utils.config import PLAYLISTS_FILE, DOWNLOADS_DIR, _INTRO_ON_BOT_JOIN
-from utils.downloader import download_track, is_suno_url, duration_tag
+from utils.downloader import download_track, is_suno_url, duration_tag, FFMPEG_OPTIONS
 from utils.player import get_state, play_next
 from utils.intro_config import get_intro_file
 
@@ -182,6 +182,11 @@ class MusicCog(commands.Cog, name='Music'):
     async def join(self, ctx: commands.Context):
         if not await self._ensure_voice(ctx):
             return
+        state = get_state(self.bot, ctx.guild.id)
+        if state.pop('just_connected', False) and _INTRO_ON_BOT_JOIN:
+            intro = get_intro_file(ctx.guild.id, 'bot')
+            if intro:
+                state['voice_client'].play(discord.FFmpegPCMAudio(str(intro), **FFMPEG_OPTIONS))
         await ctx.send(f'Joined **{ctx.author.voice.channel.name}**.')
 
     @commands.command(name='leave', aliases=['dc'])
