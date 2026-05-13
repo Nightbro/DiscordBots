@@ -588,19 +588,17 @@ class TestIntroTrigger:
             await cog.intro_trigger.callback(cog, ctx, member_str="nobody")
         ctx.send.assert_called_with("Could not find that member.")
 
-    async def test_user_not_in_voice_reacts_no_immediately(self, cog, ctx, mock_bot):
+    async def test_user_not_in_voice_sends_sassy_message(self, cog, ctx, mock_bot):
         member = MagicMock(spec=discord.Member)
-        ctx.author.voice = None  # user not in any channel
+        ctx.author.voice = None
         with patch("cogs.intros.commands.MemberConverter") as mock_conv:
             mock_conv.return_value.convert = AsyncMock(return_value=member)
             with patch.object(cog, "_ask_to_join", new=AsyncMock()) as mock_ask:
                 state = get_state(mock_bot, ctx.guild.id)
                 state["voice_client"] = None
                 await cog.intro_trigger.callback(cog, ctx, member_str="@Someone")
-        # _ask_to_join must never be called — rejection happens before the prompt
         mock_ask.assert_not_called()
-        reacted = [c.args[0] for c in ctx.message.add_reaction.call_args_list]
-        assert '🇳' in reacted and '🇴' in reacted
+        assert any("courage" in str(c) for c in ctx.send.call_args_list)
 
     async def test_bot_not_in_voice_user_declines(self, cog, ctx, mock_bot):
         member = MagicMock(spec=discord.Member)
@@ -640,7 +638,7 @@ class TestIntroTrigger:
         ctx.author.voice.channel.connect.assert_called_once()
         new_vc.play.assert_called_once()
 
-    async def test_user_in_different_channel_reacts_no(self, cog, ctx, mock_bot, voice_client):
+    async def test_user_in_different_channel_sends_busy_message(self, cog, ctx, mock_bot, voice_client):
         member = MagicMock(spec=discord.Member)
         voice_client.channel = MagicMock()           # bot is in some channel
         ctx.author.voice.channel = MagicMock()       # user is in a different channel
@@ -649,8 +647,7 @@ class TestIntroTrigger:
             state = get_state(mock_bot, ctx.guild.id)
             state["voice_client"] = voice_client
             await cog.intro_trigger.callback(cog, ctx, member_str="@Someone")
-        reacted = [c.args[0] for c in ctx.message.add_reaction.call_args_list]
-        assert '🇳' in reacted and '🇴' in reacted
+        assert any("busy" in str(c) for c in ctx.send.call_args_list)
 
     async def test_refuses_while_playing(self, cog, ctx, mock_bot, voice_client):
         member = MagicMock(spec=discord.Member)
