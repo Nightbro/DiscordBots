@@ -472,6 +472,110 @@ class TestIntroAutojoin:
 
 
 # ---------------------------------------------------------------------------
+# _ask_to_join helper
+# ---------------------------------------------------------------------------
+
+def _make_msg_mock():
+    msg = MagicMock()
+    msg.id = 987654321
+    msg.add_reaction = AsyncMock()
+    msg.remove_reaction = AsyncMock()
+    msg.edit = AsyncMock()
+    return msg
+
+
+def _make_reaction_mock(emoji, msg):
+    r = MagicMock()
+    r.emoji = emoji
+    r.message = msg
+    return r
+
+
+class TestAskToJoin:
+    async def test_yes_returns_true_and_edits_message(self, cog, ctx):
+        msg = _make_msg_mock()
+        ctx.send = AsyncMock(return_value=msg)
+        reaction = _make_reaction_mock('✅', msg)
+        ctx.bot = cog.bot
+        cog.bot.wait_for = AsyncMock(return_value=(reaction, ctx.author))
+
+        result = await cog._ask_to_join(ctx)
+
+        assert result is True
+        msg.edit.assert_called_once()
+        assert "joining" in msg.edit.call_args[1]["content"].lower()
+
+    async def test_no_returns_false_and_edits_message(self, cog, ctx):
+        msg = _make_msg_mock()
+        ctx.send = AsyncMock(return_value=msg)
+        reaction = _make_reaction_mock('❌', msg)
+        cog.bot.wait_for = AsyncMock(return_value=(reaction, ctx.author))
+
+        result = await cog._ask_to_join(ctx)
+
+        assert result is False
+        msg.edit.assert_called_once()
+        assert "joining" not in msg.edit.call_args[1]["content"].lower()
+
+    async def test_timeout_returns_false(self, cog, ctx):
+        import asyncio as _asyncio
+        msg = _make_msg_mock()
+        ctx.send = AsyncMock(return_value=msg)
+        cog.bot.wait_for = AsyncMock(side_effect=_asyncio.TimeoutError())
+
+        result = await cog._ask_to_join(ctx)
+
+        assert result is False
+        assert "timed out" in msg.edit.call_args[1]["content"].lower()
+
+    async def test_adds_both_reactions(self, cog, ctx):
+        msg = _make_msg_mock()
+        ctx.send = AsyncMock(return_value=msg)
+        reaction = _make_reaction_mock('✅', msg)
+        cog.bot.wait_for = AsyncMock(return_value=(reaction, ctx.author))
+
+        await cog._ask_to_join(ctx)
+
+        emojis_added = [c.args[0] for c in msg.add_reaction.call_args_list]
+        assert '✅' in emojis_added
+        assert '❌' in emojis_added
+
+    async def test_removes_user_reaction(self, cog, ctx):
+        msg = _make_msg_mock()
+        ctx.send = AsyncMock(return_value=msg)
+        reaction = _make_reaction_mock('✅', msg)
+        cog.bot.wait_for = AsyncMock(return_value=(reaction, ctx.author))
+
+        await cog._ask_to_join(ctx)
+
+        remove_calls = [(c.args[0], c.args[1]) for c in msg.remove_reaction.call_args_list]
+        assert ('✅', ctx.author) in remove_calls
+
+    async def test_removes_bot_reactions(self, cog, ctx):
+        msg = _make_msg_mock()
+        ctx.send = AsyncMock(return_value=msg)
+        reaction = _make_reaction_mock('✅', msg)
+        cog.bot.wait_for = AsyncMock(return_value=(reaction, ctx.author))
+
+        await cog._ask_to_join(ctx)
+
+        removed_emojis = [c.args[0] for c in msg.remove_reaction.call_args_list]
+        assert '✅' in removed_emojis
+        assert '❌' in removed_emojis
+
+    async def test_skips_user_reaction_removal_on_forbidden(self, cog, ctx):
+        msg = _make_msg_mock()
+        msg.remove_reaction = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "no perm"))
+        ctx.send = AsyncMock(return_value=msg)
+        reaction = _make_reaction_mock('✅', msg)
+        cog.bot.wait_for = AsyncMock(return_value=(reaction, ctx.author))
+
+        # Should not raise
+        result = await cog._ask_to_join(ctx)
+        assert result is True
+
+
+# ---------------------------------------------------------------------------
 # !intro trigger
 # ---------------------------------------------------------------------------
 
@@ -484,14 +588,54 @@ class TestIntroTrigger:
             await cog.intro_trigger.callback(cog, ctx, member_str="nobody")
         ctx.send.assert_called_with("Could not find that member.")
 
-    async def test_bot_not_in_voice(self, cog, ctx, mock_bot):
+    async def test_bot_not_in_voice_user_declines(self, cog, ctx, mock_bot):
         member = MagicMock(spec=discord.Member)
         with patch("cogs.intros.commands.MemberConverter") as mock_conv:
             mock_conv.return_value.convert = AsyncMock(return_value=member)
-            state = get_state(mock_bot, ctx.guild.id)
-            state["voice_client"] = None
-            await cog.intro_trigger.callback(cog, ctx, member_str="@Someone")
-        ctx.send.assert_called_with("I'm not in a voice channel. Use `!join` to bring me in first.")
+            with patch.object(cog, "_ask_to_join", new=AsyncMock(return_value=False)):
+                state = get_state(mock_bot, ctx.guild.id)
+                state["voice_client"] = None
+                await cog.intro_trigger.callback(cog, ctx, member_str="@Someone")
+        # stopped after decline — no further sends beyond what _ask_to_join did
+        ctx.send.assert_not_called()
+
+    async def test_joins_and_plays_when_confirmed(self, cog, ctx, mock_bot, tmp_path):
+        member = MagicMock(spec=discord.Member)
+        member.guild = ctx.guild
+        member.id = 42
+        member.display_name = "Bob"
+
+        intro = tmp_path / "intro.mp3"
+        intro.write_bytes(b"fake")
+
+        new_vc = MagicMock()
+        new_vc.is_playing.return_value = False
+        new_vc.is_paused.return_value = False
+        new_vc.play = MagicMock()
+        ctx.author.voice.channel.connect = AsyncMock(return_value=new_vc)
+
+        with patch("cogs.intros.commands.MemberConverter") as mock_conv:
+            mock_conv.return_value.convert = AsyncMock(return_value=member)
+            with patch.object(cog, "_ask_to_join", new=AsyncMock(return_value=True)):
+                with patch("cogs.intros.get_user_intro", return_value=intro):
+                    with patch("cogs.intros.discord.FFmpegPCMAudio"):
+                        state = get_state(mock_bot, ctx.guild.id)
+                        state["voice_client"] = None
+                        await cog.intro_trigger.callback(cog, ctx, member_str="@Bob")
+
+        ctx.author.voice.channel.connect.assert_called_once()
+        new_vc.play.assert_called_once()
+
+    async def test_user_not_in_voice_after_confirm(self, cog, ctx, mock_bot):
+        member = MagicMock(spec=discord.Member)
+        ctx.author.voice = None
+        with patch("cogs.intros.commands.MemberConverter") as mock_conv:
+            mock_conv.return_value.convert = AsyncMock(return_value=member)
+            with patch.object(cog, "_ask_to_join", new=AsyncMock(return_value=True)):
+                state = get_state(mock_bot, ctx.guild.id)
+                state["voice_client"] = None
+                await cog.intro_trigger.callback(cog, ctx, member_str="@Someone")
+        assert any("You need to be in a voice channel" in str(c) for c in ctx.send.call_args_list)
 
     async def test_refuses_while_playing(self, cog, ctx, mock_bot, voice_client):
         member = MagicMock(spec=discord.Member)
@@ -508,8 +652,6 @@ class TestIntroTrigger:
         member.guild = ctx.guild
         member.id = 99
         member.display_name = "Alice"
-        voice_client.is_playing.return_value = False
-        voice_client.is_paused.return_value = False
         with patch("cogs.intros.commands.MemberConverter") as mock_conv:
             mock_conv.return_value.convert = AsyncMock(return_value=member)
             with patch("cogs.intros.get_user_intro", return_value=None):
@@ -523,8 +665,6 @@ class TestIntroTrigger:
         member.guild = ctx.guild
         member.id = 42
         member.display_name = "Bob"
-        voice_client.is_playing.return_value = False
-        voice_client.is_paused.return_value = False
         voice_client.play = MagicMock()
 
         intro = tmp_path / "intro.mp3"

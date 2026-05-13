@@ -16,6 +16,9 @@ from utils.intro_config import (
 
 log = logging.getLogger('music-bot.intros')
 
+_YES = '✅'
+_NO  = '❌'
+
 
 def _trigger_label(trigger: str, entry: dict) -> str:
     """Human-readable label for a trigger key."""
@@ -31,6 +34,56 @@ def _trigger_label(trigger: str, entry: dict) -> str:
 class IntrosCog(commands.Cog, name='Intros'):
     def __init__(self, bot):
         self.bot = bot
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    async def _ask_to_join(self, ctx: commands.Context) -> bool:
+        """Prompt the invoking user with ✅/❌ to decide whether the bot should join.
+
+        Edits the prompt message to reflect the outcome and cleans up all reactions.
+        Returns True only if the user explicitly confirmed within 30 seconds.
+        """
+        msg = await ctx.send("I'm not in a voice channel. Do you want me to join?")
+        for emoji in (_YES, _NO):
+            await msg.add_reaction(emoji)
+
+        def check(reaction, user):
+            return (
+                user.id == ctx.author.id
+                and reaction.message.id == msg.id
+                and str(reaction.emoji) in (_YES, _NO)
+            )
+
+        reaction = None
+        try:
+            reaction, _ = await self.bot.wait_for('reaction_add', timeout=30.0, check=check)
+        except asyncio.TimeoutError:
+            pass
+
+        # Remove user's reaction (requires Manage Messages; ignore if missing)
+        if reaction is not None:
+            try:
+                await msg.remove_reaction(reaction.emoji, ctx.author)
+            except discord.Forbidden:
+                pass
+
+        # Always remove the bot's own reactions
+        for emoji in (_YES, _NO):
+            try:
+                await msg.remove_reaction(emoji, ctx.me)
+            except discord.HTTPException:
+                pass
+
+        if reaction is None:
+            await msg.edit(content="Confirmation timed out.")
+            return False
+
+        if str(reaction.emoji) == _YES:
+            await msg.edit(content="I'm not in a voice channel — joining now!")
+            return True
+
+        await msg.edit(content="I'm not in a voice channel — got it, staying out.")
+        return False
 
     # ── Commands ──────────────────────────────────────────────────────────────
 
@@ -237,7 +290,13 @@ class IntrosCog(commands.Cog, name='Intros'):
         vc: discord.VoiceClient = state['voice_client']
 
         if vc is None or not vc.is_connected():
-            return await ctx.send("I'm not in a voice channel. Use `!join` to bring me in first.")
+            if not await self._ask_to_join(ctx):
+                return
+            if not ctx.author.voice:
+                return await ctx.send("You need to be in a voice channel for me to join.")
+            state['voice_client'] = await ctx.author.voice.channel.connect()
+            vc = state['voice_client']
+
         if vc.is_playing() or vc.is_paused():
             return await ctx.send('Cannot play intro while audio is already playing.')
 
