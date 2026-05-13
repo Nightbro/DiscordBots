@@ -37,14 +37,6 @@ _HELP_TEXT = """\
 `!pl remove <name> <number>` — Remove a track by its number.
 `!pl delete <name>` — Delete a playlist entirely.
 
-**Reactions** (`!react`)
-`!react add <msg_id> <emoji>` — Add a reaction to a message.
-`!react count <msg_id> [emoji]` — Count reactions on a message.
-`!react remove <msg_id> <emoji> [@user]` — Remove a reaction (bot's own if no @user).
-`!react watch <msg_id> <emoji> [response]` — Trigger a message when someone reacts.
-`!react unwatch <msg_id> <emoji>` — Remove a reaction trigger.
-`!react watches` — List all active reaction triggers.
-
 **Intro Sounds** (`!intro` / `!in`)
 `!intro set bot <url>` — Set the bot-join intro (attach MP3 or provide URL/search).
 `!intro set user <url>` — Set the server-wide user-join intro (attach MP3 or provide URL/search).
