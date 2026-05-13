@@ -37,7 +37,13 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         if panel:
             panel_msg, _ = panel
             try:
-                await panel_msg.delete()
+                await panel_msg.clear_reactions()
+            except discord.HTTPException:
+                pass
+            try:
+                await panel_msg.edit(
+                    content='*The soundboard has disappeared — use `!sb` or `!soundboard` to bring it back.*'
+                )
             except discord.HTTPException:
                 pass
 
