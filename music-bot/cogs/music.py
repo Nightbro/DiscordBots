@@ -13,8 +13,8 @@ from utils.intro_config import get_intro_file
 
 log = logging.getLogger('music-bot.music')
 
-_HELP_TEXT = """\
-**Music Bot — Commands**
+_HELP_TEXT_1 = """\
+**Music Bot — Commands (1/2)**
 
 **Playback**
 `!join` (`!j`) — Join your voice channel without playing anything.
@@ -36,6 +36,10 @@ _HELP_TEXT = """\
 `!pl add <name> <url>` — Add a track to an existing playlist.
 `!pl remove <name> <number>` — Remove a track by its number.
 `!pl delete <name>` — Delete a playlist entirely.
+"""
+
+_HELP_TEXT_2 = """\
+**Music Bot — Commands (2/2)**
 
 **Intro Sounds** (`!intro` / `!in`)
 `!intro set bot <url>` — Set the bot-join intro (attach MP3 or provide URL/search).
@@ -97,7 +101,8 @@ class MusicCog(commands.Cog, name='Music'):
 
     @commands.command(name='help', aliases=['h'])
     async def help_cmd(self, ctx: commands.Context):
-        await ctx.send(_HELP_TEXT)
+        await ctx.send(_HELP_TEXT_1)
+        await ctx.send(_HELP_TEXT_2)
 
     @commands.command(name='play', aliases=['p'])
     async def play(self, ctx: commands.Context, *, query: str):
