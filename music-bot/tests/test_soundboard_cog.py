@@ -521,20 +521,23 @@ class TestOnRawReactionAdd:
 # ---------------------------------------------------------------------------
 
 class TestPanelTimeout:
-    async def test_timeout_deletes_message(self, cog):
+    async def test_timeout_edits_message(self, cog):
         panel_msg = AsyncMock()
-        panel_msg.delete = AsyncMock()
+        panel_msg.clear_reactions = AsyncMock()
+        panel_msg.edit = AsyncMock()
         cog._panels[1] = (panel_msg, {'💥': 'boom'})
 
         with patch('cogs.soundboard.asyncio.sleep', new=AsyncMock()):
             await cog._panel_timeout(1)
 
-        panel_msg.delete.assert_called_once()
+        panel_msg.clear_reactions.assert_called_once()
+        panel_msg.edit.assert_called_once()
+        assert '!sb' in panel_msg.edit.call_args[1].get('content', '') or \
+               '!sb' in str(panel_msg.edit.call_args)
         assert 1 not in cog._panels
 
     async def test_timeout_clears_task_entry(self, cog):
         panel_msg = AsyncMock()
-        panel_msg.delete = AsyncMock()
         cog._panels[1] = (panel_msg, {})
         cog._panel_tasks[1] = MagicMock()
 
@@ -545,7 +548,8 @@ class TestPanelTimeout:
 
     async def test_timeout_silent_on_http_error(self, cog):
         panel_msg = AsyncMock()
-        panel_msg.delete = AsyncMock(side_effect=discord.HTTPException(MagicMock(), 'gone'))
+        panel_msg.clear_reactions = AsyncMock(side_effect=discord.HTTPException(MagicMock(), 'gone'))
+        panel_msg.edit = AsyncMock(side_effect=discord.HTTPException(MagicMock(), 'gone'))
         cog._panels[1] = (panel_msg, {})
 
         with patch('cogs.soundboard.asyncio.sleep', new=AsyncMock()):
