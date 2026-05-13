@@ -17,6 +17,7 @@ _HELP_TEXT = """\
 **Music Bot — Commands**
 
 **Playback**
+`!join` (`!j`) — Join your voice channel without playing anything.
 `!play <url/search>` (`!p`) — Play from YouTube, Suno, or a search query. Queues if already playing.
 `!skip` (`!s`) — Skip the current song.
 `!pause` — Pause playback.
@@ -176,6 +177,12 @@ class MusicCog(commands.Cog, name='Music'):
     async def clear(self, ctx: commands.Context):
         get_state(self.bot, ctx.guild.id)['queue'].clear()
         await ctx.send('Queue cleared.')
+
+    @commands.command(name='join', aliases=['j'])
+    async def join(self, ctx: commands.Context):
+        if not await self._ensure_voice(ctx):
+            return
+        await ctx.send(f'Joined **{ctx.author.voice.channel.name}**.')
 
     @commands.command(name='leave', aliases=['dc'])
     async def leave(self, ctx: commands.Context):

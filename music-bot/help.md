@@ -4,6 +4,7 @@
 
 | Command | Alias | Description |
 |---|---|---|
+| `!join` | `!j` | Join your voice channel without playing anything. |
 | `!play <url / search>` | `!p` | Play from YouTube, Suno, or a search query. Queues if something is already playing. |
 | `!skip` | `!s` | Skip the current song. |
 | `!pause` | — | Pause playback. |
