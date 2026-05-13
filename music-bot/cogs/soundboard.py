@@ -20,6 +20,8 @@ _NO  = '❌'
 class SoundboardCog(commands.Cog, name='Soundboard'):
     def __init__(self, bot):
         self.bot = bot
+        # guild_id -> (message_id, {emoji_str: sound_name})
+        self._panels: dict[int, tuple[int, dict[str, str]]] = {}
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -64,17 +66,80 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         await msg.edit(content="I'm not in a voice channel — got it, staying out.")
         return False
 
+    async def _send_panel(self, ctx: commands.Context):
+        """Post the interactive soundboard panel and register it for reactions."""
+        sounds = get_sounds(ctx.guild.id)
+        if not sounds:
+            return await ctx.send('No sounds configured for this server yet.')
+
+        lines = [
+            f'{entry["emoji"]} **{name}** — `{entry["source"]}`'
+            for name, entry in sounds.items()
+        ]
+        msg = await ctx.send('**Soundboard** — click a reaction to play:\n' + '\n'.join(lines))
+
+        emoji_map: dict[str, str] = {}
+        for name, entry in sounds.items():
+            await msg.add_reaction(entry['emoji'])
+            emoji_map[entry['emoji']] = name
+
+        self._panels[ctx.guild.id] = (msg.id, emoji_map)
+
+    async def _play_from_reaction(
+        self,
+        guild: discord.Guild,
+        channel,
+        member: discord.Member,
+        sound_name: str,
+    ):
+        """Trigger a sound from a reaction click — auto-joins, no interactive prompt."""
+        entry = get_sound(guild.id, sound_name)
+        if not entry:
+            return
+
+        if not member.voice:
+            await channel.send(
+                f"{member.mention} I will not listen to someone who doesn't even have the courage to show up."
+            )
+            return
+
+        state = get_state(self.bot, guild.id)
+        vc: discord.VoiceClient = state['voice_client']
+
+        if vc is not None and vc.is_connected():
+            if member.voice.channel != vc.channel:
+                await channel.send(f"{member.mention} Sorry, I cannot hear you — I am kinda busy.")
+                return
+        else:
+            try:
+                state['voice_client'] = await member.voice.channel.connect()
+                vc = state['voice_client']
+            except Exception as e:
+                log.error('Failed to join voice from reaction — guild %s: %s', guild.id, e)
+                return
+
+        if vc.is_playing() or vc.is_paused():
+            await channel.send(f'{member.mention} Cannot play sound while audio is already playing.')
+            return
+
+        sound_file = Path(entry['file'])
+        if not sound_file.exists():
+            await channel.send(f'Sound file for **{sound_name}** is missing.')
+            return
+
+        log.info('Soundboard reaction — guild %s name %s by %s', guild.id, sound_name, member)
+        vc.play(discord.FFmpegPCMAudio(str(sound_file), **FFMPEG_OPTIONS))
+        await channel.send(f'{member.mention} Playing **{sound_name}** {entry["emoji"]}.')
+
     # ── Commands ──────────────────────────────────────────────────────────────
 
     @commands.group(name='soundboard', aliases=['sb'], invoke_without_command=True)
     async def sb_group(self, ctx: commands.Context):
-        await ctx.send(
-            '**Soundboard commands:**\n'
-            '`!sb add <name> <emoji> [url/search]` — add a sound (attach MP3 or provide URL)\n'
-            '`!sb remove <name>` — remove a sound\n'
-            '`!sb trigger <name>` — play a sound\n'
-            '`!sb list` — list all sounds for this server'
-        )
+        await self._send_panel(ctx)
+
+    @sb_group.command(name='list')
+    async def sb_list(self, ctx: commands.Context):
+        await self._send_panel(ctx)
 
     @sb_group.command(name='add')
     async def sb_add(self, ctx: commands.Context, name: str, emoji: str, *, query: str = None):
@@ -150,16 +215,41 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         vc.play(discord.FFmpegPCMAudio(str(sound_file), **FFMPEG_OPTIONS))
         await ctx.send(f'Playing **{name}** {entry["emoji"]}.')
 
-    @sb_group.command(name='list')
-    async def sb_list(self, ctx: commands.Context):
-        sounds = get_sounds(ctx.guild.id)
-        if not sounds:
-            return await ctx.send('No sounds configured for this server yet.')
-        lines = [
-            f'{entry["emoji"]} **{name}** — `{entry["source"]}`'
-            for name, entry in sounds.items()
-        ]
-        await ctx.send('**Soundboard:**\n' + '\n'.join(lines))
+    # ── Listener ──────────────────────────────────────────────────────────────
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        if payload.user_id == self.bot.user.id:
+            return
+        if not payload.guild_id:
+            return
+
+        panel = self._panels.get(payload.guild_id)
+        if panel is None:
+            return
+
+        panel_msg_id, emoji_map = panel
+        if payload.message_id != panel_msg_id:
+            return
+
+        emoji_str = str(payload.emoji)
+        sound_name = emoji_map.get(emoji_str)
+        if not sound_name:
+            return
+
+        guild   = self.bot.get_guild(payload.guild_id)
+        channel = guild.get_channel(payload.channel_id) if guild else None
+        member  = payload.member
+        if guild is None or channel is None or member is None:
+            return
+
+        try:
+            message = await channel.fetch_message(payload.message_id)
+            await message.remove_reaction(payload.emoji, member)
+        except discord.HTTPException:
+            pass
+
+        await self._play_from_reaction(guild, channel, member, sound_name)
 
 
 async def setup(bot):

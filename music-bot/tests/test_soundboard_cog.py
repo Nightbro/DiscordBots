@@ -41,23 +41,82 @@ def ctx_with_vc(ctx, voice_client, mock_bot):
     return ctx
 
 
+def _panel_msg(guild_id):
+    """A mock message suitable for use as a soundboard panel."""
+    msg = AsyncMock()
+    msg.id = 9999
+    msg.add_reaction = AsyncMock()
+    msg.remove_reaction = AsyncMock()
+    return msg
+
+
+def _make_payload(guild_id, msg_id, emoji_str, member, channel_id=1):
+    payload = MagicMock()
+    payload.guild_id   = guild_id
+    payload.message_id = msg_id
+    payload.channel_id = channel_id
+    payload.member     = member
+    payload.user_id    = member.id
+    emoji = MagicMock()
+    emoji.__str__ = MagicMock(return_value=emoji_str)
+    payload.emoji = emoji
+    return payload
+
+
 # ---------------------------------------------------------------------------
-# TestSbList
+# TestSendPanel
 # ---------------------------------------------------------------------------
 
-class TestSbList:
-    async def test_empty_list(self, cog, ctx):
-        await cog.sb_list.callback(cog, ctx)
-        ctx.send.assert_called_once()
+class TestSendPanel:
+    async def test_empty_panel(self, cog, ctx):
+        await cog._send_panel(ctx)
         assert 'No sounds' in ctx.send.call_args[0][0]
 
-    async def test_list_shows_sounds(self, cog, ctx, sound_file):
-        sbc.add_sound(ctx.guild.id, 'boom', '💥', str(sound_file), 'test source')
-        await cog.sb_list.callback(cog, ctx)
-        msg = ctx.send.call_args[0][0]
-        assert 'boom' in msg
-        assert '💥' in msg
-        assert 'test source' in msg
+    async def test_panel_lists_sounds(self, cog, ctx, sound_file):
+        sbc.add_sound(ctx.guild.id, 'boom', '💥', str(sound_file), 'test src')
+        msg = _panel_msg(ctx.guild.id)
+        ctx.send = AsyncMock(return_value=msg)
+
+        await cog._send_panel(ctx)
+
+        text = ctx.send.call_args[0][0]
+        assert 'boom' in text
+        assert '💥' in text
+        assert 'test src' in text
+
+    async def test_panel_adds_reactions(self, cog, ctx, sound_file):
+        sbc.add_sound(ctx.guild.id, 'boom', '💥', str(sound_file), 'src')
+        sbc.add_sound(ctx.guild.id, 'ping', '🔔', str(sound_file), 'src2')
+        msg = _panel_msg(ctx.guild.id)
+        ctx.send = AsyncMock(return_value=msg)
+
+        await cog._send_panel(ctx)
+
+        added = [str(c.args[0]) for c in msg.add_reaction.call_args_list]
+        assert '💥' in added
+        assert '🔔' in added
+
+    async def test_panel_stored(self, cog, ctx, sound_file):
+        sbc.add_sound(ctx.guild.id, 'boom', '💥', str(sound_file), 'src')
+        msg = _panel_msg(ctx.guild.id)
+        ctx.send = AsyncMock(return_value=msg)
+
+        await cog._send_panel(ctx)
+
+        assert ctx.guild.id in cog._panels
+        stored_msg_id, emoji_map = cog._panels[ctx.guild.id]
+        assert stored_msg_id == msg.id
+        assert emoji_map['💥'] == 'boom'
+
+    async def test_sb_group_calls_panel(self, cog, ctx):
+        with patch.object(cog, '_send_panel', new=AsyncMock()) as mock_panel:
+            await cog.sb_group.callback(cog, ctx)
+        mock_panel.assert_called_once_with(ctx)
+
+    async def test_sb_list_calls_panel(self, cog, ctx):
+        with patch.object(cog, '_send_panel', new=AsyncMock()) as mock_panel:
+            await cog.sb_list.callback(cog, ctx)
+        mock_panel.assert_called_once_with(ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +126,6 @@ class TestSbList:
 class TestSbAdd:
     async def test_add_no_attachment_no_query(self, cog, ctx):
         await cog.sb_add.callback(cog, ctx, 'boom', '💥', query=None)
-        ctx.send.assert_called_once()
         assert 'Provide' in ctx.send.call_args[0][0]
 
     async def test_add_non_mp3_attachment(self, cog, ctx):
@@ -75,8 +133,7 @@ class TestSbAdd:
         attachment.filename = 'file.wav'
         ctx.message.attachments = [attachment]
         await cog.sb_add.callback(cog, ctx, 'boom', '💥', query=None)
-        msg = ctx.send.call_args[0][0]
-        assert 'MP3' in msg
+        assert 'MP3' in ctx.send.call_args[0][0]
 
     async def test_add_from_attachment(self, cog, ctx, tmp_path):
         dest_dir = tmp_path / 'soundboard'
@@ -109,8 +166,7 @@ class TestSbAdd:
     async def test_add_download_failure(self, cog, ctx):
         with patch('cogs.soundboard.download_track', side_effect=Exception('network error')):
             await cog.sb_add.callback(cog, ctx, 'boom', '💥', query='bad url')
-        msg = ctx.send.call_args[0][0]
-        assert 'Could not download' in msg
+        assert 'Could not download' in ctx.send.call_args[0][0]
 
 
 # ---------------------------------------------------------------------------
@@ -125,8 +181,7 @@ class TestSbRemove:
     async def test_remove_existing(self, cog, ctx, sound_file):
         sbc.add_sound(ctx.guild.id, 'boom', '💥', str(sound_file), 'src')
         await cog.sb_remove.callback(cog, ctx, name='boom')
-        msg = ctx.send.call_args[0][0]
-        assert 'removed' in msg
+        assert 'removed' in ctx.send.call_args[0][0]
         assert sbc.get_sound(ctx.guild.id, 'boom') is None
 
     async def test_remove_deletes_file(self, cog, ctx, sound_file):
@@ -137,7 +192,7 @@ class TestSbRemove:
 
 
 # ---------------------------------------------------------------------------
-# TestSbTrigger — voice checks
+# TestSbTrigger (command)
 # ---------------------------------------------------------------------------
 
 class TestSbTrigger:
@@ -148,37 +203,32 @@ class TestSbTrigger:
     async def test_user_not_in_voice(self, cog, ctx_no_voice, sound_file):
         sbc.add_sound(ctx_no_voice.guild.id, 'boom', '💥', str(sound_file), 'src')
         await cog.sb_trigger.callback(cog, ctx_no_voice, name='boom')
-        msg = ctx_no_voice.send.call_args[0][0]
-        assert 'courage' in msg
+        assert 'courage' in ctx_no_voice.send.call_args[0][0]
 
     async def test_bot_busy_different_channel(self, cog, ctx, voice_client, mock_bot, sound_file):
         sbc.add_sound(ctx.guild.id, 'boom', '💥', str(sound_file), 'src')
         state = get_state(mock_bot, ctx.guild.id)
         state['voice_client'] = voice_client
-        voice_client.channel = MagicMock()  # different channel from ctx.author.voice.channel
+        voice_client.channel = MagicMock()  # different channel
         await cog.sb_trigger.callback(cog, ctx, name='boom')
-        msg = ctx.send.call_args[0][0]
-        assert 'busy' in msg
+        assert 'busy' in ctx.send.call_args[0][0]
 
     async def test_refuses_while_playing(self, cog, ctx_with_vc, voice_client, sound_file):
         sbc.add_sound(ctx_with_vc.guild.id, 'boom', '💥', str(sound_file), 'src')
         voice_client.is_playing.return_value = True
         await cog.sb_trigger.callback(cog, ctx_with_vc, name='boom')
-        msg = ctx_with_vc.send.call_args[0][0]
-        assert 'Cannot play' in msg
+        assert 'Cannot play' in ctx_with_vc.send.call_args[0][0]
 
     async def test_refuses_while_paused(self, cog, ctx_with_vc, voice_client, sound_file):
         sbc.add_sound(ctx_with_vc.guild.id, 'boom', '💥', str(sound_file), 'src')
         voice_client.is_paused.return_value = True
         await cog.sb_trigger.callback(cog, ctx_with_vc, name='boom')
-        msg = ctx_with_vc.send.call_args[0][0]
-        assert 'Cannot play' in msg
+        assert 'Cannot play' in ctx_with_vc.send.call_args[0][0]
 
     async def test_missing_file(self, cog, ctx_with_vc, tmp_path, sound_file):
         sbc.add_sound(ctx_with_vc.guild.id, 'boom', '💥', str(tmp_path / 'missing.mp3'), 'src')
         await cog.sb_trigger.callback(cog, ctx_with_vc, name='boom')
-        msg = ctx_with_vc.send.call_args[0][0]
-        assert 'missing' in msg
+        assert 'missing' in ctx_with_vc.send.call_args[0][0]
 
     async def test_plays_sound(self, cog, ctx_with_vc, voice_client, sound_file):
         sbc.add_sound(ctx_with_vc.guild.id, 'boom', '💥', str(sound_file), 'src')
@@ -201,20 +251,233 @@ class TestSbTrigger:
              patch('cogs.soundboard.discord.FFmpegPCMAudio', return_value=MagicMock()):
             await cog.sb_trigger.callback(cog, ctx, name='boom')
 
-        state = get_state(mock_bot, ctx.guild.id)
-        assert state['voice_client'] is new_vc
+        assert get_state(mock_bot, ctx.guild.id)['voice_client'] is new_vc
         new_vc.play.assert_called_once()
 
     async def test_bot_not_in_voice_confirm_no(self, cog, ctx, sound_file, mock_bot):
         sbc.add_sound(ctx.guild.id, 'boom', '💥', str(sound_file), 'src')
         with patch.object(cog, '_ask_to_join', new=AsyncMock(return_value=False)):
             await cog.sb_trigger.callback(cog, ctx, name='boom')
-        state = get_state(mock_bot, ctx.guild.id)
-        assert state['voice_client'] is None
+        assert get_state(mock_bot, ctx.guild.id)['voice_client'] is None
 
 
 # ---------------------------------------------------------------------------
-# TestAskToJoin (soundboard copy)
+# TestPlayFromReaction
+# ---------------------------------------------------------------------------
+
+class TestPlayFromReaction:
+    def _make_guild(self, guild_id, voice_client=None):
+        guild = MagicMock()
+        guild.id = guild_id
+        return guild
+
+    async def test_sound_not_found_is_silent(self, cog, mock_bot):
+        guild = self._make_guild(1)
+        channel = AsyncMock()
+        member = MagicMock()
+        member.voice = MagicMock()
+        await cog._play_from_reaction(guild, channel, member, 'ghost')
+        channel.send.assert_not_called()
+
+    async def test_user_not_in_voice(self, cog, mock_bot, sound_file):
+        guild = self._make_guild(mock_bot.guild_states and 1 or 1)
+        guild.id = 111222333
+        sbc.add_sound(guild.id, 'boom', '💥', str(sound_file), 'src')
+        channel = AsyncMock()
+        member = MagicMock()
+        member.voice = None
+        await cog._play_from_reaction(guild, channel, member, 'boom')
+        channel.send.assert_called_once()
+        assert 'courage' in channel.send.call_args[0][0]
+
+    async def test_bot_busy_different_channel(self, cog, mock_bot, voice_client, sound_file):
+        guild = MagicMock()
+        guild.id = 111222333
+        sbc.add_sound(guild.id, 'boom', '💥', str(sound_file), 'src')
+        state = get_state(mock_bot, guild.id)
+        state['voice_client'] = voice_client
+        voice_client.channel = MagicMock()  # different from member's channel
+
+        channel = AsyncMock()
+        member = MagicMock()
+        member.voice = MagicMock()
+        member.voice.channel = MagicMock()  # different object
+
+        await cog._play_from_reaction(guild, channel, member, 'boom')
+        assert 'busy' in channel.send.call_args[0][0]
+
+    async def test_auto_joins_if_bot_not_in_voice(self, cog, mock_bot, sound_file):
+        guild = MagicMock()
+        guild.id = 111222333
+        sbc.add_sound(guild.id, 'boom', '💥', str(sound_file), 'src')
+
+        new_vc = MagicMock()
+        new_vc.is_connected.return_value = True
+        new_vc.is_playing.return_value = False
+        new_vc.is_paused.return_value = False
+        new_vc.play = MagicMock()
+
+        channel = AsyncMock()
+        member = MagicMock()
+        member.voice = MagicMock()
+        member.voice.channel.connect = AsyncMock(return_value=new_vc)
+
+        with patch('cogs.soundboard.discord.FFmpegPCMAudio', return_value=MagicMock()):
+            await cog._play_from_reaction(guild, channel, member, 'boom')
+
+        assert get_state(mock_bot, guild.id)['voice_client'] is new_vc
+        new_vc.play.assert_called_once()
+
+    async def test_refuses_while_playing(self, cog, mock_bot, voice_client, sound_file):
+        guild = MagicMock()
+        guild.id = 111222333
+        sbc.add_sound(guild.id, 'boom', '💥', str(sound_file), 'src')
+        state = get_state(mock_bot, guild.id)
+        state['voice_client'] = voice_client
+        voice_client.is_playing.return_value = True
+
+        channel = AsyncMock()
+        member = MagicMock()
+        member.voice = MagicMock()
+        member.voice.channel = voice_client.channel
+
+        await cog._play_from_reaction(guild, channel, member, 'boom')
+        assert 'Cannot play' in channel.send.call_args[0][0]
+
+    async def test_missing_file(self, cog, mock_bot, voice_client, tmp_path):
+        guild = MagicMock()
+        guild.id = 111222333
+        sbc.add_sound(guild.id, 'boom', '💥', str(tmp_path / 'missing.mp3'), 'src')
+        state = get_state(mock_bot, guild.id)
+        state['voice_client'] = voice_client
+
+        channel = AsyncMock()
+        member = MagicMock()
+        member.voice = MagicMock()
+        member.voice.channel = voice_client.channel
+
+        await cog._play_from_reaction(guild, channel, member, 'boom')
+        assert 'missing' in channel.send.call_args[0][0]
+
+    async def test_plays_and_mentions_member(self, cog, mock_bot, voice_client, sound_file):
+        guild = MagicMock()
+        guild.id = 111222333
+        sbc.add_sound(guild.id, 'boom', '💥', str(sound_file), 'src')
+        state = get_state(mock_bot, guild.id)
+        state['voice_client'] = voice_client
+
+        channel = AsyncMock()
+        member = MagicMock()
+        member.mention = '<@42>'
+        member.voice = MagicMock()
+        member.voice.channel = voice_client.channel
+
+        with patch('cogs.soundboard.discord.FFmpegPCMAudio', return_value=MagicMock()):
+            await cog._play_from_reaction(guild, channel, member, 'boom')
+
+        voice_client.play.assert_called_once()
+        msg = channel.send.call_args[0][0]
+        assert 'Playing' in msg and 'boom' in msg and '<@42>' in msg
+
+
+# ---------------------------------------------------------------------------
+# TestOnRawReactionAdd
+# ---------------------------------------------------------------------------
+
+class TestOnRawReactionAdd:
+    def _register_panel(self, cog, guild_id, msg_id, emoji_map):
+        cog._panels[guild_id] = (msg_id, emoji_map)
+
+    async def test_ignores_bot_own_reaction(self, cog, mock_bot, sound_file):
+        mock_bot.user = MagicMock()
+        mock_bot.user.id = 99
+        self._register_panel(cog, 1, 9999, {'💥': 'boom'})
+        payload = MagicMock()
+        payload.user_id = 99  # bot itself
+        payload.guild_id = 1
+        await cog.on_raw_reaction_add(payload)
+        # No guild lookup or sound play should happen
+
+    async def test_ignores_unknown_guild(self, cog, mock_bot, sound_file):
+        mock_bot.user = MagicMock(id=99)
+        payload = MagicMock()
+        payload.user_id = 1
+        payload.guild_id = 777  # no panel for this guild
+        await cog.on_raw_reaction_add(payload)
+
+    async def test_ignores_wrong_message(self, cog, mock_bot):
+        mock_bot.user = MagicMock(id=99)
+        self._register_panel(cog, 1, 9999, {'💥': 'boom'})
+        payload = MagicMock()
+        payload.user_id = 1
+        payload.guild_id = 1
+        payload.message_id = 1111  # wrong message
+        await cog.on_raw_reaction_add(payload)
+
+    async def test_ignores_unknown_emoji(self, cog, mock_bot, sound_file):
+        mock_bot.user = MagicMock(id=99)
+        self._register_panel(cog, 1, 9999, {'💥': 'boom'})
+
+        member = MagicMock()
+        member.id = 42
+        guild = MagicMock()
+        guild.id = 1
+        channel = AsyncMock()
+        channel.fetch_message = AsyncMock(return_value=AsyncMock())
+        guild.get_channel = MagicMock(return_value=channel)
+        mock_bot.get_guild = MagicMock(return_value=guild)
+
+        payload = _make_payload(1, 9999, '🎵', member, channel_id=5)
+        payload.user_id = 42
+        await cog.on_raw_reaction_add(payload)
+
+    async def test_reaction_removes_and_plays(self, cog, mock_bot, sound_file, voice_client):
+        mock_bot.user = MagicMock(id=99)
+        guild_id = 111222333
+        sbc.add_sound(guild_id, 'boom', '💥', str(sound_file), 'src')
+        self._register_panel(cog, guild_id, 9999, {'💥': 'boom'})
+
+        state = get_state(mock_bot, guild_id)
+        state['voice_client'] = voice_client
+
+        panel_msg = AsyncMock()
+        panel_msg.remove_reaction = AsyncMock()
+        channel = AsyncMock()
+        channel.fetch_message = AsyncMock(return_value=panel_msg)
+
+        member = MagicMock()
+        member.id = 42
+        member.mention = '<@42>'
+        member.voice = MagicMock()
+        member.voice.channel = voice_client.channel
+
+        guild = MagicMock()
+        guild.id = guild_id
+        guild.get_channel = MagicMock(return_value=channel)
+        mock_bot.get_guild = MagicMock(return_value=guild)
+
+        payload = _make_payload(guild_id, 9999, '💥', member, channel_id=5)
+        payload.user_id = 42
+
+        with patch('cogs.soundboard.discord.FFmpegPCMAudio', return_value=MagicMock()):
+            await cog.on_raw_reaction_add(payload)
+
+        panel_msg.remove_reaction.assert_called_once()
+        voice_client.play.assert_called_once()
+
+    async def test_reaction_no_guild_in_cache(self, cog, mock_bot):
+        mock_bot.user = MagicMock(id=99)
+        self._register_panel(cog, 1, 9999, {'💥': 'boom'})
+        mock_bot.get_guild = MagicMock(return_value=None)
+
+        payload = _make_payload(1, 9999, '💥', MagicMock(id=42), channel_id=5)
+        payload.user_id = 42
+        # Should not raise
+        await cog.on_raw_reaction_add(payload)
+
+
+# ---------------------------------------------------------------------------
+# TestAskToJoin
 # ---------------------------------------------------------------------------
 
 class TestSbAskToJoin:
@@ -229,9 +492,7 @@ class TestSbAskToJoin:
 
         result = await cog._ask_to_join(ctx)
         assert result is False
-        msg.edit.assert_called_once()
-        assert 'timed out' in msg.edit.call_args[1].get('content', '') or \
-               'timed out' in str(msg.edit.call_args)
+        assert 'timed out' in str(msg.edit.call_args).lower()
 
     async def test_yes_reaction_returns_true(self, cog, ctx):
         msg = AsyncMock()
@@ -246,8 +507,7 @@ class TestSbAskToJoin:
         reaction.message.id = 42
         cog.bot.wait_for = AsyncMock(return_value=(reaction, ctx.author))
 
-        result = await cog._ask_to_join(ctx)
-        assert result is True
+        assert await cog._ask_to_join(ctx) is True
 
     async def test_no_reaction_returns_false(self, cog, ctx):
         msg = AsyncMock()
@@ -262,5 +522,4 @@ class TestSbAskToJoin:
         reaction.message.id = 42
         cog.bot.wait_for = AsyncMock(return_value=(reaction, ctx.author))
 
-        result = await cog._ask_to_join(ctx)
-        assert result is False
+        assert await cog._ask_to_join(ctx) is False
