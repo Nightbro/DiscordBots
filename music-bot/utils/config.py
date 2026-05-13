@@ -9,7 +9,8 @@ DOWNLOADS_DIR     = BASE_DIR / 'downloads'
 LOGS_DIR          = BASE_DIR / 'logs'
 INTRO_SOUNDS_DIR  = BASE_DIR / 'intro_sounds'
 PLAYLISTS_FILE    = BASE_DIR / 'playlists.json'
-INTRO_CONFIG_FILE = BASE_DIR / 'intro_config.json'
+INTRO_CONFIG_FILE    = BASE_DIR / 'intro_config.json'
+REACTION_CONFIG_FILE = BASE_DIR / 'reaction_config.json'
 _COOKIES_FILE     = BASE_DIR / 'cookies.txt'
 
 DOWNLOADS_DIR.mkdir(exist_ok=True)
