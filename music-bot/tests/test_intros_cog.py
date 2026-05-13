@@ -540,3 +540,48 @@ class TestIntroTrigger:
 
         voice_client.play.assert_called_once()
         assert any("Playing intro" in str(c) for c in ctx.send.call_args_list)
+
+
+# ---------------------------------------------------------------------------
+# !intro rename
+# ---------------------------------------------------------------------------
+
+class TestIntroRename:
+    async def test_invalid_trigger(self, cog, ctx):
+        with patch("cogs.intros.commands.MemberConverter") as mock_conv:
+            mock_conv.return_value.convert = AsyncMock(
+                side_effect=discord.ext.commands.MemberNotFound("nobody")
+            )
+            await cog.intro_rename.callback(cog, ctx, "nobody", name="cool name")
+        ctx.send.assert_called_with(
+            "Trigger must be `bot`, `user`, or a @mention of a server member."
+        )
+
+    async def test_not_configured(self, cog, ctx):
+        with patch("cogs.intros.load_intro_config", return_value={}):
+            await cog.intro_rename.callback(cog, ctx, "bot", name="My Intro")
+        assert any("No intro configured" in str(c) for c in ctx.send.call_args_list)
+
+    async def test_renames_bot_intro(self, cog, ctx):
+        config = {str(ctx.guild.id): {"bot": {"file": "/some.mp3", "source": "old name"}}}
+        with patch("cogs.intros.load_intro_config", return_value=config):
+            with patch("cogs.intros.save_intro_config") as mock_save:
+                await cog.intro_rename.callback(cog, ctx, "bot", name="My Bot Intro")
+        mock_save.assert_called_once()
+        saved = mock_save.call_args[0][0]
+        assert saved[str(ctx.guild.id)]["bot"]["source"] == "My Bot Intro"
+        assert any("My Bot Intro" in str(c) for c in ctx.send.call_args_list)
+
+    async def test_renames_per_user_intro(self, cog, ctx):
+        member = MagicMock(spec=discord.Member)
+        member.id = 42
+        member.display_name = "Alice"
+        config = {str(ctx.guild.id): {"user_42": {"file": "/some.mp3", "source": "old"}}}
+        with patch("cogs.intros.commands.MemberConverter") as mock_conv:
+            mock_conv.return_value.convert = AsyncMock(return_value=member)
+            with patch("cogs.intros.load_intro_config", return_value=config):
+                with patch("cogs.intros.save_intro_config") as mock_save:
+                    await cog.intro_rename.callback(cog, ctx, "@Alice", name="Alice Entrance")
+        mock_save.assert_called_once()
+        saved = mock_save.call_args[0][0]
+        assert saved[str(ctx.guild.id)]["user_42"]["source"] == "Alice Entrance"

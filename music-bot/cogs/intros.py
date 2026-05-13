@@ -46,6 +46,7 @@ class IntrosCog(commands.Cog, name='Intros'):
             '`!intro clear @user` — remove a specific user\'s intro\n'
             '`!intro list` — list all configured triggers\n'
             '`!intro show` — show bot/server-wide config and global flags\n'
+            '`!intro rename bot|user|@user <name>` — give an intro a human-readable label\n'
             '`!intro trigger @user` — manually play a user\'s intro\n'
             '`!intro autojoin on|off` — auto-join when first user enters a voice channel'
         )
@@ -195,6 +196,34 @@ class IntrosCog(commands.Cog, name='Intros'):
             f'\n*Global triggers enabled: {active_str}*' +
             f'\n*Auto-join on first user: {auto_str}*'
         )
+
+    @intro_group.command(name='rename')
+    async def intro_rename(self, ctx: commands.Context, trigger: str, *, name: str):
+        """Give a human-readable label to an existing intro's source field."""
+        member: discord.Member | None = None
+        if trigger not in ('bot', 'user'):
+            try:
+                member = await commands.MemberConverter().convert(ctx, trigger)
+            except commands.MemberNotFound:
+                return await ctx.send(
+                    'Trigger must be `bot`, `user`, or a @mention of a server member.'
+                )
+
+        trigger_key = f'user_{member.id}' if member else trigger
+        config      = load_intro_config()
+        gid         = str(ctx.guild.id)
+        entry       = config.get(gid, {}).get(trigger_key)
+
+        if not entry:
+            label = member.display_name if member else f'{trigger}-join'
+            return await ctx.send(f'No intro configured for **{label}**.')
+
+        entry['source'] = name
+        save_intro_config(config)
+        log.info('Intro source renamed — guild %s key %s: %r', ctx.guild.id, trigger_key, name)
+
+        display = member.display_name if member else trigger.capitalize() + '-join'
+        await ctx.send(f'**{display}** intro label set to `{name}`.')
 
     @intro_group.command(name='trigger')
     async def intro_trigger(self, ctx: commands.Context, *, member_str: str):
