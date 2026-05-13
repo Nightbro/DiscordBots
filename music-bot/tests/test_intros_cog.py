@@ -469,3 +469,74 @@ class TestIntroAutojoin:
         with patch("cogs.intros.set_auto_join") as mock_set:
             await cog.intro_autojoin.callback(cog, ctx, "ON")
         mock_set.assert_called_once_with(ctx.guild.id, True)
+
+
+# ---------------------------------------------------------------------------
+# !intro trigger
+# ---------------------------------------------------------------------------
+
+class TestIntroTrigger:
+    async def test_member_not_found(self, cog, ctx):
+        with patch("cogs.intros.commands.MemberConverter") as mock_conv:
+            mock_conv.return_value.convert = AsyncMock(
+                side_effect=discord.ext.commands.MemberNotFound("nobody")
+            )
+            await cog.intro_trigger.callback(cog, ctx, member_str="nobody")
+        ctx.send.assert_called_with("Could not find that member.")
+
+    async def test_bot_not_in_voice(self, cog, ctx, mock_bot):
+        member = MagicMock(spec=discord.Member)
+        with patch("cogs.intros.commands.MemberConverter") as mock_conv:
+            mock_conv.return_value.convert = AsyncMock(return_value=member)
+            state = get_state(mock_bot, ctx.guild.id)
+            state["voice_client"] = None
+            await cog.intro_trigger.callback(cog, ctx, member_str="@Someone")
+        ctx.send.assert_called_with("Not connected to a voice channel.")
+
+    async def test_refuses_while_playing(self, cog, ctx, mock_bot, voice_client):
+        member = MagicMock(spec=discord.Member)
+        voice_client.is_playing.return_value = True
+        with patch("cogs.intros.commands.MemberConverter") as mock_conv:
+            mock_conv.return_value.convert = AsyncMock(return_value=member)
+            state = get_state(mock_bot, ctx.guild.id)
+            state["voice_client"] = voice_client
+            await cog.intro_trigger.callback(cog, ctx, member_str="@Someone")
+        ctx.send.assert_called_with("Cannot play intro while audio is already playing.")
+
+    async def test_no_intro_configured(self, cog, ctx, mock_bot, voice_client):
+        member = MagicMock(spec=discord.Member)
+        member.guild = ctx.guild
+        member.id = 99
+        member.display_name = "Alice"
+        voice_client.is_playing.return_value = False
+        voice_client.is_paused.return_value = False
+        with patch("cogs.intros.commands.MemberConverter") as mock_conv:
+            mock_conv.return_value.convert = AsyncMock(return_value=member)
+            with patch("cogs.intros.get_user_intro", return_value=None):
+                state = get_state(mock_bot, ctx.guild.id)
+                state["voice_client"] = voice_client
+                await cog.intro_trigger.callback(cog, ctx, member_str="@Alice")
+        assert any("No intro configured" in str(c) for c in ctx.send.call_args_list)
+
+    async def test_plays_intro(self, cog, ctx, mock_bot, voice_client, tmp_path):
+        member = MagicMock(spec=discord.Member)
+        member.guild = ctx.guild
+        member.id = 42
+        member.display_name = "Bob"
+        voice_client.is_playing.return_value = False
+        voice_client.is_paused.return_value = False
+        voice_client.play = MagicMock()
+
+        intro = tmp_path / "intro.mp3"
+        intro.write_bytes(b"fake")
+
+        with patch("cogs.intros.commands.MemberConverter") as mock_conv:
+            mock_conv.return_value.convert = AsyncMock(return_value=member)
+            with patch("cogs.intros.get_user_intro", return_value=intro):
+                with patch("cogs.intros.discord.FFmpegPCMAudio"):
+                    state = get_state(mock_bot, ctx.guild.id)
+                    state["voice_client"] = voice_client
+                    await cog.intro_trigger.callback(cog, ctx, member_str="@Bob")
+
+        voice_client.play.assert_called_once()
+        assert any("Playing intro" in str(c) for c in ctx.send.call_args_list)
