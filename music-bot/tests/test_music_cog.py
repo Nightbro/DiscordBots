@@ -2,15 +2,80 @@
 from collections import deque
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import discord
 import pytest
 
-from cogs.music import MusicCog
+from cogs.music import MusicCog, _HelpView, _HELP_PAGES
 from utils.player import get_state
 
 
 @pytest.fixture
 def cog(mock_bot):
     return MusicCog(mock_bot)
+
+
+# ---------------------------------------------------------------------------
+# !help / _HelpView
+# ---------------------------------------------------------------------------
+
+class TestHelpCommand:
+    async def test_sends_first_page_with_view(self, cog, ctx):
+        sent_msg = AsyncMock()
+        ctx.send = AsyncMock(return_value=sent_msg)
+        await cog.help_cmd.callback(cog, ctx)
+        ctx.send.assert_called_once()
+        content, view = ctx.send.call_args[0][0], ctx.send.call_args[1].get('view')
+        assert 'Page 1' in content
+        assert isinstance(view, _HelpView)
+        assert view.message is sent_msg
+
+    async def test_prev_disabled_on_first_page(self):
+        view = _HelpView(_HELP_PAGES)
+        assert view.prev_btn.disabled is True
+        assert view.next_btn.disabled is False
+
+    async def test_next_disabled_on_last_page(self):
+        view = _HelpView(_HELP_PAGES)
+        view.index = len(_HELP_PAGES) - 1
+        view._refresh()
+        assert view.next_btn.disabled is True
+        assert view.prev_btn.disabled is False
+
+    async def test_next_advances_page(self):
+        view = _HelpView(_HELP_PAGES)
+        interaction = MagicMock()
+        interaction.response.edit_message = AsyncMock()
+        await view.next_btn.callback(interaction)
+        assert view.index == 1
+        assert 'Page 2' in interaction.response.edit_message.call_args[1]['content']
+
+    async def test_prev_goes_back(self):
+        view = _HelpView(_HELP_PAGES)
+        view.index = 1
+        view._refresh()
+        interaction = MagicMock()
+        interaction.response.edit_message = AsyncMock()
+        await view.prev_btn.callback(interaction)
+        assert view.index == 0
+        assert 'Page 1' in interaction.response.edit_message.call_args[1]['content']
+
+    async def test_timeout_disables_buttons(self):
+        view = _HelpView(_HELP_PAGES)
+        view.message = AsyncMock()
+        view.message.edit = AsyncMock()
+        await view.on_timeout()
+        assert all(item.disabled for item in view.children)
+        view.message.edit.assert_called_once()
+
+    async def test_timeout_silent_on_http_error(self):
+        view = _HelpView(_HELP_PAGES)
+        view.message = AsyncMock()
+        view.message.edit = AsyncMock(side_effect=discord.HTTPException(MagicMock(), 'gone'))
+        await view.on_timeout()  # should not raise
+
+    async def test_timeout_without_message(self):
+        view = _HelpView(_HELP_PAGES)
+        await view.on_timeout()  # message is None — should not raise
 
 
 # ---------------------------------------------------------------------------
