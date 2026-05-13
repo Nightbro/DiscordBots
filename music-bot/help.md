@@ -32,15 +32,18 @@
 | Command | Description |
 |---|---|
 | `!intro set bot <url>` | Set the bot-join intro. Attach an MP3 **or** provide a YouTube/Suno/search URL. |
-| `!intro set user <url>` | Set the user-join intro. Attach an MP3 **or** provide a URL. |
+| `!intro set user <url>` | Set the server-wide user-join intro. Attach an MP3 **or** provide a URL. |
+| `!intro set @user <url>` | Set a per-user intro for a specific member. Attach an MP3 **or** provide a URL. |
 | `!intro clear bot` | Remove the bot-join intro. |
-| `!intro clear user` | Remove the user-join intro. |
-| `!intro show` | Show the currently configured intros and which triggers are enabled. |
+| `!intro clear user` | Remove the server-wide user-join intro. |
+| `!intro clear @user` | Remove a specific user's intro. |
+| `!intro list` | List all configured intro triggers for this server (with source info). |
+| `!intro show` | Show bot/server-wide config and which global triggers are enabled. |
 
 ### Intro behaviour
 - **Bot join** — plays once when the bot connects to a voice channel, before the first song.
 - **User join** — plays when a user joins the channel the bot is already in (only when idle, will not interrupt music).
-- Per-server intros set via `!intro set` take priority. Falls back to `INTRO_MP3` from `.env` if no server intro is configured.
+- Priority order for user-join intros: per-user (`!intro set @user`) → server-wide (`!intro set user`) → `.env` `INTRO_MP3` fallback.
 - `INTRO_ON_BOT_JOIN` and `INTRO_ON_USER_JOIN` in `.env` act as global on/off switches.
 
 ## Sources supported by `!play` and `!intro set`

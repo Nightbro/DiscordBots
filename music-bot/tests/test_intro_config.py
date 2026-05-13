@@ -71,3 +71,78 @@ class TestGetIntroFile:
             with patch("utils.intro_config._INTRO_FILE", fallback):
                 from utils.intro_config import get_intro_file
                 assert get_intro_file(99, "bot") == fallback
+
+    def test_no_fallback_for_per_member_key(self, tmp_path):
+        """Per-member triggers do not fall back to _INTRO_FILE."""
+        fallback = tmp_path / "intro.mp3"
+        fallback.write_bytes(b"fake")
+        cfg_file = tmp_path / "config.json"
+        cfg_file.write_text("{}")
+        with patch("utils.intro_config.INTRO_CONFIG_FILE", cfg_file):
+            with patch("utils.intro_config._INTRO_FILE", fallback):
+                from utils.intro_config import get_intro_file
+                assert get_intro_file(99, "user_123") is None
+
+
+class TestGetUserIntro:
+    def _write_cfg(self, tmp_path, data):
+        f = tmp_path / "config.json"
+        f.write_text(json.dumps(data))
+        return f
+
+    def test_returns_per_member_intro_first(self, tmp_path):
+        per_user = tmp_path / "user_42.mp3"
+        per_user.write_bytes(b"fake")
+        server = tmp_path / "server.mp3"
+        server.write_bytes(b"fake")
+        cfg = self._write_cfg(tmp_path, {
+            "99": {
+                "user_42": {"file": str(per_user), "source": "x"},
+                "user":    {"file": str(server),   "source": "y"},
+            }
+        })
+        with patch("utils.intro_config.INTRO_CONFIG_FILE", cfg):
+            with patch("utils.intro_config._INTRO_FILE", tmp_path / "nope.mp3"):
+                from utils.intro_config import get_user_intro
+                assert get_user_intro(99, 42) == per_user
+
+    def test_falls_back_to_server_wide_user(self, tmp_path):
+        server = tmp_path / "server.mp3"
+        server.write_bytes(b"fake")
+        cfg = self._write_cfg(tmp_path, {
+            "99": {"user": {"file": str(server), "source": "y"}}
+        })
+        with patch("utils.intro_config.INTRO_CONFIG_FILE", cfg):
+            with patch("utils.intro_config._INTRO_FILE", tmp_path / "nope.mp3"):
+                from utils.intro_config import get_user_intro
+                assert get_user_intro(99, 42) == server
+
+    def test_falls_back_to_env_default(self, tmp_path):
+        fallback = tmp_path / "intro.mp3"
+        fallback.write_bytes(b"fake")
+        cfg = self._write_cfg(tmp_path, {})
+        with patch("utils.intro_config.INTRO_CONFIG_FILE", cfg):
+            with patch("utils.intro_config._INTRO_FILE", fallback):
+                from utils.intro_config import get_user_intro
+                assert get_user_intro(99, 42) == fallback
+
+    def test_returns_none_when_nothing(self, tmp_path):
+        cfg = self._write_cfg(tmp_path, {})
+        with patch("utils.intro_config.INTRO_CONFIG_FILE", cfg):
+            with patch("utils.intro_config._INTRO_FILE", tmp_path / "nope.mp3"):
+                from utils.intro_config import get_user_intro
+                assert get_user_intro(99, 42) is None
+
+    def test_skips_missing_per_user_file_and_falls_back(self, tmp_path):
+        server = tmp_path / "server.mp3"
+        server.write_bytes(b"fake")
+        cfg = self._write_cfg(tmp_path, {
+            "99": {
+                "user_42": {"file": str(tmp_path / "gone.mp3"), "source": "x"},
+                "user":    {"file": str(server), "source": "y"},
+            }
+        })
+        with patch("utils.intro_config.INTRO_CONFIG_FILE", cfg):
+            with patch("utils.intro_config._INTRO_FILE", tmp_path / "nope.mp3"):
+                from utils.intro_config import get_user_intro
+                assert get_user_intro(99, 42) == server
