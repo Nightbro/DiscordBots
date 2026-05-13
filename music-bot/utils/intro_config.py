@@ -34,6 +34,19 @@ def get_intro_file(guild_id: int, trigger: str) -> Path | None:
     return None
 
 
+def get_auto_join(guild_id: int) -> bool:
+    """Return whether auto-join is enabled for this guild."""
+    config = load_intro_config()
+    return bool(config.get(str(guild_id), {}).get('_auto_join', False))
+
+
+def set_auto_join(guild_id: int, enabled: bool):
+    """Enable or disable auto-join for this guild and persist the change."""
+    config = load_intro_config()
+    config.setdefault(str(guild_id), {})['_auto_join'] = enabled
+    save_intro_config(config)
+
+
 def get_user_intro(guild_id: int, member_id: int) -> Path | None:
     """Return the best intro for a member joining voice.
 

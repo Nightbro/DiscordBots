@@ -361,3 +361,108 @@ class TestVoiceStateUpdate:
 
         mock_gui.assert_called_once_with(member.guild.id, member.id)
         vc.play.assert_called_once()
+
+    async def test_auto_join_connects_on_first_member(self, cog, mock_bot):
+        member = self._make_member(mock_bot)
+        channel = MagicMock()
+        channel.members = [member]          # only this non-bot member
+        channel.connect = AsyncMock(return_value=MagicMock())
+        before = self._make_state(None)
+        after  = self._make_state(channel)
+
+        state = get_state(mock_bot, member.guild.id)
+        state["voice_client"] = None
+
+        with patch("cogs.intros.get_auto_join", return_value=True):
+            with patch("cogs.intros._INTRO_ON_USER_JOIN", False):
+                await cog.on_voice_state_update(member, before, after)
+
+        channel.connect.assert_called_once()
+        assert state["voice_client"] is not None
+
+    async def test_auto_join_does_not_connect_when_already_in_vc(self, cog, mock_bot):
+        member = self._make_member(mock_bot)
+        channel = MagicMock()
+        channel.members = [member]
+        channel.connect = AsyncMock()
+        before = self._make_state(None)
+        after  = self._make_state(channel)
+
+        vc = MagicMock()
+        vc.is_connected.return_value = True
+        vc.is_playing.return_value = False
+        vc.is_paused.return_value = False
+        vc.channel = channel
+        state = get_state(mock_bot, member.guild.id)
+        state["voice_client"] = vc
+
+        with patch("cogs.intros.get_auto_join", return_value=True):
+            with patch("cogs.intros._INTRO_ON_USER_JOIN", False):
+                await cog.on_voice_state_update(member, before, after)
+
+        channel.connect.assert_not_called()
+
+    async def test_auto_join_does_not_connect_when_not_first_member(self, cog, mock_bot):
+        member  = self._make_member(mock_bot)
+        other   = MagicMock(spec=discord.Member)
+        other.bot = False
+        channel = MagicMock()
+        channel.members = [member, other]   # already two non-bot members
+        channel.connect = AsyncMock()
+        before = self._make_state(None)
+        after  = self._make_state(channel)
+
+        state = get_state(mock_bot, member.guild.id)
+        state["voice_client"] = None
+
+        with patch("cogs.intros.get_auto_join", return_value=True):
+            with patch("cogs.intros._INTRO_ON_USER_JOIN", False):
+                await cog.on_voice_state_update(member, before, after)
+
+        channel.connect.assert_not_called()
+
+    async def test_auto_join_disabled_does_not_connect(self, cog, mock_bot):
+        member = self._make_member(mock_bot)
+        channel = MagicMock()
+        channel.members = [member]
+        channel.connect = AsyncMock()
+        before = self._make_state(None)
+        after  = self._make_state(channel)
+
+        state = get_state(mock_bot, member.guild.id)
+        state["voice_client"] = None
+
+        with patch("cogs.intros.get_auto_join", return_value=False):
+            with patch("cogs.intros._INTRO_ON_USER_JOIN", False):
+                await cog.on_voice_state_update(member, before, after)
+
+        channel.connect.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# !intro autojoin
+# ---------------------------------------------------------------------------
+
+class TestIntroAutojoin:
+    async def test_enables_autojoin(self, cog, ctx):
+        with patch("cogs.intros.set_auto_join") as mock_set:
+            await cog.intro_autojoin.callback(cog, ctx, "on")
+        mock_set.assert_called_once_with(ctx.guild.id, True)
+        assert any("enabled" in str(c) for c in ctx.send.call_args_list)
+
+    async def test_disables_autojoin(self, cog, ctx):
+        with patch("cogs.intros.set_auto_join") as mock_set:
+            await cog.intro_autojoin.callback(cog, ctx, "off")
+        mock_set.assert_called_once_with(ctx.guild.id, False)
+        assert any("disabled" in str(c) for c in ctx.send.call_args_list)
+
+    async def test_invalid_state_sends_usage(self, cog, ctx):
+        with patch("cogs.intros.set_auto_join") as mock_set:
+            await cog.intro_autojoin.callback(cog, ctx, "maybe")
+        mock_set.assert_not_called()
+        assert any("Usage" in str(c) for c in ctx.send.call_args_list)
+
+    async def test_case_insensitive(self, cog, ctx):
+        with patch("cogs.intros.set_auto_join") as mock_set:
+            await cog.intro_autojoin.callback(cog, ctx, "ON")
+        mock_set.assert_called_once_with(ctx.guild.id, True)

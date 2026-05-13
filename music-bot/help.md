@@ -39,12 +39,14 @@
 | `!intro clear @user` | Remove a specific user's intro. |
 | `!intro list` | List all configured intro triggers for this server (with source info). |
 | `!intro show` | Show bot/server-wide config and which global triggers are enabled. |
+| `!intro autojoin on\|off` | Enable/disable auto-joining when the first user enters a voice channel. |
 
 ### Intro behaviour
 - **Bot join** — plays once when the bot connects to a voice channel, before the first song.
 - **User join** — plays when a user joins the channel the bot is already in (only when idle, will not interrupt music).
 - Priority order for user-join intros: per-user (`!intro set @user`) → server-wide (`!intro set user`) → `.env` `INTRO_MP3` fallback.
 - `INTRO_ON_BOT_JOIN` and `INTRO_ON_USER_JOIN` in `.env` act as global on/off switches.
+- **Auto-join** (`!intro autojoin on`) — bot connects automatically when the first non-bot member joins any voice channel it isn't already in. Setting is per-server and persisted in `intro_config.json`.
 
 ## Sources supported by `!play` and `!intro set`
 - YouTube URLs and short links (`youtu.be/…`)

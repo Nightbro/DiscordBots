@@ -9,7 +9,10 @@ from discord.ext import commands
 from utils.config import INTRO_SOUNDS_DIR, _INTRO_FILE, _INTRO_ON_BOT_JOIN, _INTRO_ON_USER_JOIN
 from utils.downloader import download_track, FFMPEG_OPTIONS
 from utils.player import get_state
-from utils.intro_config import load_intro_config, save_intro_config, get_intro_file, get_user_intro
+from utils.intro_config import (
+    load_intro_config, save_intro_config, get_intro_file, get_user_intro,
+    get_auto_join, set_auto_join,
+)
 
 log = logging.getLogger('music-bot.intros')
 
@@ -42,7 +45,8 @@ class IntrosCog(commands.Cog, name='Intros'):
             '`!intro clear user` — remove server-wide user-join intro\n'
             '`!intro clear @user` — remove a specific user\'s intro\n'
             '`!intro list` — list all configured triggers\n'
-            '`!intro show` — show bot/server-wide config and global flags'
+            '`!intro show` — show bot/server-wide config and global flags\n'
+            '`!intro autojoin on|off` — auto-join when first user enters a voice channel'
         )
 
     @intro_group.command(name='set')
@@ -132,12 +136,13 @@ class IntrosCog(commands.Cog, name='Intros'):
         """List every intro trigger configured for this server."""
         config    = load_intro_config()
         guild_cfg = config.get(str(ctx.guild.id), {})
+        triggers  = {k: v for k, v in guild_cfg.items() if not k.startswith('_')}
 
-        if not guild_cfg:
+        if not triggers:
             return await ctx.send('No intros configured for this server yet.')
 
         lines = []
-        for key, entry in guild_cfg.items():
+        for key, entry in triggers.items():
             p       = Path(entry['file'])
             missing = ' *(file missing!)*' if not p.exists() else ''
             label   = _trigger_label(key, entry)
@@ -173,10 +178,25 @@ class IntrosCog(commands.Cog, name='Intros'):
             active.append('user join')
         active_str = ', '.join(active) if active else 'none (both disabled in .env)'
 
+        auto_join = guild_cfg.get('_auto_join', False)
+        auto_str  = '**enabled**' if auto_join else 'disabled'
+
         await ctx.send(
             '**Intro config:**\n' + '\n'.join(lines) +
-            f'\n*Global triggers enabled: {active_str}*'
+            f'\n*Global triggers enabled: {active_str}*' +
+            f'\n*Auto-join on first user: {auto_str}*'
         )
+
+    @intro_group.command(name='autojoin')
+    async def intro_autojoin(self, ctx: commands.Context, state: str):
+        """Enable or disable auto-joining when the first user enters a voice channel."""
+        if state.lower() not in ('on', 'off'):
+            return await ctx.send('Usage: `!intro autojoin on` or `!intro autojoin off`')
+        enabled = state.lower() == 'on'
+        set_auto_join(ctx.guild.id, enabled)
+        status = 'enabled' if enabled else 'disabled'
+        log.info('Auto-join %s for guild %s by %s', status, ctx.guild.id, ctx.author)
+        await ctx.send(f'Auto-join **{status}**.')
 
     # ── Listener ──────────────────────────────────────────────────────────────
 
@@ -187,12 +207,25 @@ class IntrosCog(commands.Cog, name='Intros'):
         before: discord.VoiceState,
         after: discord.VoiceState,
     ):
-        if member.bot or not _INTRO_ON_USER_JOIN:
+        if member.bot:
             return
         if after.channel is None or before.channel == after.channel:
             return
+
         state = get_state(self.bot, member.guild.id)
         vc: discord.VoiceClient = state['voice_client']
+
+        # Auto-join: connect when this is the first non-bot member in the channel
+        if get_auto_join(member.guild.id) and (vc is None or not vc.is_connected()):
+            non_bot = [m for m in after.channel.members if not m.bot]
+            if len(non_bot) == 1:
+                log.info('Auto-joining channel %s in guild %s', after.channel, member.guild.id)
+                state['voice_client'] = await after.channel.connect()
+                vc = state['voice_client']
+
+        # User-join intro
+        if not _INTRO_ON_USER_JOIN:
+            return
         if vc is None or not vc.is_connected() or vc.channel != after.channel:
             return
         if vc.is_playing() or vc.is_paused():
