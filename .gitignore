@@ -19,3 +19,7 @@ venv/
 # IDE
 .vscode/
 .idea/
+music-bot/cookies.txt
+/music-bot/intro_sounds
+/music-bot/logs
+/.claude
