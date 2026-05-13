@@ -40,7 +40,7 @@
 | `!intro list` | List all configured intro triggers for this server (with source info). |
 | `!intro show` | Show bot/server-wide config and which global triggers are enabled. |
 | `!intro rename bot\|user\|@user <name>` | Give an intro a human-readable label shown in `!intro list`. |
-| `!intro trigger @user` | Manually play a user's intro (bot must be idle in a voice channel). |
+| `!intro trigger bot\|user\|@user` | Manually play an intro — `bot` for the bot-join intro, `user` for the server-wide user intro, or @mention for a specific member. |
 | `!intro autojoin on\|off` | Enable/disable auto-joining when the first user enters a voice channel. |
 
 ### Intro behaviour

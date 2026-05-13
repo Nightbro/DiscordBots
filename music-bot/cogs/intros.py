@@ -100,7 +100,7 @@ class IntrosCog(commands.Cog, name='Intros'):
             '`!intro list` — list all configured triggers\n'
             '`!intro show` — show bot/server-wide config and global flags\n'
             '`!intro rename bot|user|@user <name>` — give an intro a human-readable label\n'
-            '`!intro trigger @user` — manually play a user\'s intro\n'
+            '`!intro trigger bot|user|@user` — manually play an intro\n'
             '`!intro autojoin on|off` — auto-join when first user enters a voice channel'
         )
 
@@ -280,11 +280,19 @@ class IntrosCog(commands.Cog, name='Intros'):
 
     @intro_group.command(name='trigger')
     async def intro_trigger(self, ctx: commands.Context, *, member_str: str):
-        """Manually play the intro for a specific user."""
-        try:
-            member = await commands.MemberConverter().convert(ctx, member_str)
-        except commands.MemberNotFound:
-            return await ctx.send('Could not find that member.')
+        """Manually play an intro. Accepts: bot, user, or @mention."""
+        # Resolve trigger — keywords take priority over member lookup
+        member = None
+        trigger_key = None
+        if member_str in ('bot', 'user'):
+            trigger_key = member_str
+        else:
+            try:
+                member = await commands.MemberConverter().convert(ctx, member_str)
+            except commands.MemberNotFound:
+                return await ctx.send(
+                    'Could not find that member. Use `bot`, `user`, or a @mention.'
+                )
 
         state = get_state(self.bot, ctx.guild.id)
         vc: discord.VoiceClient = state['voice_client']
@@ -309,14 +317,20 @@ class IntrosCog(commands.Cog, name='Intros'):
         if vc.is_playing() or vc.is_paused():
             return await ctx.send('Cannot play intro while audio is already playing.')
 
-        intro = get_user_intro(member.guild.id, member.id)
-        if not intro:
-            return await ctx.send(f'No intro configured for **{member.display_name}**.')
+        if trigger_key:
+            intro = get_intro_file(ctx.guild.id, trigger_key)
+            display = trigger_key.capitalize() + '-join'
+        else:
+            intro = get_user_intro(member.guild.id, member.id)
+            display = member.display_name
 
-        log.info('Manually triggering intro for %s in guild %s (by %s)',
-                 member, ctx.guild.id, ctx.author)
+        if not intro:
+            return await ctx.send(f'No intro configured for **{display}**.')
+
+        log.info('Manually triggering intro %s in guild %s (by %s)',
+                 trigger_key or member, ctx.guild.id, ctx.author)
         vc.play(discord.FFmpegPCMAudio(str(intro), **FFMPEG_OPTIONS))
-        await ctx.send(f'Playing intro for **{member.display_name}**.')
+        await ctx.send(f'Playing **{display}** intro.')
 
     @intro_group.command(name='autojoin')
     async def intro_autojoin(self, ctx: commands.Context, state: str):

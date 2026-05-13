@@ -586,7 +586,41 @@ class TestIntroTrigger:
                 side_effect=discord.ext.commands.MemberNotFound("nobody")
             )
             await cog.intro_trigger.callback(cog, ctx, member_str="nobody")
-        ctx.send.assert_called_with("Could not find that member.")
+        assert any("Could not find" in str(c) for c in ctx.send.call_args_list)
+
+    async def test_trigger_bot_keyword(self, cog, ctx, mock_bot, voice_client, tmp_path):
+        intro = tmp_path / "bot.mp3"
+        intro.write_bytes(b"fake")
+        voice_client.channel = ctx.author.voice.channel
+        voice_client.play = MagicMock()
+        with patch("cogs.intros.get_intro_file", return_value=intro) as mock_gif:
+            with patch("cogs.intros.discord.FFmpegPCMAudio"):
+                state = get_state(mock_bot, ctx.guild.id)
+                state["voice_client"] = voice_client
+                await cog.intro_trigger.callback(cog, ctx, member_str="bot")
+        mock_gif.assert_called_once_with(ctx.guild.id, "bot")
+        voice_client.play.assert_called_once()
+
+    async def test_trigger_user_keyword(self, cog, ctx, mock_bot, voice_client, tmp_path):
+        intro = tmp_path / "user.mp3"
+        intro.write_bytes(b"fake")
+        voice_client.channel = ctx.author.voice.channel
+        voice_client.play = MagicMock()
+        with patch("cogs.intros.get_intro_file", return_value=intro) as mock_gif:
+            with patch("cogs.intros.discord.FFmpegPCMAudio"):
+                state = get_state(mock_bot, ctx.guild.id)
+                state["voice_client"] = voice_client
+                await cog.intro_trigger.callback(cog, ctx, member_str="user")
+        mock_gif.assert_called_once_with(ctx.guild.id, "user")
+        voice_client.play.assert_called_once()
+
+    async def test_trigger_keyword_not_configured(self, cog, ctx, mock_bot, voice_client):
+        voice_client.channel = ctx.author.voice.channel
+        with patch("cogs.intros.get_intro_file", return_value=None):
+            state = get_state(mock_bot, ctx.guild.id)
+            state["voice_client"] = voice_client
+            await cog.intro_trigger.callback(cog, ctx, member_str="bot")
+        assert any("No intro configured" in str(c) for c in ctx.send.call_args_list)
 
     async def test_user_not_in_voice_sends_sassy_message(self, cog, ctx, mock_bot):
         member = MagicMock(spec=discord.Member)
@@ -694,7 +728,7 @@ class TestIntroTrigger:
                     await cog.intro_trigger.callback(cog, ctx, member_str="@Bob")
 
         voice_client.play.assert_called_once()
-        assert any("Playing intro" in str(c) for c in ctx.send.call_args_list)
+        assert any("Playing" in str(c) and "intro" in str(c) for c in ctx.send.call_args_list)
 
 
 # ---------------------------------------------------------------------------

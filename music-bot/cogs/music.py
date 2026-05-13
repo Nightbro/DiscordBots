@@ -47,7 +47,7 @@ _HELP_TEXT = """\
 `!intro list` — List all configured intro triggers for this server.
 `!intro show` — Show bot/server-wide config and global enable flags.
 `!intro rename bot|user|@user <name>` — Give an intro a human-readable label shown in `!intro list`.
-`!intro trigger @user` — Manually play a user's intro (bot must be idle in voice).
+`!intro trigger bot|user|@user` — Manually play an intro (bot must be idle in voice).
 `!intro autojoin on|off` — Auto-join the voice channel when the first user enters.
 """
 
