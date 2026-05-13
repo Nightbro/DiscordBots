@@ -49,6 +49,12 @@ _HELP_TEXT = """\
 `!intro rename bot|user|@user <name>` — Give an intro a human-readable label shown in `!intro list`.
 `!intro trigger bot|user|@user` — Manually play an intro (bot must be idle in voice).
 `!intro autojoin on|off` — Auto-join the voice channel when the first user enters.
+
+**Soundboard** (`!soundboard` / `!sb`)
+`!sb add <name> <emoji> [url/search]` — Add a sound (attach MP3 or provide URL/search).
+`!sb remove <name>` — Remove a sound.
+`!sb trigger <name>` — Play a sound (bot must be idle in voice).
+`!sb list` — List all sounds configured for this server.
 """
 
 

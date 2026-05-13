@@ -86,6 +86,7 @@ async def main():
     async with bot:
         await bot.load_extension('cogs.music')
         await bot.load_extension('cogs.intros')
+        await bot.load_extension('cogs.soundboard')
         await bot.start(token)
 
 
