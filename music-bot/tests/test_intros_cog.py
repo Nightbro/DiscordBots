@@ -491,7 +491,7 @@ class TestIntroTrigger:
             state = get_state(mock_bot, ctx.guild.id)
             state["voice_client"] = None
             await cog.intro_trigger.callback(cog, ctx, member_str="@Someone")
-        ctx.send.assert_called_with("Not connected to a voice channel.")
+        ctx.send.assert_called_with("I'm not in a voice channel. Use `!join` to bring me in first.")
 
     async def test_refuses_while_playing(self, cog, ctx, mock_bot, voice_client):
         member = MagicMock(spec=discord.Member)
