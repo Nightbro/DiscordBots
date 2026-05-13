@@ -138,8 +138,13 @@ class IntrosCog(commands.Cog, name='Intros'):
         guild_cfg = config.get(str(ctx.guild.id), {})
         triggers  = {k: v for k, v in guild_cfg.items() if not k.startswith('_')}
 
+        auto_join  = guild_cfg.get('_auto_join', False)
+        auto_label = '✅ on' if auto_join else '❌ off'
+
         if not triggers:
-            return await ctx.send('No intros configured for this server yet.')
+            return await ctx.send(
+                f'No intros configured for this server yet.\n*Auto-join: {auto_label}*'
+            )
 
         lines = []
         for key, entry in triggers.items():
@@ -148,7 +153,10 @@ class IntrosCog(commands.Cog, name='Intros'):
             label   = _trigger_label(key, entry)
             lines.append(f'{label}: `{p.name}` — `{entry["source"]}`{missing}')
 
-        await ctx.send(f'**Intro triggers ({len(lines)}):**\n' + '\n'.join(lines))
+        await ctx.send(
+            f'**Intro triggers ({len(lines)}):**\n' + '\n'.join(lines) +
+            f'\n*Auto-join: {auto_label}*'
+        )
 
     @intro_group.command(name='show')
     async def intro_show(self, ctx: commands.Context):

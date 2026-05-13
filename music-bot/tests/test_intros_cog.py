@@ -162,7 +162,9 @@ class TestIntroList:
     async def test_no_intros_configured(self, cog, ctx):
         with patch("cogs.intros.load_intro_config", return_value={}):
             await cog.intro_list.callback(cog, ctx)
-        ctx.send.assert_called_with("No intros configured for this server yet.")
+        msg = ctx.send.call_args[0][0]
+        assert "No intros configured" in msg
+        assert "Auto-join" in msg
 
     async def test_lists_all_triggers(self, cog, ctx, tmp_path):
         bot_file = tmp_path / "bot.mp3"
@@ -185,6 +187,7 @@ class TestIntroList:
         assert "user.mp3" in msg
         assert "Alice" in msg
         assert "song1" in msg
+        assert "Auto-join" in msg
 
     async def test_flags_missing_files(self, cog, ctx):
         config = {
