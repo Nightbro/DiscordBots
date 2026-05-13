@@ -295,17 +295,22 @@ class IntrosCog(commands.Cog, name='Intros'):
         state = get_state(self.bot, ctx.guild.id)
         vc: discord.VoiceClient = state['voice_client']
 
-        if vc is None or not vc.is_connected():
-            if not await self._ask_to_join(ctx):
-                return
-            if not ctx.author.voice:
+        # User must be in a voice channel before anything else
+        if not ctx.author.voice:
+            await self._reject_not_in_channel(ctx)
+            return
+
+        if vc is not None and vc.is_connected():
+            # Bot already in voice — user must be in the same channel
+            if ctx.author.voice.channel != vc.channel:
                 await self._reject_not_in_channel(ctx)
+                return
+        else:
+            # Bot not in voice — ask to join
+            if not await self._ask_to_join(ctx):
                 return
             state['voice_client'] = await ctx.author.voice.channel.connect()
             vc = state['voice_client']
-        elif not ctx.author.voice or ctx.author.voice.channel != vc.channel:
-            await self._reject_not_in_channel(ctx)
-            return
 
         if vc.is_playing() or vc.is_paused():
             return await ctx.send('Cannot play intro while audio is already playing.')
