@@ -39,10 +39,13 @@ _HELP_TEXT = """\
 
 **Intro Sounds** (`!intro` / `!in`)
 `!intro set bot <url>` — Set the bot-join intro (attach MP3 or provide URL/search).
-`!intro set user <url>` — Set the user-join intro (attach MP3 or provide URL/search).
+`!intro set user <url>` — Set the server-wide user-join intro (attach MP3 or provide URL/search).
+`!intro set @user <url>` — Set a per-user intro for a specific member.
 `!intro clear bot` — Remove the bot-join intro.
-`!intro clear user` — Remove the user-join intro.
-`!intro show` — Show the current intro configuration.
+`!intro clear user` — Remove the server-wide user-join intro.
+`!intro clear @user` — Remove a specific user's intro.
+`!intro list` — List all configured intro triggers for this server.
+`!intro show` — Show bot/server-wide config and global enable flags.
 """
 
 

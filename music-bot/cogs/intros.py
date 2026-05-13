@@ -9,9 +9,20 @@ from discord.ext import commands
 from utils.config import INTRO_SOUNDS_DIR, _INTRO_FILE, _INTRO_ON_BOT_JOIN, _INTRO_ON_USER_JOIN
 from utils.downloader import download_track, FFMPEG_OPTIONS
 from utils.player import get_state
-from utils.intro_config import load_intro_config, save_intro_config, get_intro_file
+from utils.intro_config import load_intro_config, save_intro_config, get_intro_file, get_user_intro
 
 log = logging.getLogger('music-bot.intros')
+
+
+def _trigger_label(trigger: str, entry: dict) -> str:
+    """Human-readable label for a trigger key."""
+    if trigger == 'bot':
+        return '🤖 Bot join'
+    if trigger == 'user':
+        return '👥 Any user'
+    if trigger.startswith('user_'):
+        return f'👤 {entry.get("member_name", trigger[5:])}'
+    return trigger
 
 
 class IntrosCog(commands.Cog, name='Intros'):
@@ -24,19 +35,35 @@ class IntrosCog(commands.Cog, name='Intros'):
     async def intro_group(self, ctx: commands.Context):
         await ctx.send(
             '**Intro commands:**\n'
-            '`!intro set bot <url>` — set bot-join intro (or attach an MP3)\n'
-            '`!intro set user <url>` — set user-join intro (or attach an MP3)\n'
+            '`!intro set bot <url>` — set bot-join intro (or attach MP3)\n'
+            '`!intro set user <url>` — set intro for any user joining (or attach MP3)\n'
+            '`!intro set @user <url>` — set intro for a specific user (or attach MP3)\n'
             '`!intro clear bot` — remove bot-join intro\n'
-            '`!intro clear user` — remove user-join intro\n'
-            '`!intro show` — show current intro config'
+            '`!intro clear user` — remove server-wide user-join intro\n'
+            '`!intro clear @user` — remove a specific user\'s intro\n'
+            '`!intro list` — list all configured triggers\n'
+            '`!intro show` — show bot/server-wide config and global flags'
         )
 
     @intro_group.command(name='set')
     async def intro_set(self, ctx: commands.Context, trigger: str, *, query: str = None):
+        member: discord.Member | None = None
         if trigger not in ('bot', 'user'):
-            return await ctx.send('Trigger must be `bot` or `user`.')
+            try:
+                member = await commands.MemberConverter().convert(ctx, trigger)
+            except commands.MemberNotFound:
+                return await ctx.send(
+                    'Trigger must be `bot`, `user`, or a @mention of a server member.'
+                )
 
-        dest = INTRO_SOUNDS_DIR / f'{ctx.guild.id}_{trigger}.mp3'
+        if member:
+            trigger_key = f'user_{member.id}'
+            dest        = INTRO_SOUNDS_DIR / f'{ctx.guild.id}_user_{member.id}.mp3'
+            dl_label    = f'intro for **{member.display_name}**'
+        else:
+            trigger_key = trigger
+            dest        = INTRO_SOUNDS_DIR / f'{ctx.guild.id}_{trigger}.mp3'
+            dl_label    = f'**{trigger}**-join intro'
 
         if ctx.message.attachments:
             attachment = ctx.message.attachments[0]
@@ -45,60 +72,99 @@ class IntrosCog(commands.Cog, name='Intros'):
             await ctx.send('Saving attachment...')
             dest.write_bytes(await attachment.read())
             source_label = attachment.filename
-            log.info('Intro set from attachment — guild %s trigger %s: %s', ctx.guild.id, trigger, source_label)
+            log.info('Intro set from attachment — guild %s key %s: %s',
+                     ctx.guild.id, trigger_key, source_label)
         elif query:
-            await ctx.send(f'Downloading **{trigger}**-join intro...')
+            await ctx.send(f'Downloading {dl_label}...')
             try:
                 loop  = asyncio.get_event_loop()
                 track = await loop.run_in_executor(None, download_track, query)
             except Exception as e:
-                log.error('Intro download failed for guild %s: %s', ctx.guild.id, e, exc_info=True)
+                log.error('Intro download failed — guild %s key %s: %s',
+                          ctx.guild.id, trigger_key, e, exc_info=True)
                 return await ctx.send(f'Could not download: `{e}`')
             shutil.copy(track['file'], dest)
             source_label = query
-            log.info('Intro set from URL — guild %s trigger %s: %s', ctx.guild.id, trigger, source_label)
+            log.info('Intro set from URL — guild %s key %s: %s',
+                     ctx.guild.id, trigger_key, source_label)
         else:
             return await ctx.send('Provide a URL/search term or attach an MP3 file.')
 
         config = load_intro_config()
-        config.setdefault(str(ctx.guild.id), {})[trigger] = {
-            'file': str(dest),
-            'source': source_label,
-        }
+        entry  = {'file': str(dest), 'source': source_label}
+        if member:
+            entry['member_name'] = str(member)
+        config.setdefault(str(ctx.guild.id), {})[trigger_key] = entry
         save_intro_config(config)
-        await ctx.send(f'**{trigger.capitalize()}-join** intro set to `{dest.name}`.')
+
+        label = f'**{member.display_name}**' if member else f'**{trigger.capitalize()}-join**'
+        await ctx.send(f'{label} intro set to `{dest.name}`.')
 
     @intro_group.command(name='clear')
     async def intro_clear(self, ctx: commands.Context, trigger: str):
+        member: discord.Member | None = None
         if trigger not in ('bot', 'user'):
-            return await ctx.send('Trigger must be `bot` or `user`.')
+            try:
+                member = await commands.MemberConverter().convert(ctx, trigger)
+            except commands.MemberNotFound:
+                return await ctx.send(
+                    'Trigger must be `bot`, `user`, or a @mention of a server member.'
+                )
 
-        config = load_intro_config()
-        gid    = str(ctx.guild.id)
-        entry  = config.get(gid, {}).pop(trigger, None)
+        trigger_key = f'user_{member.id}' if member else trigger
+        config      = load_intro_config()
+        gid         = str(ctx.guild.id)
+        entry       = config.get(gid, {}).pop(trigger_key, None)
+
         if not entry:
-            return await ctx.send(f'No **{trigger}**-join intro is configured.')
+            label = member.display_name if member else f'{trigger}-join'
+            return await ctx.send(f'No intro configured for **{label}**.')
 
         Path(entry['file']).unlink(missing_ok=True)
         save_intro_config(config)
-        log.info('Intro cleared — guild %s trigger %s', ctx.guild.id, trigger)
-        await ctx.send(f'**{trigger.capitalize()}-join** intro removed.')
+        log.info('Intro cleared — guild %s key %s', ctx.guild.id, trigger_key)
+
+        label = member.display_name if member else f'{trigger.capitalize()}-join'
+        await ctx.send(f'**{label}** intro removed.')
+
+    @intro_group.command(name='list')
+    async def intro_list(self, ctx: commands.Context):
+        """List every intro trigger configured for this server."""
+        config    = load_intro_config()
+        guild_cfg = config.get(str(ctx.guild.id), {})
+
+        if not guild_cfg:
+            return await ctx.send('No intros configured for this server yet.')
+
+        lines = []
+        for key, entry in guild_cfg.items():
+            p       = Path(entry['file'])
+            missing = ' *(file missing!)*' if not p.exists() else ''
+            label   = _trigger_label(key, entry)
+            lines.append(f'{label}: `{p.name}` — `{entry["source"]}`{missing}')
+
+        await ctx.send(f'**Intro triggers ({len(lines)}):**\n' + '\n'.join(lines))
 
     @intro_group.command(name='show')
     async def intro_show(self, ctx: commands.Context):
+        """Show bot/server-wide intro config and global enable flags."""
         config    = load_intro_config()
         guild_cfg = config.get(str(ctx.guild.id), {})
 
         lines = []
-        for trigger, label in (('bot', 'Bot join'), ('user', 'User join')):
+        for trigger, label in (('bot', 'Bot join'), ('user', 'Any user')):
             entry = guild_cfg.get(trigger)
             if entry:
                 p       = Path(entry['file'])
                 missing = ' *(file missing!)*' if not p.exists() else ''
-                lines.append(f'**{label}:** `{p.name}`  —  source: `{entry["source"]}`{missing}')
+                lines.append(f'**{label}:** `{p.name}` — `{entry["source"]}`{missing}')
             else:
                 fallback = f'fallback: `{_INTRO_FILE.name}`' if _INTRO_FILE.exists() else 'not set'
                 lines.append(f'**{label}:** *(not configured — {fallback})*')
+
+        per_user = [k for k in guild_cfg if k.startswith('user_')]
+        if per_user:
+            lines.append(f'*+ {len(per_user)} per-user intro(s) — use `!intro list` to see all*')
 
         active = []
         if _INTRO_ON_BOT_JOIN:
@@ -131,7 +197,7 @@ class IntrosCog(commands.Cog, name='Intros'):
             return
         if vc.is_playing() or vc.is_paused():
             return
-        intro = get_intro_file(member.guild.id, 'user')
+        intro = get_user_intro(member.guild.id, member.id)
         if not intro:
             return
         log.info('Playing user-join intro for %s in guild %s', member, member.guild.id)
