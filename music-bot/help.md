@@ -31,21 +31,31 @@
 
 | Command | Description |
 |---|---|
-| `!intro set bot <url>` | Set the bot-join intro. Attach an MP3 **or** provide a YouTube/Suno/search URL. |
-| `!intro set user <url>` | Set the server-wide user-join intro. Attach an MP3 **or** provide a URL. |
-| `!intro set @user <url>` | Set a per-user intro for a specific member. Attach an MP3 **or** provide a URL. |
-| `!intro clear bot` | Remove the bot-join intro. |
-| `!intro clear user` | Remove the server-wide user-join intro. |
-| `!intro clear @user` | Remove a specific user's intro. |
-| `!intro list` | List all configured intro triggers for this server (with source info). |
+| `!intro set bot\|user\|@user <url>` | Set the **default** intro. Attach an MP3 **or** provide a YouTube/Suno/search URL. |
+| `!intro schedule bot\|user\|@user <days> <url>` | Set a **day-specific override** intro. Played instead of the default on matching days. |
+| `!intro unschedule bot\|user\|@user <days>` | Remove a day-specific override. |
+| `!intro clear bot\|user\|@user` | Remove all intros for this trigger (default + all day overrides). |
+| `!intro list` | List all configured intro triggers for this server (with source info and schedules). |
 | `!intro show` | Show bot/server-wide config and which global triggers are enabled. |
 | `!intro rename bot\|user\|@user <name>` | Give an intro a human-readable label shown in `!intro list`. |
 | `!intro trigger bot\|user\|@user` | Manually play an intro — `bot` for the bot-join intro, `user` for the server-wide user intro, or @mention for a specific member. |
 | `!intro autojoin on\|off` | Enable/disable auto-joining when the first user enters a voice channel. |
 
+### Day patterns for `!intro schedule` / `!intro unschedule`
+
+| Pattern | Meaning |
+|---|---|
+| `MON` `TUE` `WED` `THU` `FRI` `SAT` `SUN` | Single day |
+| `SAT,SUN` | Comma-separated list |
+| `MON-FRI` | Inclusive range (low→high only) |
+| `WEEKDAY` | Alias for `MON-FRI` |
+| `WEEKEND` | Alias for `SAT,SUN` |
+| `*` | Every day (same as no override) |
+
 ### Intro behaviour
 - **Bot join** — plays once when the bot connects to a voice channel, before the first song.
-- **User join** — plays when a user joins the channel the bot is already in (only when idle, will not interrupt music).
+- **User join** — plays when a user joins the channel the bot is already in.
+- **Day overrides** — on matching days, the day-specific file is played instead of the default. First matching schedule entry wins.
 - Priority order for user-join intros: per-user (`!intro set @user`) → server-wide (`!intro set user`) → `.env` `INTRO_MP3` fallback.
 - `INTRO_ON_BOT_JOIN` and `INTRO_ON_USER_JOIN` in `.env` act as global on/off switches.
 - **Auto-join** (`!intro autojoin on`) — bot connects automatically when the first non-bot member joins any voice channel it isn't already in. Setting is per-server and persisted in `intro_config.json`.
