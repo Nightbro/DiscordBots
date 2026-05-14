@@ -47,14 +47,14 @@ call venv\Scripts\activate.bat
 
 :: Install/update dependencies
 echo Installing dependencies...
-pip install -q -r requirements.txt
+pip install -r requirements.txt
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to install dependencies.
     pause
     exit /b 1
 )
 :: Always upgrade yt-dlp — YouTube changes frequently and old versions break silently
-pip install -q -U yt-dlp
+pip install -U yt-dlp
 echo Dependencies ready!
 echo.
 
