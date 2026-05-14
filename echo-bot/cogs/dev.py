@@ -17,6 +17,8 @@ _UTIL_MODULES = [
     'utils.voice',
     'utils.audio',
     'utils.downloader',
+    'utils.i18n',
+    'utils.guild_config',
 ]
 
 

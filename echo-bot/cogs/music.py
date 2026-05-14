@@ -9,6 +9,7 @@ from discord.ext import commands
 from utils.config import EMOJI_LOADING, EMOJI_MUSIC, MAX_QUEUE
 from utils.downloader import Downloader
 from utils.guild_state import GuildState, Track
+from utils.i18n import t
 from utils.message import MessageWriter
 from utils.persistence import PlaylistConfig
 from utils.voice import VoiceStreamer
@@ -53,20 +54,11 @@ class MusicCog(commands.Cog, name='Music'):
         return VoiceStreamer(self.bot, ctx.guild.id)
 
     async def _ensure_voice(self, ctx) -> tuple[VoiceStreamer | None, bool]:
-        """
-        Ensure the bot is in the user's voice channel.
-
-        Returns (streamer, just_connected). Returns (None, False) and sends an
-        error embed when the user is not in a voice channel.
-        """
         if ctx.author.voice is None:
-            await ctx.send(embed=MessageWriter.error('You must be in a voice channel.'))
+            await ctx.send(embed=MessageWriter.error(t('common.error_no_voice', ctx.guild.id)))
             return None, False
-
         streamer = self._streamer(ctx)
-        state = self._state(ctx)
-        just_connected = state.voice_client is None
-
+        just_connected = self._state(ctx).voice_client is None
         await streamer.join(ctx.author.voice.channel)
         return streamer, just_connected
 
@@ -77,17 +69,18 @@ class MusicCog(commands.Cog, name='Music'):
     @commands.hybrid_command(name='play', aliases=['p'])
     async def play(self, ctx: commands.Context, *, query: str) -> None:
         """Add a track to the queue and start playback."""
+        gid = ctx.guild.id
         streamer, _ = await self._ensure_voice(ctx)
         if streamer is None:
             return
 
-        loading = await ctx.send(embed=MessageWriter.info(f'{EMOJI_LOADING} Resolving…'))
+        loading = await ctx.send(embed=MessageWriter.info(t('music.resolving', gid)))
 
         try:
             track = await Downloader.resolve(query)
             track.requester = ctx.author
         except Exception as exc:
-            await loading.edit(embed=MessageWriter.error('Could not resolve track.', str(exc)))
+            await loading.edit(embed=MessageWriter.error(t('music.error_resolve', gid), str(exc)))
             return
 
         try:
@@ -96,44 +89,45 @@ class MusicCog(commands.Cog, name='Music'):
             await loading.edit(embed=MessageWriter.error(str(exc)))
             return
 
-        await loading.edit(embed=MessageWriter.track_card(track))
+        await loading.edit(embed=MessageWriter.track_card(track, guild_id=gid))
 
     @commands.hybrid_command(name='skip', aliases=['s'])
     async def skip(self, ctx: commands.Context) -> None:
         """Skip the current track."""
-        streamer = self._streamer(ctx)
-        skipped = await streamer.skip()
+        gid = ctx.guild.id
+        skipped = await self._streamer(ctx).skip()
         if skipped:
-            await ctx.send(embed=MessageWriter.success(f'Skipped **{skipped.title}**'))
+            await ctx.send(embed=MessageWriter.success(t('music.skip.skipped', gid, title=skipped.title)))
         else:
-            await ctx.send(embed=MessageWriter.error('Nothing is playing.'))
+            await ctx.send(embed=MessageWriter.error(t('music.skip.nothing', gid)))
 
     @commands.hybrid_command(name='pause')
     async def pause(self, ctx: commands.Context) -> None:
         """Pause playback."""
         await self._streamer(ctx).pause()
-        await ctx.send(embed=MessageWriter.success('Paused.'))
+        await ctx.send(embed=MessageWriter.success(t('music.paused', ctx.guild.id)))
 
     @commands.hybrid_command(name='resume', aliases=['unpause'])
     async def resume(self, ctx: commands.Context) -> None:
         """Resume playback."""
         await self._streamer(ctx).resume()
-        await ctx.send(embed=MessageWriter.success('Resumed.'))
+        await ctx.send(embed=MessageWriter.success(t('music.resumed', ctx.guild.id)))
 
     @commands.hybrid_command(name='stop')
     async def stop(self, ctx: commands.Context) -> None:
         """Stop playback and clear the queue."""
         await self._streamer(ctx).stop()
-        await ctx.send(embed=MessageWriter.success('Stopped and queue cleared.'))
+        await ctx.send(embed=MessageWriter.success(t('music.stopped', ctx.guild.id)))
 
     @commands.hybrid_command(name='nowplaying', aliases=['np'])
     async def now_playing(self, ctx: commands.Context) -> None:
         """Show the currently playing track."""
+        gid = ctx.guild.id
         track = self._state(ctx).current_track
         if track:
-            await ctx.send(embed=MessageWriter.track_card(track))
+            await ctx.send(embed=MessageWriter.track_card(track, guild_id=gid))
         else:
-            await ctx.send(embed=MessageWriter.info('Nothing is playing right now.'))
+            await ctx.send(embed=MessageWriter.info(t('music.nothing_playing', gid)))
 
     # -----------------------------------------------------------------------
     # Queue
@@ -142,6 +136,7 @@ class MusicCog(commands.Cog, name='Music'):
     @commands.hybrid_command(name='queue', aliases=['q'])
     async def queue(self, ctx: commands.Context, page: int = 1) -> None:
         """Show the playback queue."""
+        gid = ctx.guild.id
         state = self._state(ctx)
         tracks = list(state.queue)
         total = len(tracks)
@@ -149,16 +144,16 @@ class MusicCog(commands.Cog, name='Music'):
         page = max(1, min(page, total_pages))
         chunk = tracks[(page - 1) * _PAGE_SIZE: page * _PAGE_SIZE]
 
-        embed = MessageWriter.queue_page(chunk, page, total_pages)
+        embed = MessageWriter.queue_page(chunk, page, total_pages, guild_id=gid)
 
         if state.current_track:
-            t = state.current_track
+            tr = state.current_track
             dur = ''
-            if t.duration is not None:
-                m, s = divmod(t.duration, 60)
+            if tr.duration is not None:
+                m, s = divmod(tr.duration, 60)
                 dur = f' `{m}:{s:02d}`'
-            now_playing_line = f'{EMOJI_MUSIC} **Now playing:** {t.title}{dur}\n\n'
-            embed.description = now_playing_line + (embed.description or '')
+            now_line = t('music.queue.now_playing', gid, emoji=EMOJI_MUSIC, title=tr.title, dur=dur) + '\n\n'
+            embed.description = now_line + (embed.description or '')
 
         await ctx.send(embed=embed)
 
@@ -166,20 +161,21 @@ class MusicCog(commands.Cog, name='Music'):
     async def clear(self, ctx: commands.Context) -> None:
         """Clear the queue (keeps current track playing)."""
         self._state(ctx).queue.clear()
-        await ctx.send(embed=MessageWriter.success('Queue cleared.'))
+        await ctx.send(embed=MessageWriter.success(t('music.queue.cleared', ctx.guild.id)))
 
     @commands.hybrid_command(name='remove', aliases=['rm'])
     async def remove(self, ctx: commands.Context, position: int) -> None:
         """Remove a track from the queue by its position number."""
+        gid = ctx.guild.id
         queue = self._state(ctx).queue
         if position < 1 or position > len(queue):
-            await ctx.send(embed=MessageWriter.error(f'Position must be between 1 and {len(queue)}.'))
+            await ctx.send(embed=MessageWriter.error(t('music.remove.error_range', gid, max=len(queue))))
             return
         items = list(queue)
         removed = items.pop(position - 1)
         queue.clear()
         queue.extend(items)
-        await ctx.send(embed=MessageWriter.success(f'Removed **{removed.title}**'))
+        await ctx.send(embed=MessageWriter.success(t('music.remove.removed', gid, title=removed.title)))
 
     @commands.hybrid_command(name='shuffle')
     async def shuffle(self, ctx: commands.Context) -> None:
@@ -189,7 +185,7 @@ class MusicCog(commands.Cog, name='Music'):
         random.shuffle(items)
         queue.clear()
         queue.extend(items)
-        await ctx.send(embed=MessageWriter.success(f'Shuffled {len(items)} tracks.'))
+        await ctx.send(embed=MessageWriter.success(t('music.shuffle.shuffled', ctx.guild.id, count=len(items))))
 
     # -----------------------------------------------------------------------
     # Voice
@@ -200,13 +196,13 @@ class MusicCog(commands.Cog, name='Music'):
         """Join your voice channel."""
         streamer, _ = await self._ensure_voice(ctx)
         if streamer is not None:
-            await ctx.send(embed=MessageWriter.success('Joined your channel.'))
+            await ctx.send(embed=MessageWriter.success(t('music.joined', ctx.guild.id)))
 
     @commands.hybrid_command(name='leave', aliases=['disconnect', 'dc'])
     async def leave(self, ctx: commands.Context) -> None:
         """Leave the voice channel and clear all state."""
         await self._streamer(ctx).leave()
-        await ctx.send(embed=MessageWriter.success('Left the voice channel.'))
+        await ctx.send(embed=MessageWriter.success(t('music.left', ctx.guild.id)))
 
     # -----------------------------------------------------------------------
     # Playlists
@@ -215,42 +211,40 @@ class MusicCog(commands.Cog, name='Music'):
     @commands.hybrid_group(name='playlist', aliases=['pl'], invoke_without_command=True)
     async def playlist(self, ctx: commands.Context) -> None:
         """Playlist management."""
+        gid = ctx.guild.id
         await ctx.send(embed=MessageWriter.info(
             'Playlist commands',
-            '`save <name>` · `load <name>` · `list` · `delete <name>` · `show <name>`',
+            t('music.playlist_hint', gid),
         ))
 
     @playlist.command(name='save')
     async def playlist_save(self, ctx: commands.Context, *, name: str) -> None:
         """Save the current queue as a named playlist."""
+        gid = ctx.guild.id
         state = self._state(ctx)
         tracks = list(state.queue)
         if state.current_track:
             tracks = [state.current_track] + tracks
         if not tracks:
-            await ctx.send(embed=MessageWriter.error('Nothing in the queue to save.'))
+            await ctx.send(embed=MessageWriter.error(t('music.playlist.save.empty', gid)))
             return
-
-        cfg = PlaylistConfig()
-        cfg.set(name, [_track_to_dict(t) for t in tracks])
+        PlaylistConfig().set(name, [_track_to_dict(tr) for tr in tracks])
         await ctx.send(embed=MessageWriter.success(
-            f'Saved playlist **{name}**',
-            f'{len(tracks)} tracks.',
+            t('music.playlist.save.title', gid, name=name),
+            t('music.playlist.save.desc', gid, count=len(tracks)),
         ))
 
     @playlist.command(name='load')
     async def playlist_load(self, ctx: commands.Context, *, name: str) -> None:
         """Load a playlist into the queue."""
-        cfg = PlaylistConfig()
-        data = cfg.get(name)
+        gid = ctx.guild.id
+        data = PlaylistConfig().get(name)
         if data is None:
-            await ctx.send(embed=MessageWriter.error(f'Playlist **{name}** not found.'))
+            await ctx.send(embed=MessageWriter.error(t('music.playlist.load.not_found', gid, name=name)))
             return
-
         streamer, _ = await self._ensure_voice(ctx)
         if streamer is None:
             return
-
         tracks = [_dict_to_track(d) for d in data]
         state = self._state(ctx)
         added = 0
@@ -260,44 +254,44 @@ class MusicCog(commands.Cog, name='Music'):
             track.requester = ctx.author
             await streamer.play(track)
             added += 1
-
         await ctx.send(embed=MessageWriter.success(
-            f'Loaded **{name}**',
-            f'Added {added}/{len(tracks)} tracks to the queue.',
+            t('music.playlist.load.title', gid, name=name),
+            t('music.playlist.load.desc', gid, added=added, total=len(tracks)),
         ))
 
     @playlist.command(name='list')
     async def playlist_list(self, ctx: commands.Context) -> None:
         """List all saved playlists."""
+        gid = ctx.guild.id
         playlists = PlaylistConfig().all()
         if not playlists:
-            await ctx.send(embed=MessageWriter.info('No playlists saved yet.'))
+            await ctx.send(embed=MessageWriter.info(t('music.playlist.list.empty', gid)))
             return
-        lines = [f'• **{name}** ({len(tracks)} tracks)' for name, tracks in playlists.items()]
-        await ctx.send(embed=MessageWriter.info('Saved playlists', '\n'.join(lines)))
+        lines = [t('music.playlist.list.entry', gid, name=n, count=len(v)) for n, v in playlists.items()]
+        await ctx.send(embed=MessageWriter.info(t('music.playlist.list.title', gid), '\n'.join(lines)))
 
     @playlist.command(name='delete')
     async def playlist_delete(self, ctx: commands.Context, *, name: str) -> None:
         """Delete a playlist."""
-        cfg = PlaylistConfig()
-        if cfg.delete(name):
-            await ctx.send(embed=MessageWriter.success(f'Deleted playlist **{name}**.'))
+        gid = ctx.guild.id
+        if PlaylistConfig().delete(name):
+            await ctx.send(embed=MessageWriter.success(t('music.playlist.delete.deleted', gid, name=name)))
         else:
-            await ctx.send(embed=MessageWriter.error(f'Playlist **{name}** not found.'))
+            await ctx.send(embed=MessageWriter.error(t('music.playlist.delete.not_found', gid, name=name)))
 
     @playlist.command(name='show')
     async def playlist_show(self, ctx: commands.Context, *, name: str) -> None:
         """Show the contents of a playlist."""
-        cfg = PlaylistConfig()
-        data = cfg.get(name)
+        gid = ctx.guild.id
+        data = PlaylistConfig().get(name)
         if data is None:
-            await ctx.send(embed=MessageWriter.error(f'Playlist **{name}** not found.'))
+            await ctx.send(embed=MessageWriter.error(t('music.playlist.show.not_found', gid, name=name)))
             return
         tracks = [_dict_to_track(d) for d in data]
-        lines = [f'**{i}.** {t.title}' for i, t in enumerate(tracks, 1)]
-        e = MessageWriter.info(f'Playlist: {name}', '\n'.join(lines[:20]))
+        lines = [f'**{i}.** {tr.title}' for i, tr in enumerate(tracks, 1)]
+        e = MessageWriter.info(t('music.playlist.show.title', gid, name=name), '\n'.join(lines[:20]))
         if len(tracks) > 20:
-            e.set_footer(text=f'… and {len(tracks) - 20} more')
+            e.set_footer(text=t('music.playlist.show.more', gid, count=len(tracks) - 20))
         await ctx.send(embed=e)
 
 
