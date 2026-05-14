@@ -85,6 +85,26 @@ Alias: `!soundboard`
 
 ---
 
+## Settings (admins only)
+
+Per-server overrides for bot behaviour. Values marked *(overridden)* differ from the global `config.yaml` default.
+
+| Command | Description |
+|---|---|
+| `!settings` | Show current settings for this server |
+| `!settings show` | Same as above |
+| `!settings set <key> <true\|false>` | Override a setting for this server |
+| `!settings reset <key>` | Revert a setting to the global default |
+
+**Available keys:**
+
+| Key | Default | Description |
+|---|---|---|
+| `auto_join` | `false` | Join a voice channel when the first person enters it |
+| `auto_leave` | `true` | Leave when the last person exits the bot's channel |
+
+---
+
 ## Dev (owner only)
 
 | Command | Description |

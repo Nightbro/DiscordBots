@@ -61,3 +61,11 @@ class PlaylistConfig(BaseConfig):
     def __init__(self) -> None:
         from utils.config import PLAYLISTS_FILE
         self.path = PLAYLISTS_FILE
+
+
+class GuildConfig(BaseConfig):
+    """Per-guild settings overrides, persisted to guild_config.json."""
+
+    def __init__(self) -> None:
+        from utils.config import GUILD_CONFIG_FILE
+        self.path = GUILD_CONFIG_FILE
