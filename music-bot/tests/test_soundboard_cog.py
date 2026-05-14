@@ -224,17 +224,19 @@ class TestSbTrigger:
         await cog.sb_trigger.callback(cog, ctx, name='boom')
         assert 'busy' in ctx.send.call_args[0][0]
 
-    async def test_refuses_while_playing(self, cog, ctx_with_vc, voice_client, sound_file):
+    async def test_interrupts_while_playing(self, cog, ctx_with_vc, voice_client, sound_file):
         sbc.add_sound(ctx_with_vc.guild.id, 'boom', '💥', str(sound_file), 'src')
         voice_client.is_playing.return_value = True
-        await cog.sb_trigger.callback(cog, ctx_with_vc, name='boom')
-        assert 'Cannot play' in ctx_with_vc.send.call_args[0][0]
+        with patch('cogs.soundboard.play_with_interrupt', new=AsyncMock()) as mock_pwi:
+            await cog.sb_trigger.callback(cog, ctx_with_vc, name='boom')
+        mock_pwi.assert_called_once()
 
-    async def test_refuses_while_paused(self, cog, ctx_with_vc, voice_client, sound_file):
+    async def test_interrupts_while_paused(self, cog, ctx_with_vc, voice_client, sound_file):
         sbc.add_sound(ctx_with_vc.guild.id, 'boom', '💥', str(sound_file), 'src')
         voice_client.is_paused.return_value = True
-        await cog.sb_trigger.callback(cog, ctx_with_vc, name='boom')
-        assert 'Cannot play' in ctx_with_vc.send.call_args[0][0]
+        with patch('cogs.soundboard.play_with_interrupt', new=AsyncMock()) as mock_pwi:
+            await cog.sb_trigger.callback(cog, ctx_with_vc, name='boom')
+        mock_pwi.assert_called_once()
 
     async def test_missing_file(self, cog, ctx_with_vc, tmp_path, sound_file):
         sbc.add_sound(ctx_with_vc.guild.id, 'boom', '💥', str(tmp_path / 'missing.mp3'), 'src')
@@ -243,9 +245,9 @@ class TestSbTrigger:
 
     async def test_plays_sound(self, cog, ctx_with_vc, voice_client, sound_file):
         sbc.add_sound(ctx_with_vc.guild.id, 'boom', '💥', str(sound_file), 'src')
-        with patch('cogs.soundboard.discord.FFmpegPCMAudio', return_value=MagicMock()):
+        with patch('cogs.soundboard.play_with_interrupt', new=AsyncMock()) as mock_pwi:
             await cog.sb_trigger.callback(cog, ctx_with_vc, name='boom')
-        voice_client.play.assert_called_once()
+        mock_pwi.assert_called_once()
         calls = [str(c) for c in ctx_with_vc.send.call_args_list]
         assert any('Playing' in c and 'boom' in c for c in calls)
 
@@ -259,11 +261,10 @@ class TestSbTrigger:
         ctx.author.voice.channel.connect = AsyncMock(return_value=new_vc)
 
         with patch.object(cog, '_ask_to_join', new=AsyncMock(return_value=True)), \
-             patch('cogs.soundboard.discord.FFmpegPCMAudio', return_value=MagicMock()):
+             patch('cogs.soundboard.play_with_interrupt', new=AsyncMock()):
             await cog.sb_trigger.callback(cog, ctx, name='boom')
 
         assert get_state(mock_bot, ctx.guild.id)['voice_client'] is new_vc
-        new_vc.play.assert_called_once()
 
     async def test_bot_not_in_voice_confirm_no(self, cog, ctx, sound_file, mock_bot):
         sbc.add_sound(ctx.guild.id, 'boom', '💥', str(sound_file), 'src')
@@ -333,13 +334,12 @@ class TestPlayFromReaction:
         member.voice = MagicMock()
         member.voice.channel.connect = AsyncMock(return_value=new_vc)
 
-        with patch('cogs.soundboard.discord.FFmpegPCMAudio', return_value=MagicMock()):
+        with patch('cogs.soundboard.play_with_interrupt', new=AsyncMock()):
             await cog._play_from_reaction(guild, channel, member, 'boom')
 
         assert get_state(mock_bot, guild.id)['voice_client'] is new_vc
-        new_vc.play.assert_called_once()
 
-    async def test_refuses_while_playing(self, cog, mock_bot, voice_client, sound_file):
+    async def test_interrupts_while_playing(self, cog, mock_bot, voice_client, sound_file):
         guild = MagicMock()
         guild.id = 111222333
         sbc.add_sound(guild.id, 'boom', '💥', str(sound_file), 'src')
@@ -352,8 +352,9 @@ class TestPlayFromReaction:
         member.voice = MagicMock()
         member.voice.channel = voice_client.channel
 
-        await cog._play_from_reaction(guild, channel, member, 'boom')
-        assert 'Cannot play' in channel.send.call_args[0][0]
+        with patch('cogs.soundboard.play_with_interrupt', new=AsyncMock()) as mock_pwi:
+            await cog._play_from_reaction(guild, channel, member, 'boom')
+        mock_pwi.assert_called_once()
 
     async def test_missing_file(self, cog, mock_bot, voice_client, tmp_path):
         guild = MagicMock()
@@ -383,10 +384,9 @@ class TestPlayFromReaction:
         member.voice = MagicMock()
         member.voice.channel = voice_client.channel
 
-        with patch('cogs.soundboard.discord.FFmpegPCMAudio', return_value=MagicMock()):
+        with patch('cogs.soundboard.play_with_interrupt', new=AsyncMock()):
             await cog._play_from_reaction(guild, channel, member, 'boom')
 
-        voice_client.play.assert_called_once()
         msg = channel.send.call_args[0][0]
         assert 'Playing' in msg and 'boom' in msg and '<@42>' in msg
 
@@ -470,11 +470,10 @@ class TestOnRawReactionAdd:
         payload.user_id = 42
 
         with patch.object(cog, '_reset_panel_timer'), \
-             patch('cogs.soundboard.discord.FFmpegPCMAudio', return_value=MagicMock()):
+             patch('cogs.soundboard.play_with_interrupt', new=AsyncMock()):
             await cog.on_raw_reaction_add(payload)
 
         panel_msg.remove_reaction.assert_called_once()
-        voice_client.play.assert_called_once()
 
     async def test_reaction_resets_timer(self, cog, mock_bot, sound_file, voice_client):
         mock_bot.user = MagicMock(id=99)
@@ -500,7 +499,7 @@ class TestOnRawReactionAdd:
         payload.user_id = 42
 
         with patch.object(cog, '_reset_panel_timer') as mock_reset, \
-             patch('cogs.soundboard.discord.FFmpegPCMAudio', return_value=MagicMock()):
+             patch('cogs.soundboard.play_with_interrupt', new=AsyncMock()):
             await cog.on_raw_reaction_add(payload)
 
         mock_reset.assert_called_once_with(guild_id)

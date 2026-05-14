@@ -8,7 +8,7 @@ from discord.ext import commands
 
 from utils.config import SOUNDBOARD_DIR
 from utils.downloader import download_track, FFMPEG_OPTIONS
-from utils.player import get_state
+from utils.player import get_state, play_with_interrupt
 from utils.soundboard_config import get_sounds, get_sound, add_sound, remove_sound
 
 log = logging.getLogger('music-bot.soundboard')
@@ -151,17 +151,13 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
                 log.error('Failed to join voice from reaction — guild %s: %s', guild.id, e)
                 return
 
-        if vc.is_playing() or vc.is_paused():
-            await channel.send(f'{member.mention} Cannot play sound while audio is already playing.')
-            return
-
         sound_file = Path(entry['file'])
         if not sound_file.exists():
             await channel.send(f'Sound file for **{sound_name}** is missing.')
             return
 
         log.info('Soundboard reaction — guild %s name %s by %s', guild.id, sound_name, member)
-        vc.play(discord.FFmpegPCMAudio(str(sound_file), **FFMPEG_OPTIONS))
+        await play_with_interrupt(self.bot, guild.id, str(sound_file), channel)
         await channel.send(f'{member.mention} Playing **{sound_name}** {entry["emoji"]}.')
 
     # ── Commands ──────────────────────────────────────────────────────────────
@@ -237,15 +233,12 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
             state['voice_client'] = await ctx.author.voice.channel.connect()
             vc = state['voice_client']
 
-        if vc.is_playing() or vc.is_paused():
-            return await ctx.send('Cannot play sound while audio is already playing.')
-
         sound_file = Path(entry['file'])
         if not sound_file.exists():
             return await ctx.send(f'Sound file for **{name}** is missing.')
 
         log.info('Soundboard trigger — guild %s name %s (by %s)', ctx.guild.id, name, ctx.author)
-        vc.play(discord.FFmpegPCMAudio(str(sound_file), **FFMPEG_OPTIONS))
+        await play_with_interrupt(self.bot, ctx.guild.id, str(sound_file), ctx.channel)
         await ctx.send(f'Playing **{name}** {entry["emoji"]}.')
 
     # ── Listener ──────────────────────────────────────────────────────────────

@@ -314,7 +314,7 @@ class TestVoiceStateUpdate:
 
         vc.play.assert_called_once()
 
-    async def test_does_not_interrupt_playing_music(self, cog, mock_bot, tmp_path):
+    async def test_interrupts_playing_music_for_user_join(self, cog, mock_bot, tmp_path):
         member = self._make_member(mock_bot)
         channel = MagicMock()
         before = self._make_state(None)
@@ -331,11 +331,12 @@ class TestVoiceStateUpdate:
         intro = tmp_path / "intro.mp3"
         intro.write_bytes(b"fake")
 
-        with patch("cogs.intros._INTRO_ON_USER_JOIN", True):
-            with patch("cogs.intros.get_user_intro", return_value=intro):
-                await cog.on_voice_state_update(member, before, after)
+        with patch("cogs.intros._INTRO_ON_USER_JOIN", True), \
+             patch("cogs.intros.get_user_intro", return_value=intro), \
+             patch("cogs.intros.play_with_interrupt", new=AsyncMock()) as mock_pwi:
+            await cog.on_voice_state_update(member, before, after)
 
-        vc.play.assert_not_called()
+        mock_pwi.assert_called_once()
 
     async def test_uses_per_user_intro_over_server_wide(self, cog, mock_bot, tmp_path):
         """get_user_intro priority chain is tested here end-to-end via the listener."""
@@ -683,16 +684,21 @@ class TestIntroTrigger:
             await cog.intro_trigger.callback(cog, ctx, member_str="@Someone")
         assert any("busy" in str(c) for c in ctx.send.call_args_list)
 
-    async def test_refuses_while_playing(self, cog, ctx, mock_bot, voice_client):
+    async def test_interrupts_while_playing(self, cog, ctx, mock_bot, voice_client):
         member = MagicMock(spec=discord.Member)
+        member.guild = ctx.guild
+        member.id = 77
+        member.display_name = "Bob"
         voice_client.is_playing.return_value = True
-        voice_client.channel = ctx.author.voice.channel  # same channel as invoker
-        with patch("cogs.intros.commands.MemberConverter") as mock_conv:
+        voice_client.channel = ctx.author.voice.channel
+        with patch("cogs.intros.commands.MemberConverter") as mock_conv, \
+             patch("cogs.intros.play_with_interrupt", new=AsyncMock()) as mock_pwi, \
+             patch("cogs.intros.get_user_intro", return_value="/intro.mp3"):
             mock_conv.return_value.convert = AsyncMock(return_value=member)
             state = get_state(mock_bot, ctx.guild.id)
             state["voice_client"] = voice_client
             await cog.intro_trigger.callback(cog, ctx, member_str="@Someone")
-        ctx.send.assert_called_with("Cannot play intro while audio is already playing.")
+        mock_pwi.assert_called_once()
 
     async def test_no_intro_configured(self, cog, ctx, mock_bot, voice_client):
         member = MagicMock(spec=discord.Member)
