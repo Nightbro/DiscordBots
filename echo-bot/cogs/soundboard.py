@@ -8,6 +8,7 @@ from discord.ext import commands
 from utils.audio import AudioFileManager
 from utils.config import SOUNDBOARD_DIR
 from utils.guild_state import Track
+from utils.i18n import t
 from utils.message import MessageWriter
 from utils.soundboard_config import (
     add_sound,
@@ -38,10 +39,11 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         self._panel_messages: dict[int, int] = {}
 
     async def _ask_to_join(self, ctx) -> VoiceStreamer | None:
+        gid = ctx.guild.id
         if ctx.author.voice is None:
-            await ctx.send(embed=MessageWriter.error('You must be in a voice channel.'))
+            await ctx.send(embed=MessageWriter.error(t('common.error_no_voice', gid)))
             return None
-        streamer = VoiceStreamer(self.bot, ctx.guild.id)
+        streamer = VoiceStreamer(self.bot, gid)
         await streamer.join(ctx.author.voice.channel)
         return streamer
 
@@ -105,18 +107,20 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
     @commands.hybrid_group(name='sb', aliases=['soundboard'], invoke_without_command=True)
     async def sb(self, ctx: commands.Context) -> None:
         """Soundboard management."""
+        gid = ctx.guild.id
         await ctx.send(embed=MessageWriter.info(
             'Soundboard commands',
-            '`add <name>` · `remove <name>` · `play <name>` · `list` · `panel`',
+            t('soundboard.hint', gid),
         ))
 
     @sb.command(name='add')
     async def sb_add(self, ctx: commands.Context, name: str, emoji: str = '') -> None:
         """Add a sound to the soundboard (attach an audio file)."""
+        gid = ctx.guild.id
         if sound_exists(name):
             await ctx.send(embed=MessageWriter.error(
-                f'Sound **{name}** already exists.',
-                'Use `!sb remove {name}` first.',
+                t('soundboard.add_duplicate', gid, name=name),
+                t('soundboard.add_duplicate_hint', gid, name=name),
             ))
             return
 
@@ -130,16 +134,17 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         assigned_emoji = emoji.strip() if emoji.strip() else _pick_emoji(get_sounds())
         add_sound(name, filename, assigned_emoji)
         await ctx.send(embed=MessageWriter.success(
-            f'Added sound **{name}**',
-            f'Emoji: {assigned_emoji}  File: `{filename}`',
+            t('soundboard.add_title', gid, name=name),
+            t('soundboard.add_desc', gid, emoji=assigned_emoji, filename=filename),
         ))
 
     @sb.command(name='remove')
     async def sb_remove(self, ctx: commands.Context, name: str) -> None:
         """Remove a sound from the soundboard (also deletes the file)."""
+        gid = ctx.guild.id
         meta = get_sound(name)
         if meta is None:
-            await ctx.send(embed=MessageWriter.error(f'Sound **{name}** not found.'))
+            await ctx.send(embed=MessageWriter.error(t('soundboard.remove_not_found', gid, name=name)))
             return
 
         # Delete file
@@ -148,17 +153,18 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
             file_path.unlink()
 
         remove_sound(name)
-        await ctx.send(embed=MessageWriter.success(f'Removed sound **{name}**.'))
+        await ctx.send(embed=MessageWriter.success(t('soundboard.remove_done', gid, name=name)))
 
     @sb.command(name='play')
     async def sb_play(self, ctx: commands.Context, name: str) -> None:
         """Play a soundboard sound in your voice channel."""
+        gid = ctx.guild.id
         streamer = await self._ask_to_join(ctx)
         if streamer is None:
             return
         path = get_sound_path(name)
         if path is None:
-            await ctx.send(embed=MessageWriter.error(f'Sound **{name}** not found or file missing.'))
+            await ctx.send(embed=MessageWriter.error(t('soundboard.play_not_found', gid, name=name)))
             return
         track = Track(title=f'SFX: {name}', url=str(path), file_path=path)
         await streamer.interrupt(track)
@@ -167,13 +173,13 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
     async def sb_list(self, ctx: commands.Context) -> None:
         """List all soundboard sounds."""
         sounds = get_sounds()
-        await ctx.send(embed=MessageWriter.soundboard_panel(sounds))
+        await ctx.send(embed=MessageWriter.soundboard_panel(sounds, guild_id=ctx.guild.id))
 
     @sb.command(name='panel')
     async def sb_panel(self, ctx: commands.Context) -> None:
         """Post a reaction panel — react to play sounds."""
         sounds = get_sounds()
-        embed = MessageWriter.soundboard_panel(sounds)
+        embed = MessageWriter.soundboard_panel(sounds, guild_id=ctx.guild.id)
         embed.set_footer(text='React to play a sound')
         msg = await ctx.send(embed=embed)
 

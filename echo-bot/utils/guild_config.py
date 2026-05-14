@@ -21,10 +21,13 @@ from typing import Any
 from utils.config import AUTO_JOIN, AUTO_LEAVE
 from utils.persistence import GuildConfig
 
+_DEFAULT_LOCALE = 'en'
+
 # Map setting key → global default value
 _DEFAULTS: dict[str, Any] = {
     'auto_join': AUTO_JOIN,
     'auto_leave': AUTO_LEAVE,
+    'locale': _DEFAULT_LOCALE,
 }
 
 
@@ -64,3 +67,11 @@ def get_auto_join(guild_id: int) -> bool:
 
 def get_auto_leave(guild_id: int) -> bool:
     return bool(get_setting(guild_id, 'auto_leave'))
+
+
+def get_locale(guild_id: int) -> str:
+    return str(get_setting(guild_id, 'locale'))
+
+
+def set_locale(guild_id: int, locale: str) -> None:
+    set_setting(guild_id, 'locale', locale)

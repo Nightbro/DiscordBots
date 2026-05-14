@@ -12,7 +12,7 @@ from cogs.intros import IntrosCog, _trigger_label, _entry_lines
 # ---------------------------------------------------------------------------
 
 def test_trigger_label_empty():
-    assert _trigger_label({}) == 'No intro set.'
+    assert _trigger_label({}) == ''
 
 
 def test_trigger_label_default_only():

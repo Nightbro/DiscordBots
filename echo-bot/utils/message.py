@@ -39,22 +39,24 @@ class MessageWriter:
         return e
 
     @staticmethod
-    def track_card(track: Track) -> discord.Embed:
+    def track_card(track: Track, guild_id: int = 0) -> discord.Embed:
+        from utils.i18n import t
         e = _embed()
         e.title = f'🎵 {track.title}'
         if track.duration is not None:
             mins, secs = divmod(track.duration, 60)
-            e.add_field(name='Duration', value=f'{mins}:{secs:02d}')
+            e.add_field(name=t('message.track_duration', guild_id), value=f'{mins}:{secs:02d}')
         if track.requester is not None:
-            e.add_field(name='Requested by', value=track.requester.display_name)
+            e.add_field(name=t('message.track_requested_by', guild_id), value=track.requester.display_name)
         return e
 
     @staticmethod
-    def queue_page(tracks: list[Track], page: int, total_pages: int) -> discord.Embed:
+    def queue_page(tracks: list[Track], page: int, total_pages: int, guild_id: int = 0) -> discord.Embed:
+        from utils.i18n import t
         e = _embed()
-        e.title = f'🎵 Queue — Page {page}/{total_pages}'
+        e.title = t('message.queue_title', guild_id, page=page, total=total_pages)
         if not tracks:
-            e.description = 'The queue is empty.'
+            e.description = t('message.queue_empty', guild_id)
             return e
         offset = (page - 1) * 10
         lines = []
@@ -68,13 +70,14 @@ class MessageWriter:
         return e
 
     @staticmethod
-    def soundboard_panel(sounds: dict[str, dict]) -> discord.Embed:
+    def soundboard_panel(sounds: dict[str, dict], guild_id: int = 0) -> discord.Embed:
         """sounds: {name: {'emoji': str, 'file': str}} mapping from SoundboardConfig."""
+        from utils.i18n import t
         e = _embed()
-        e.title = '🔊 Soundboard'
+        e.title = t('message.soundboard_title', guild_id)
         if sounds:
             lines = [f'{meta["emoji"]} **{name}**' for name, meta in sounds.items()]
             e.description = '\n'.join(lines)
         else:
-            e.description = 'No sounds added yet. Use `!sb add <name>` with an attachment.'
+            e.description = t('message.soundboard_empty', guild_id)
         return e

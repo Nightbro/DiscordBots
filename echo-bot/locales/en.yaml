@@ -1,0 +1,109 @@
+# Echo Bot — English locale
+# All user-facing strings. Keys use dot notation matching the nested structure.
+# Strings may contain {placeholders} filled at runtime via t(key, guild_id, **kwargs).
+
+common:
+  error_no_voice: "You must be in a voice channel."
+
+music:
+  resolving: "⏳ Resolving…"
+  error_resolve: "Could not resolve track."
+  joined: "Joined your channel."
+  left: "Left the voice channel."
+  paused: "Paused."
+  resumed: "Resumed."
+  stopped: "Stopped and queue cleared."
+  nothing_playing: "Nothing is playing right now."
+  playlist_hint: "`save <name>` · `load <name>` · `list` · `delete <name>` · `show <name>`"
+
+  skip:
+    skipped: "Skipped **{title}**"
+    nothing: "Nothing is playing."
+
+  queue:
+    now_playing: "{emoji} **Now playing:** {title}{dur}"
+    cleared: "Queue cleared."
+
+  remove:
+    removed: "Removed **{title}**"
+    error_range: "Position must be between 1 and {max}."
+
+  shuffle:
+    shuffled: "Shuffled {count} tracks."
+
+  playlist:
+    save:
+      empty: "Nothing in the queue to save."
+      title: "Saved playlist **{name}**"
+      desc: "{count} tracks."
+    load:
+      not_found: "Playlist **{name}** not found."
+      title: "Loaded **{name}**"
+      desc: "Added {added}/{total} tracks to the queue."
+    list:
+      empty: "No playlists saved yet."
+      title: "Saved playlists"
+      entry: "• **{name}** ({count} tracks)"
+    delete:
+      not_found: "Playlist **{name}** not found."
+      deleted: "Deleted playlist **{name}**."
+    show:
+      not_found: "Playlist **{name}** not found."
+      title: "Playlist: {name}"
+      more: "… and {count} more"
+
+# Strings used inside MessageWriter embed builders
+message:
+  track_duration: "Duration"
+  track_requested_by: "Requested by"
+  queue_title: "🎵 Queue — Page {page}/{total}"
+  queue_empty: "The queue is empty."
+  soundboard_title: "🔊 Soundboard"
+  soundboard_empty: "No sounds added yet. Use `!sb add <name>` with an attachment."
+
+intro:
+  hint: "`set` · `schedule` · `override` · `unschedule` · `clear` · `list` · `show` · `trigger` · `autojoin`"
+  days_label: "mon · tue · wed · thu · fri · sat · sun"
+  invalid_days: "Invalid days."
+  invalid_date: "Invalid date. Use YYYY-MM-DD format."
+  no_intro_set: "No intro set."
+  set_title: "Default intro set."
+  set_desc: "File: `{filename}`"
+  schedule_title: "Schedule set for {days}."
+  schedule_desc: "File: `{filename}`"
+  override_title: "Override set for {date}."
+  override_desc: "File: `{filename}`"
+  unschedule_removed: "Unscheduled: {days}"
+  unschedule_not_found: "No matching schedule entries found."
+  clear_done: "Your intro config has been cleared."
+  clear_nothing: "You had no intro config to clear."
+  list_empty: "No intros configured yet."
+  list_title: "Intro configs"
+  show_none: "You have no intro configured."
+  show_title: "{name}'s intro"
+  trigger_no_file: "You have no intro file set for today."
+  trigger_playing: "Playing your intro."
+  autojoin_enabled: "Auto-join enabled."
+  autojoin_disabled: "Auto-join disabled."
+
+soundboard:
+  hint: "`add <name>` · `remove <name>` · `play <name>` · `list` · `panel`"
+  add_duplicate: "Sound **{name}** already exists."
+  add_duplicate_hint: "Use `!sb remove {name}` first."
+  add_title: "Added sound **{name}**"
+  add_desc: "Emoji: {emoji}  File: `{filename}`"
+  remove_not_found: "Sound **{name}** not found."
+  remove_done: "Removed sound **{name}**."
+  play_not_found: "Sound **{name}** not found or file missing."
+
+settings:
+  hint: "`set <key> <true|false>` · `reset <key>` · `locale <code>` · `show`"
+  title: "Settings for {guild}"
+  set_done: "`{key}` set to {value} for this server."
+  reset_done: "`{key}` reset to global default ({value})."
+  unknown_key: "Unknown setting `{key}`."
+  unknown_key_hint: "Valid settings: {valid}"
+  locale_set: "Locale set to **{locale}** for this server."
+  locale_invalid: "Unsupported locale `{locale}`."
+  locale_invalid_hint: "Available: {available}"
+  locale_current: "Current locale: **{locale}**"

@@ -9,6 +9,7 @@ from discord.ext import commands
 from utils.audio import AudioFileManager
 from utils.config import INTRO_ON_USER_JOIN
 from utils.guild_state import Track
+from utils.i18n import t
 from utils.intro_config import (
     canonicalize_days,
     clear_trigger,
@@ -28,8 +29,6 @@ from utils.intro_config import (
 from utils.message import MessageWriter
 from utils.voice import VoiceStreamer
 
-_DAYS_LABEL = 'mon · tue · wed · thu · fri · sat · sun'
-
 
 def _trigger_label(entry: dict) -> str:
     """Build a human-readable summary of a user's intro config."""
@@ -42,7 +41,7 @@ def _trigger_label(entry: dict) -> str:
     overrides = entry.get('overrides', {})
     if overrides:
         parts.append('overrides: ' + ', '.join(f'{dt}:`{f}`' for dt, f in overrides.items()))
-    return '\n'.join(parts) if parts else 'No intro set.'
+    return '\n'.join(parts) if parts else ''
 
 
 def _entry_lines(entries: dict[str, dict], guild: discord.Guild) -> list[str]:
@@ -54,7 +53,8 @@ def _entry_lines(entries: dict[str, dict], guild: discord.Guild) -> list[str]:
             name = member.display_name if member else f'<id:{uid_str}>'
         except ValueError:
             name = uid_str
-        lines.append(f'**{name}**: {_trigger_label(entry)}')
+        label = _trigger_label(entry) or t('intro.no_intro_set')
+        lines.append(f'**{name}**: {label}')
     return lines
 
 
@@ -64,10 +64,11 @@ class IntrosCog(commands.Cog, name='Intros'):
 
     async def _ask_to_join(self, ctx) -> VoiceStreamer | None:
         """Join the author's voice channel, or send an error if they aren't in one."""
+        gid = ctx.guild.id
         if ctx.author.voice is None:
-            await ctx.send(embed=MessageWriter.error('You must be in a voice channel.'))
+            await ctx.send(embed=MessageWriter.error(t('common.error_no_voice', gid)))
             return None
-        streamer = VoiceStreamer(self.bot, ctx.guild.id)
+        streamer = VoiceStreamer(self.bot, gid)
         await streamer.join(ctx.author.voice.channel)
         return streamer
 
@@ -107,14 +108,16 @@ class IntrosCog(commands.Cog, name='Intros'):
     @commands.hybrid_group(name='intro', invoke_without_command=True)
     async def intro(self, ctx: commands.Context) -> None:
         """Intro sound management."""
+        gid = ctx.guild.id
         await ctx.send(embed=MessageWriter.info(
             'Intro commands',
-            '`set` · `schedule` · `override` · `unschedule` · `clear` · `list` · `show` · `trigger` · `autojoin`',
+            t('intro.hint', gid),
         ))
 
     @intro.command(name='set')
     async def intro_set(self, ctx: commands.Context) -> None:
         """Set your default intro sound (attach an audio file)."""
+        gid = ctx.guild.id
         uid = ctx.author.id
         dest_dir = user_dir(uid)
         filename = f'default{_ext_from_ctx(ctx)}'
@@ -122,7 +125,10 @@ class IntrosCog(commands.Cog, name='Intros'):
         if path is None:
             return
         set_default_entry(uid, path.name)
-        await ctx.send(embed=MessageWriter.success('Default intro set.', f'File: `{path.name}`'))
+        await ctx.send(embed=MessageWriter.success(
+            t('intro.set_title', gid),
+            t('intro.set_desc', gid, filename=path.name),
+        ))
 
     @intro.command(name='schedule')
     async def intro_schedule(self, ctx: commands.Context, days: str) -> None:
@@ -130,11 +136,12 @@ class IntrosCog(commands.Cog, name='Intros'):
 
         days: comma-separated day names, e.g. `mon,fri` or `monday,friday`
         """
+        gid = ctx.guild.id
         parsed = parse_days(days)
         if not parsed:
             await ctx.send(embed=MessageWriter.error(
-                'Invalid days.',
-                f'Use: {_DAYS_LABEL}',
+                t('intro.invalid_days', gid),
+                t('intro.days_label', gid),
             ))
             return
 
@@ -149,17 +156,18 @@ class IntrosCog(commands.Cog, name='Intros'):
         set_schedule_entry(uid, canonical, path.name)
         days_str = ', '.join(canonical)
         await ctx.send(embed=MessageWriter.success(
-            f'Schedule set for {days_str}.',
-            f'File: `{path.name}`',
+            t('intro.schedule_title', gid, days=days_str),
+            t('intro.schedule_desc', gid, filename=path.name),
         ))
 
     @intro.command(name='override')
     async def intro_override(self, ctx: commands.Context, date: str) -> None:
         """Set a one-off intro for a specific date (YYYY-MM-DD, attach an audio file)."""
+        gid = ctx.guild.id
         try:
             datetime.date.fromisoformat(date)
         except ValueError:
-            await ctx.send(embed=MessageWriter.error('Invalid date. Use YYYY-MM-DD format.'))
+            await ctx.send(embed=MessageWriter.error(t('intro.invalid_date', gid)))
             return
 
         uid = ctx.author.id
@@ -170,78 +178,85 @@ class IntrosCog(commands.Cog, name='Intros'):
             return
         set_override_entry(uid, date, path.name)
         await ctx.send(embed=MessageWriter.success(
-            f'Override set for {date}.',
-            f'File: `{path.name}`',
+            t('intro.override_title', gid, date=date),
+            t('intro.override_desc', gid, filename=path.name),
         ))
 
     @intro.command(name='unschedule')
     async def intro_unschedule(self, ctx: commands.Context, days: str) -> None:
         """Remove scheduled intro entries for the given days."""
+        gid = ctx.guild.id
         parsed = parse_days(days)
         if not parsed:
             await ctx.send(embed=MessageWriter.error(
-                'Invalid days.',
-                f'Use: {_DAYS_LABEL}',
+                t('intro.invalid_days', gid),
+                t('intro.days_label', gid),
             ))
             return
         removed = remove_schedule_entry(ctx.author.id, parsed)
         if removed:
             await ctx.send(embed=MessageWriter.success(
-                'Unscheduled: ' + ', '.join(removed),
+                t('intro.unschedule_removed', gid, days=', '.join(removed)),
             ))
         else:
-            await ctx.send(embed=MessageWriter.error('No matching schedule entries found.'))
+            await ctx.send(embed=MessageWriter.error(t('intro.unschedule_not_found', gid)))
 
     @intro.command(name='clear')
     async def intro_clear(self, ctx: commands.Context) -> None:
         """Remove all your intro settings."""
+        gid = ctx.guild.id
         if clear_trigger(ctx.author.id):
-            await ctx.send(embed=MessageWriter.success('Your intro config has been cleared.'))
+            await ctx.send(embed=MessageWriter.success(t('intro.clear_done', gid)))
         else:
-            await ctx.send(embed=MessageWriter.info('You had no intro config to clear.'))
+            await ctx.send(embed=MessageWriter.info(t('intro.clear_nothing', gid)))
 
     @intro.command(name='list')
     async def intro_list(self, ctx: commands.Context) -> None:
         """List all users with intro configs on this server."""
+        gid = ctx.guild.id
         entries = list_entries()
         if not entries:
-            await ctx.send(embed=MessageWriter.info('No intros configured yet.'))
+            await ctx.send(embed=MessageWriter.info(t('intro.list_empty', gid)))
             return
         lines = _entry_lines(entries, ctx.guild)
-        await ctx.send(embed=MessageWriter.info('Intro configs', '\n'.join(lines)))
+        await ctx.send(embed=MessageWriter.info(t('intro.list_title', gid), '\n'.join(lines)))
 
     @intro.command(name='show')
     async def intro_show(self, ctx: commands.Context) -> None:
         """Show your current intro config."""
+        gid = ctx.guild.id
         entry = get_user_entry(ctx.author.id)
         if not entry:
-            await ctx.send(embed=MessageWriter.info('You have no intro configured.'))
+            await ctx.send(embed=MessageWriter.info(t('intro.show_none', gid)))
             return
+        label = _trigger_label(entry) or t('intro.no_intro_set', gid)
         await ctx.send(embed=MessageWriter.info(
-            f'{ctx.author.display_name}\'s intro',
-            _trigger_label(entry),
+            t('intro.show_title', gid, name=ctx.author.display_name),
+            label,
         ))
 
     @intro.command(name='trigger')
     async def intro_trigger(self, ctx: commands.Context) -> None:
         """Manually trigger your intro sound."""
+        gid = ctx.guild.id
         streamer = await self._ask_to_join(ctx)
         if streamer is None:
             return
         path = get_intro_file(ctx.author.id)
         if path is None:
-            await ctx.send(embed=MessageWriter.error('You have no intro file set for today.'))
+            await ctx.send(embed=MessageWriter.error(t('intro.trigger_no_file', gid)))
             return
         track = Track(title=f'Intro: {ctx.author.display_name}', url=str(path), file_path=path)
         await streamer.interrupt(track)
-        await ctx.send(embed=MessageWriter.success('Playing your intro.'))
+        await ctx.send(embed=MessageWriter.success(t('intro.trigger_playing', gid)))
 
     @intro.command(name='autojoin')
     async def intro_autojoin(self, ctx: commands.Context, enabled: bool) -> None:
         """Toggle whether the bot auto-joins when you connect to a voice channel."""
+        gid = ctx.guild.id
         set_auto_join(ctx.author.id, enabled)
-        state = 'enabled' if enabled else 'disabled'
-        await ctx.send(embed=MessageWriter.success(f'Auto-join {state}.'))
+        key = 'intro.autojoin_enabled' if enabled else 'intro.autojoin_disabled'
+        await ctx.send(embed=MessageWriter.success(t(key, gid)))
 
 
 def _ext_from_ctx(ctx: commands.Context) -> str:
