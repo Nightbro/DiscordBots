@@ -62,6 +62,16 @@ _SECTIONS: dict[str, tuple[str, str]] = {
         '🗣️ TTS',
         'Text-to-speech commands are coming in a future update.\n',
     ),
+    'settings': (
+        '⚙️ Settings (admins only)',
+        f'`{PREFIX}settings` — show current per-server settings\n'
+        f'`{PREFIX}settings set <key> <true|false>` — override a setting for this server\n'
+        f'`{PREFIX}settings reset <key>` — revert to the global default\n'
+        '\n'
+        '**Available keys:**\n'
+        '`auto_join` — join when the first person enters a channel\n'
+        '`auto_leave` — leave when the last person exits the channel\n',
+    ),
 }
 
 _OVERVIEW = (
@@ -73,6 +83,7 @@ _OVERVIEW = (
     '`intros` — per-user join sounds\n'
     '`soundboard` — reaction soundboard\n'
     '`tts` — text-to-speech *(coming soon)*\n'
+    '`settings` — per-server settings *(admins)*\n'
     '\n'
     f'All commands also work as slash commands — type `/` to browse.\n',
 )

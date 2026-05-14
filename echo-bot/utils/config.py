@@ -50,6 +50,7 @@ LOGS_DIR: Path = DATA_DIR / 'logs'
 PLAYLISTS_FILE: Path = DATA_DIR / 'playlists.json'
 INTRO_CONFIG_FILE: Path = DATA_DIR / 'intro_config.json'
 SOUNDBOARD_CONFIG_FILE: Path = DATA_DIR / 'soundboard_config.json'
+GUILD_CONFIG_FILE: Path = DATA_DIR / 'guild_config.json'
 
 for _d in (DOWNLOADS_DIR, INTRO_SOUNDS_DIR, SOUNDBOARD_DIR, LOGS_DIR):
     _d.mkdir(parents=True, exist_ok=True)
