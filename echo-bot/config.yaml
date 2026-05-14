@@ -13,6 +13,10 @@ audio:
   panel_timeout: 300
   max_queue: 100
 
+intros:
+  on_bot_join: false   # play the user's intro when the bot joins their channel
+  on_user_join: true   # play a user's intro when they join a voice channel
+
 tts:
   default_voice: "en-US-AriaNeural"
   default_rate: "+0%"

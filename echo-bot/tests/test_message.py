@@ -99,11 +99,15 @@ def test_queue_page_second_page_offset():
 
 
 def test_soundboard_panel_with_sounds():
-    e = MessageWriter.soundboard_panel(['boom', 'airhorn'])
+    sounds = {
+        'boom': {'emoji': '💥', 'file': 'boom.mp3'},
+        'airhorn': {'emoji': '📯', 'file': 'airhorn.mp3'},
+    }
+    e = MessageWriter.soundboard_panel(sounds)
     assert 'boom' in e.description
     assert 'airhorn' in e.description
 
 
 def test_soundboard_panel_empty():
-    e = MessageWriter.soundboard_panel([])
+    e = MessageWriter.soundboard_panel({})
     assert 'No sounds' in e.description
