@@ -64,6 +64,7 @@ def get_guild_state(guild_id: int) -> GuildState:
 bot.get_guild_state = get_guild_state  # type: ignore[attr-defined]
 
 _COGS = [
+    'cogs.help',
     'cogs.music',
     'cogs.intros',
     'cogs.soundboard',

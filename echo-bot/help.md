@@ -1,0 +1,96 @@
+# Echo Bot — Command Reference
+
+All commands work with `!` prefix and as `/` slash commands.
+
+---
+
+## Help
+
+| Command | Description |
+|---|---|
+| `!help` | Show paginated help (overview + all sections) |
+| `!help <section>` | Jump directly to a section: `music`, `queue`, `intros`, `soundboard`, `tts` |
+
+---
+
+## Music — Playback
+
+| Command | Aliases | Description |
+|---|---|---|
+| `!play <url\|search>` | `!p` | Add a track to the queue and start playback |
+| `!skip` | `!s` | Skip the current track |
+| `!pause` | — | Pause playback |
+| `!resume` | `!unpause` | Resume playback |
+| `!stop` | — | Stop playback and clear the queue |
+| `!nowplaying` | `!np` | Show the currently playing track |
+| `!join` | — | Join your voice channel |
+| `!leave` | `!disconnect`, `!dc` | Leave the voice channel and clear all state |
+
+---
+
+## Music — Queue & Playlists
+
+| Command | Aliases | Description |
+|---|---|---|
+| `!queue [page]` | `!q` | Show the playback queue |
+| `!clear` | — | Clear the queue (keeps current track playing) |
+| `!remove <#>` | `!rm` | Remove a track by its position number |
+| `!shuffle` | — | Shuffle the queue |
+| `!playlist save <name>` | `!pl save` | Save the current queue as a named playlist |
+| `!playlist load <name>` | `!pl load` | Load a playlist into the queue |
+| `!playlist list` | `!pl list` | List all saved playlists |
+| `!playlist delete <name>` | `!pl delete` | Delete a saved playlist |
+| `!playlist show <name>` | `!pl show` | Show the contents of a playlist |
+
+---
+
+## Intros
+
+Per-user intro sounds that play when you join a voice channel.
+Supported formats: `.mp3` `.ogg` `.wav` `.flac` `.m4a` `.opus` `.aac`
+
+| Command | Description |
+|---|---|
+| `!intro set` | Set your default intro sound (attach audio file) |
+| `!intro schedule <days>` | Set an intro for specific days — e.g. `mon,fri` or `monday,friday` |
+| `!intro override <YYYY-MM-DD>` | Set a one-off intro for a specific date |
+| `!intro unschedule <days>` | Remove scheduled days |
+| `!intro clear` | Remove all your intro settings |
+| `!intro show` | Show your current intro config |
+| `!intro list` | List all intro configs on this server |
+| `!intro trigger` | Play your intro sound right now |
+| `!intro autojoin <true\|false>` | Toggle whether the bot auto-joins your channel |
+
+**Priority:** date override → weekday schedule → default
+
+---
+
+## Soundboard
+
+| Command | Description |
+|---|---|
+| `!sb add <name> [emoji]` | Add a sound (attach audio file). Auto-assigns an emoji if omitted. |
+| `!sb remove <name>` | Remove a sound and delete its file |
+| `!sb play <name>` | Play a sound in your voice channel |
+| `!sb list` | List all sounds with their emojis |
+| `!sb panel` | Post a reaction panel — react to play sounds |
+
+Alias: `!soundboard`
+
+---
+
+## TTS
+
+*Coming in a future update.*
+
+---
+
+## Dev (owner only)
+
+| Command | Description |
+|---|---|
+| `!reload <cog>` | Hot-reload a cog (also reloads all utils) |
+| `!restart` | Shut down the bot (PM2 auto-restarts) |
+| `!sync [guild_id]` | Push slash commands to Discord (global or guild-specific) |
+| `!status` | Show bot status: guilds, voice connections, loaded cogs |
+| `!cogs` | List all loaded extensions |
