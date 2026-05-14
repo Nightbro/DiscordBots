@@ -462,11 +462,29 @@ class IntrosCog(commands.Cog, name='Intros'):
     ):
         if member.bot:
             return
-        if after.channel is None or before.channel == after.channel:
-            return
 
         state = get_state(self.bot, member.guild.id)
         vc: discord.VoiceClient = state['voice_client']
+
+        # Auto-leave: disconnect when the last non-bot member leaves the bot's channel.
+        if (
+            before.channel is not None
+            and before.channel != after.channel
+            and vc is not None
+            and vc.is_connected()
+            and before.channel == vc.channel
+        ):
+            non_bot = [m for m in before.channel.members if not m.bot]
+            if not non_bot:
+                log.info('Last member left %s in guild %s — disconnecting',
+                         before.channel, member.guild.id)
+                state['queue'].clear()
+                await vc.disconnect()
+                state['voice_client'] = None
+                return
+
+        if after.channel is None or before.channel == after.channel:
+            return
 
         if get_auto_join(member.guild.id) and (vc is None or not vc.is_connected()):
             non_bot = [m for m in after.channel.members if not m.bot]

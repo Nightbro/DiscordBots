@@ -596,6 +596,87 @@ class TestVoiceStateUpdate:
 
         channel.connect.assert_not_called()
 
+    async def test_auto_leave_when_last_member_leaves(self, cog, mock_bot):
+        member  = self._make_member(mock_bot)
+        channel = MagicMock()
+        channel.members = []  # no non-bot members remain
+        before  = self._make_state(channel)
+        after   = self._make_state(None)  # member left
+
+        vc = MagicMock()
+        vc.is_connected.return_value = True
+        vc.channel = channel
+        vc.disconnect = AsyncMock()
+
+        state = get_state(mock_bot, member.guild.id)
+        state['voice_client'] = vc
+        state['queue'] = ['song1', 'song2']
+
+        with patch("cogs.intros._INTRO_ON_USER_JOIN", False):
+            await cog.on_voice_state_update(member, before, after)
+
+        vc.disconnect.assert_called_once()
+        assert state['voice_client'] is None
+        assert state['queue'] == []
+
+    async def test_no_auto_leave_when_others_remain(self, cog, mock_bot):
+        member  = self._make_member(mock_bot)
+        other   = MagicMock(spec=discord.Member)
+        other.bot = False
+        channel = MagicMock()
+        channel.members = [other]  # one non-bot still present
+        before  = self._make_state(channel)
+        after   = self._make_state(None)
+
+        vc = MagicMock()
+        vc.is_connected.return_value = True
+        vc.channel = channel
+        vc.disconnect = AsyncMock()
+
+        state = get_state(mock_bot, member.guild.id)
+        state['voice_client'] = vc
+
+        with patch("cogs.intros._INTRO_ON_USER_JOIN", False):
+            await cog.on_voice_state_update(member, before, after)
+
+        vc.disconnect.assert_not_called()
+
+    async def test_auto_leave_when_member_switches_channel(self, cog, mock_bot):
+        member      = self._make_member(mock_bot)
+        old_channel = MagicMock()
+        old_channel.members = []  # bot's channel now empty
+        new_channel = MagicMock()
+        before = self._make_state(old_channel)
+        after  = self._make_state(new_channel)
+
+        vc = MagicMock()
+        vc.is_connected.return_value = True
+        vc.channel = old_channel
+        vc.disconnect = AsyncMock()
+
+        state = get_state(mock_bot, member.guild.id)
+        state['voice_client'] = vc
+
+        with patch("cogs.intros._INTRO_ON_USER_JOIN", False):
+            await cog.on_voice_state_update(member, before, after)
+
+        vc.disconnect.assert_called_once()
+        assert state['voice_client'] is None
+
+    async def test_no_auto_leave_when_bot_not_in_channel(self, cog, mock_bot):
+        member  = self._make_member(mock_bot)
+        channel = MagicMock()
+        channel.members = []
+        before  = self._make_state(channel)
+        after   = self._make_state(None)
+
+        state = get_state(mock_bot, member.guild.id)
+        state['voice_client'] = None  # bot not connected
+
+        with patch("cogs.intros._INTRO_ON_USER_JOIN", False):
+            await cog.on_voice_state_update(member, before, after)
+        # no crash, no disconnect attempt
+
     async def test_auto_join_disabled_does_not_connect(self, cog, mock_bot):
         member = self._make_member(mock_bot)
         channel = MagicMock()
