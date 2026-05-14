@@ -1,0 +1,18 @@
+bot:
+  name: Echo
+  prefix: "!"
+  color: 0x5865F2
+  emojis:
+    "yes": "✅"
+    "no": "❌"
+    music: "🎵"
+    speaking: "🔊"
+    loading: "⏳"
+
+audio:
+  panel_timeout: 300
+  max_queue: 100
+
+tts:
+  default_voice: "en-US-AriaNeural"
+  default_rate: "+0%"
