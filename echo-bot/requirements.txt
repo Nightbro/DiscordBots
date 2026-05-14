@@ -1,0 +1,14 @@
+discord.py
+yt-dlp
+PyNaCl
+python-dotenv
+certifi
+aiohttp==3.9.5
+mutagen
+pyyaml
+edge-tts
+
+# Dev / testing
+pytest
+pytest-asyncio
+pytest-mock
