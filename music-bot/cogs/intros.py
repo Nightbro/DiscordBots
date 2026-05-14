@@ -10,8 +10,11 @@ from utils.config import INTRO_SOUNDS_DIR, _INTRO_FILE, _INTRO_ON_BOT_JOIN, _INT
 from utils.downloader import download_track, FFMPEG_OPTIONS
 from utils.player import get_state, play_with_interrupt
 from utils.intro_config import (
-    load_intro_config, save_intro_config, get_intro_file, get_user_intro,
+    load_intro_config, save_intro_config,
+    get_intro_file, get_user_intro,
     get_auto_join, set_auto_join,
+    parse_days, canonicalize_days,
+    set_default_entry, set_schedule_entry, remove_schedule_entry, clear_trigger,
 )
 
 log = logging.getLogger('music-bot.intros')
@@ -31,6 +34,33 @@ def _trigger_label(trigger: str, entry: dict) -> str:
     return trigger
 
 
+def _entry_lines(trigger_key: str, entry: dict) -> list:
+    """Return display lines for a trigger entry (handles both flat and structured formats)."""
+    label    = _trigger_label(trigger_key, entry)
+    schedule = entry.get('schedule', [])
+    lines    = []
+
+    if 'file' in entry:  # old flat format
+        p       = Path(entry['file'])
+        missing = ' *(file missing!)*' if not p.exists() else ''
+        lines.append(f'{label}: `{p.name}` — `{entry["source"]}`{missing}')
+        return lines
+
+    default = entry.get('default')
+    if default:
+        p       = Path(default['file'])
+        missing = ' *(file missing!)*' if not p.exists() else ''
+        suffix  = ' (default)' if schedule else ''
+        lines.append(f'{label}{suffix}: `{p.name}` — `{default["source"]}`{missing}')
+
+    for sched in schedule:
+        p       = Path(sched['file'])
+        missing = ' *(file missing!)*' if not p.exists() else ''
+        lines.append(f'  ↳ [{sched["days"]}]: `{p.name}` — `{sched["source"]}`{missing}')
+
+    return lines
+
+
 class IntrosCog(commands.Cog, name='Intros'):
     def __init__(self, bot):
         self.bot = bot
@@ -38,11 +68,7 @@ class IntrosCog(commands.Cog, name='Intros'):
     # ── Helpers ──────────────────────────────────────────────────────────────
 
     async def _ask_to_join(self, ctx: commands.Context) -> bool:
-        """Prompt the invoking user with ✅/❌ to decide whether the bot should join.
-
-        Edits the prompt message to reflect the outcome and cleans up all reactions.
-        Returns True only if the user explicitly confirmed within 30 seconds.
-        """
+        """Prompt the invoking user with ✅/❌ to decide whether the bot should join."""
         msg = await ctx.send("I'm not in a voice channel. Do you want me to join?")
         for emoji in (_YES, _NO):
             await msg.add_reaction(emoji)
@@ -60,14 +86,12 @@ class IntrosCog(commands.Cog, name='Intros'):
         except asyncio.TimeoutError:
             pass
 
-        # Remove user's reaction (requires Manage Messages; ignore if missing)
         if reaction is not None:
             try:
                 await msg.remove_reaction(reaction.emoji, ctx.author)
             except discord.Forbidden:
                 pass
 
-        # Always remove the bot's own reactions
         for emoji in (_YES, _NO):
             try:
                 await msg.remove_reaction(emoji, ctx.me)
@@ -85,44 +109,47 @@ class IntrosCog(commands.Cog, name='Intros'):
         await msg.edit(content="I'm not in a voice channel — got it, staying out.")
         return False
 
+    async def _resolve_trigger(self, ctx: commands.Context, trigger: str):
+        """Return (trigger_key, member_or_None) or send an error and return None."""
+        if trigger in ('bot', 'user'):
+            return trigger, None
+        try:
+            member = await commands.MemberConverter().convert(ctx, trigger)
+            return f'user_{member.id}', member
+        except commands.MemberNotFound:
+            await ctx.send('Trigger must be `bot`, `user`, or a @mention of a server member.')
+            return None, None
+
     # ── Commands ──────────────────────────────────────────────────────────────
 
     @commands.group(name='intro', aliases=['in'], invoke_without_command=True)
     async def intro_group(self, ctx: commands.Context):
         await ctx.send(
             '**Intro commands:**\n'
-            '`!intro set bot <url>` — set bot-join intro (or attach MP3)\n'
-            '`!intro set user <url>` — set intro for any user joining (or attach MP3)\n'
-            '`!intro set @user <url>` — set intro for a specific user (or attach MP3)\n'
-            '`!intro clear bot` — remove bot-join intro\n'
-            '`!intro clear user` — remove server-wide user-join intro\n'
-            '`!intro clear @user` — remove a specific user\'s intro\n'
+            '`!intro set bot|user|@user <url>` — set the default intro (or attach MP3)\n'
+            '`!intro schedule bot|user|@user <days> <url>` — set a day-specific override (or attach MP3)\n'
+            '`!intro unschedule bot|user|@user <days>` — remove a day-specific override\n'
+            '`!intro clear bot|user|@user` — remove all intros for this trigger\n'
             '`!intro list` — list all configured triggers\n'
             '`!intro show` — show bot/server-wide config and global flags\n'
             '`!intro rename bot|user|@user <name>` — give an intro a human-readable label\n'
             '`!intro trigger bot|user|@user` — manually play an intro\n'
-            '`!intro autojoin on|off` — auto-join when first user enters a voice channel'
+            '`!intro autojoin on|off` — auto-join when first user enters a voice channel\n'
+            '*Days: `MON` `SAT,SUN` `MON-FRI` `WEEKDAY` `WEEKEND`*'
         )
 
     @intro_group.command(name='set')
     async def intro_set(self, ctx: commands.Context, trigger: str, *, query: str = None):
-        member: discord.Member | None = None
-        if trigger not in ('bot', 'user'):
-            try:
-                member = await commands.MemberConverter().convert(ctx, trigger)
-            except commands.MemberNotFound:
-                return await ctx.send(
-                    'Trigger must be `bot`, `user`, or a @mention of a server member.'
-                )
+        trigger_key, member = await self._resolve_trigger(ctx, trigger)
+        if trigger_key is None:
+            return
 
         if member:
-            trigger_key = f'user_{member.id}'
-            dest        = INTRO_SOUNDS_DIR / f'{ctx.guild.id}_user_{member.id}.mp3'
-            dl_label    = f'intro for **{member.display_name}**'
+            dest     = INTRO_SOUNDS_DIR / f'{ctx.guild.id}_user_{member.id}.mp3'
+            dl_label = f'intro for **{member.display_name}**'
         else:
-            trigger_key = trigger
-            dest        = INTRO_SOUNDS_DIR / f'{ctx.guild.id}_{trigger}.mp3'
-            dl_label    = f'**{trigger}**-join intro'
+            dest     = INTRO_SOUNDS_DIR / f'{ctx.guild.id}_{trigger}.mp3'
+            dl_label = f'**{trigger}**-join intro'
 
         if ctx.message.attachments:
             attachment = ctx.message.attachments[0]
@@ -149,40 +176,104 @@ class IntrosCog(commands.Cog, name='Intros'):
         else:
             return await ctx.send('Provide a URL/search term or attach an MP3 file.')
 
-        config = load_intro_config()
-        entry  = {'file': str(dest), 'source': source_label}
-        if member:
-            entry['member_name'] = str(member)
-        config.setdefault(str(ctx.guild.id), {})[trigger_key] = entry
-        save_intro_config(config)
+        set_default_entry(
+            ctx.guild.id, trigger_key, str(dest), source_label,
+            member_name=str(member) if member else None,
+        )
 
         label = f'**{member.display_name}**' if member else f'**{trigger.capitalize()}-join**'
         await ctx.send(f'{label} intro set to `{dest.name}`.')
 
+    @intro_group.command(name='schedule')
+    async def intro_schedule(
+        self, ctx: commands.Context, trigger: str, days: str, *, query: str = None
+    ):
+        """Add a day-specific intro override for a trigger."""
+        trigger_key, member = await self._resolve_trigger(ctx, trigger)
+        if trigger_key is None:
+            return
+
+        try:
+            days_set   = parse_days(days)
+            canon_days = canonicalize_days(days_set)
+        except ValueError as e:
+            return await ctx.send(f'Invalid day pattern: {e}')
+
+        days_norm = canon_days.replace(',', '_')
+        if member:
+            dest     = INTRO_SOUNDS_DIR / f'{ctx.guild.id}_user_{member.id}_s_{days_norm}.mp3'
+            dl_label = f'intro for **{member.display_name}** on {canon_days}'
+        else:
+            dest     = INTRO_SOUNDS_DIR / f'{ctx.guild.id}_{trigger}_s_{days_norm}.mp3'
+            dl_label = f'**{trigger}**-join intro for {canon_days}'
+
+        if ctx.message.attachments:
+            attachment = ctx.message.attachments[0]
+            if not attachment.filename.lower().endswith('.mp3'):
+                return await ctx.send('Only MP3 attachments are supported.')
+            await ctx.send('Saving attachment...')
+            dest.write_bytes(await attachment.read())
+            source_label = attachment.filename
+            log.info('Schedule entry set from attachment — guild %s key %s days %s: %s',
+                     ctx.guild.id, trigger_key, canon_days, source_label)
+        elif query:
+            await ctx.send(f'Downloading {dl_label}...')
+            try:
+                loop  = asyncio.get_event_loop()
+                track = await loop.run_in_executor(None, download_track, query)
+            except Exception as e:
+                log.error('Schedule download failed — guild %s key %s days %s: %s',
+                          ctx.guild.id, trigger_key, canon_days, e, exc_info=True)
+                return await ctx.send(f'Could not download: `{e}`')
+            shutil.copy(track['file'], dest)
+            source_label = query
+            log.info('Schedule entry set from URL — guild %s key %s days %s: %s',
+                     ctx.guild.id, trigger_key, canon_days, source_label)
+        else:
+            return await ctx.send('Provide a URL/search term or attach an MP3 file.')
+
+        set_schedule_entry(ctx.guild.id, trigger_key, days, str(dest), source_label)
+
+        label = f'**{member.display_name}**' if member else f'**{trigger.capitalize()}-join**'
+        await ctx.send(f'{label} intro for **{canon_days}** set to `{dest.name}`.')
+
+    @intro_group.command(name='unschedule')
+    async def intro_unschedule(self, ctx: commands.Context, trigger: str, *, days: str):
+        """Remove a day-specific intro override for a trigger."""
+        trigger_key, member = await self._resolve_trigger(ctx, trigger)
+        if trigger_key is None:
+            return
+
+        try:
+            days_set   = parse_days(days)
+            canon_days = canonicalize_days(days_set)
+        except ValueError as e:
+            return await ctx.send(f'Invalid day pattern: {e}')
+
+        removed = remove_schedule_entry(ctx.guild.id, trigger_key, days)
+
+        if not removed:
+            label = member.display_name if member else f'{trigger}-join'
+            return await ctx.send(
+                f'No schedule override for **{canon_days}** found on **{label}**.'
+            )
+
+        label = member.display_name if member else f'{trigger.capitalize()}-join'
+        await ctx.send(f'**{label}** intro override for **{canon_days}** removed.')
+
     @intro_group.command(name='clear')
     async def intro_clear(self, ctx: commands.Context, trigger: str):
-        member: discord.Member | None = None
-        if trigger not in ('bot', 'user'):
-            try:
-                member = await commands.MemberConverter().convert(ctx, trigger)
-            except commands.MemberNotFound:
-                return await ctx.send(
-                    'Trigger must be `bot`, `user`, or a @mention of a server member.'
-                )
+        trigger_key, member = await self._resolve_trigger(ctx, trigger)
+        if trigger_key is None:
+            return
 
-        trigger_key = f'user_{member.id}' if member else trigger
-        config      = load_intro_config()
-        gid         = str(ctx.guild.id)
-        entry       = config.get(gid, {}).pop(trigger_key, None)
+        entry = clear_trigger(ctx.guild.id, trigger_key)
 
-        if not entry:
+        if entry is None:
             label = member.display_name if member else f'{trigger}-join'
             return await ctx.send(f'No intro configured for **{label}**.')
 
-        Path(entry['file']).unlink(missing_ok=True)
-        save_intro_config(config)
         log.info('Intro cleared — guild %s key %s', ctx.guild.id, trigger_key)
-
         label = member.display_name if member else f'{trigger.capitalize()}-join'
         await ctx.send(f'**{label}** intro removed.')
 
@@ -203,13 +294,10 @@ class IntrosCog(commands.Cog, name='Intros'):
 
         lines = []
         for key, entry in triggers.items():
-            p       = Path(entry['file'])
-            missing = ' *(file missing!)*' if not p.exists() else ''
-            label   = _trigger_label(key, entry)
-            lines.append(f'{label}: `{p.name}` — `{entry["source"]}`{missing}')
+            lines.extend(_entry_lines(key, entry))
 
         await ctx.send(
-            f'**Intro triggers ({len(lines)}):**\n' + '\n'.join(lines) +
+            f'**Intro triggers ({len(triggers)}):**\n' + '\n'.join(lines) +
             f'\n*Auto-join: {auto_label}*'
         )
 
@@ -222,13 +310,38 @@ class IntrosCog(commands.Cog, name='Intros'):
         lines = []
         for trigger, label in (('bot', 'Bot join'), ('user', 'Any user')):
             entry = guild_cfg.get(trigger)
-            if entry:
+            if not entry:
+                fallback = f'fallback: `{_INTRO_FILE.name}`' if _INTRO_FILE.exists() else 'not set'
+                lines.append(f'**{label}:** *(not configured — {fallback})*')
+                continue
+
+            schedule = entry.get('schedule', [])
+
+            if 'file' in entry:  # flat format
                 p       = Path(entry['file'])
                 missing = ' *(file missing!)*' if not p.exists() else ''
                 lines.append(f'**{label}:** `{p.name}` — `{entry["source"]}`{missing}')
             else:
-                fallback = f'fallback: `{_INTRO_FILE.name}`' if _INTRO_FILE.exists() else 'not set'
-                lines.append(f'**{label}:** *(not configured — {fallback})*')
+                default = entry.get('default')
+                if default:
+                    p       = Path(default['file'])
+                    missing = ' *(file missing!)*' if not p.exists() else ''
+                    suffix  = ' (default)' if schedule else ''
+                    lines.append(
+                        f'**{label}{suffix}:** `{p.name}` — `{default["source"]}`{missing}'
+                    )
+                elif schedule:
+                    lines.append(f'**{label}:** *(no default — schedule only)*')
+                else:
+                    fallback = f'fallback: `{_INTRO_FILE.name}`' if _INTRO_FILE.exists() else 'not set'
+                    lines.append(f'**{label}:** *(empty — {fallback})*')
+
+                for sched in schedule:
+                    p       = Path(sched['file'])
+                    missing = ' *(file missing!)*' if not p.exists() else ''
+                    lines.append(
+                        f'  ↳ [{sched["days"]}]: `{p.name}` — `{sched["source"]}`{missing}'
+                    )
 
         per_user = [k for k in guild_cfg if k.startswith('user_')]
         if per_user:
@@ -253,25 +366,27 @@ class IntrosCog(commands.Cog, name='Intros'):
     @intro_group.command(name='rename')
     async def intro_rename(self, ctx: commands.Context, trigger: str, *, name: str):
         """Give a human-readable label to an existing intro's source field."""
-        member: discord.Member | None = None
-        if trigger not in ('bot', 'user'):
-            try:
-                member = await commands.MemberConverter().convert(ctx, trigger)
-            except commands.MemberNotFound:
-                return await ctx.send(
-                    'Trigger must be `bot`, `user`, or a @mention of a server member.'
-                )
+        trigger_key, member = await self._resolve_trigger(ctx, trigger)
+        if trigger_key is None:
+            return
 
-        trigger_key = f'user_{member.id}' if member else trigger
-        config      = load_intro_config()
-        gid         = str(ctx.guild.id)
-        entry       = config.get(gid, {}).get(trigger_key)
+        config = load_intro_config()
+        gid    = str(ctx.guild.id)
+        entry  = config.get(gid, {}).get(trigger_key)
 
         if not entry:
             label = member.display_name if member else f'{trigger}-join'
             return await ctx.send(f'No intro configured for **{label}**.')
 
-        entry['source'] = name
+        if 'file' in entry:  # flat format
+            entry['source'] = name
+        elif 'default' in entry:
+            entry['default']['source'] = name
+        else:
+            return await ctx.send(
+                f'No default intro to rename — set one first with `!intro set`.'
+            )
+
         save_intro_config(config)
         log.info('Intro source renamed — guild %s key %s: %r', ctx.guild.id, trigger_key, name)
 
@@ -281,8 +396,7 @@ class IntrosCog(commands.Cog, name='Intros'):
     @intro_group.command(name='trigger')
     async def intro_trigger(self, ctx: commands.Context, *, member_str: str):
         """Manually play an intro. Accepts: bot, user, or @mention."""
-        # Resolve trigger — keywords take priority over member lookup
-        member = None
+        member      = None
         trigger_key = None
         if member_str in ('bot', 'user'):
             trigger_key = member_str
@@ -297,28 +411,25 @@ class IntrosCog(commands.Cog, name='Intros'):
         state = get_state(self.bot, ctx.guild.id)
         vc: discord.VoiceClient = state['voice_client']
 
-        # User must be in a voice channel before anything else
         if not ctx.author.voice:
             await ctx.send("I will not listen to someone who doesn't even have the courage to show up.")
             return
 
         if vc is not None and vc.is_connected():
-            # Bot already in voice — user must be in the same channel
             if ctx.author.voice.channel != vc.channel:
                 await ctx.send("Sorry, I cannot hear you — I am kinda busy.")
                 return
         else:
-            # Bot not in voice — ask to join
             if not await self._ask_to_join(ctx):
                 return
             state['voice_client'] = await ctx.author.voice.channel.connect()
             vc = state['voice_client']
 
         if trigger_key:
-            intro = get_intro_file(ctx.guild.id, trigger_key)
+            intro   = get_intro_file(ctx.guild.id, trigger_key)
             display = trigger_key.capitalize() + '-join'
         else:
-            intro = get_user_intro(member.guild.id, member.id)
+            intro   = get_user_intro(member.guild.id, member.id)
             display = member.display_name
 
         if not intro:
@@ -357,7 +468,6 @@ class IntrosCog(commands.Cog, name='Intros'):
         state = get_state(self.bot, member.guild.id)
         vc: discord.VoiceClient = state['voice_client']
 
-        # Auto-join: connect when this is the first non-bot member in the channel
         if get_auto_join(member.guild.id) and (vc is None or not vc.is_connected()):
             non_bot = [m for m in after.channel.members if not m.bot]
             if len(non_bot) == 1:
@@ -365,7 +475,6 @@ class IntrosCog(commands.Cog, name='Intros'):
                 state['voice_client'] = await after.channel.connect()
                 vc = state['voice_client']
 
-        # User-join intro
         if not _INTRO_ON_USER_JOIN:
             return
         if vc is None or not vc.is_connected() or vc.channel != after.channel:

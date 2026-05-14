@@ -42,17 +42,16 @@ _HELP_PAGES = [
 **Music Bot — Commands** · Page 2/2
 
 **Intro Sounds** (`!intro` / `!in`)
-`!intro set bot <url>` — Set the bot-join intro (attach MP3 or provide URL/search).
-`!intro set user <url>` — Set the server-wide user-join intro (attach MP3 or provide URL/search).
-`!intro set @user <url>` — Set a per-user intro for a specific member.
-`!intro clear bot` — Remove the bot-join intro.
-`!intro clear user` — Remove the server-wide user-join intro.
-`!intro clear @user` — Remove a specific user's intro.
+`!intro set bot|user|@user <url>` — Set the default intro (attach MP3 or provide URL/search).
+`!intro schedule bot|user|@user <days> <url>` — Set a day-specific override (attach MP3 or URL).
+`!intro unschedule bot|user|@user <days>` — Remove a day-specific override.
+`!intro clear bot|user|@user` — Remove all intros for this trigger.
 `!intro list` — List all configured intro triggers for this server.
 `!intro show` — Show bot/server-wide config and global enable flags.
-`!intro rename bot|user|@user <name>` — Give an intro a human-readable label shown in `!intro list`.
+`!intro rename bot|user|@user <name>` — Give an intro a human-readable label.
 `!intro trigger bot|user|@user` — Manually play an intro (bot must be idle in voice).
 `!intro autojoin on|off` — Auto-join the voice channel when the first user enters.
+Days: `MON` `SAT,SUN` `MON-FRI` `WEEKDAY` `WEEKEND`
 
 **Soundboard** (`!soundboard` / `!sb`)
 `!sb add <name> <emoji> [url/search]` — Add a sound (attach MP3 or provide URL/search).
