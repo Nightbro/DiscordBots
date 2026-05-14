@@ -68,11 +68,13 @@ class MessageWriter:
         return e
 
     @staticmethod
-    def soundboard_panel(sounds: list[str]) -> discord.Embed:
+    def soundboard_panel(sounds: dict[str, dict]) -> discord.Embed:
+        """sounds: {name: {'emoji': str, 'file': str}} mapping from SoundboardConfig."""
         e = _embed()
         e.title = '🔊 Soundboard'
         if sounds:
-            e.description = '\n'.join(f'• {s}' for s in sounds)
+            lines = [f'{meta["emoji"]} **{name}**' for name, meta in sounds.items()]
+            e.description = '\n'.join(lines)
         else:
             e.description = 'No sounds added yet. Use `!sb add <name>` with an attachment.'
         return e

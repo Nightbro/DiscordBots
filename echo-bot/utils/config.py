@@ -11,6 +11,7 @@ with open(_HERE / 'config.yaml', encoding='utf-8') as _f:
 
 _bot = _cfg['bot']
 _audio = _cfg['audio']
+_intros = _cfg['intros']
 _tts = _cfg['tts']
 
 # Bot identity
@@ -28,6 +29,10 @@ EMOJI_LOADING: str = _bot['emojis']['loading']
 # Audio settings
 PANEL_TIMEOUT: int = _audio['panel_timeout']
 MAX_QUEUE: int = _audio['max_queue']
+
+# Intro settings
+INTRO_ON_BOT_JOIN: bool = _intros['on_bot_join']
+INTRO_ON_USER_JOIN: bool = _intros['on_user_join']
 
 # TTS settings
 TTS_DEFAULT_VOICE: str = _tts['default_voice']
