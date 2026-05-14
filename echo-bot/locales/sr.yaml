@@ -93,6 +93,27 @@ soundboard:
   remove_done: "Zvuk **{name}** je uklonjen."
   play_not_found: "Zvuk **{name}** nije pronađen ili fajl nedostaje."
 
+tts:
+  hint: "`!say <tekst>` · `!tts voice <ime>` · `!tts voices [lokacija]` · `!tts rate <+N%>` · `!tts stop` · `!tts show`"
+  synthesizing: "⏳ Sintetizujem…"
+  speaking: "Govorim."
+  error_synthesis: "Nisam mogao da sintetizujem govor."
+  validating: "⏳ Proveravam glas…"
+  voice_set: "TTS glas postavljen na `{name}`."
+  voice_not_found: "Glas `{name}` nije pronađen."
+  voice_not_found_hint: "Koristi `!tts voices` da vidiš dostupne glasove."
+  loading_voices: "⏳ Učitavam glasove…"
+  error_voices: "Nisam mogao da preuzmem listu glasova."
+  voices_title: "Dostupni TTS glasovi"
+  voices_more: "… i još {count}. Filtriraj sa `!tts voices <lokacija>`, npr. `!tts voices sr`."
+  no_voices_found: "Nisu pronađeni glasovi za lokaciju `{locale}`."
+  rate_set: "TTS brzina postavljena na `{rate}`."
+  rate_invalid: "Nevažeći format brzine."
+  rate_invalid_hint: "Koristi `+N%` ili `-N%`, npr. `+10%` ili `-20%`."
+  stopped: "TTS zaustavljen."
+  show_title: "TTS podešavanja"
+  show_desc: "Glas: `{voice}`\nBrzina: `{rate}`"
+
 settings:
   hint: "`set <ključ> <true|false>` · `reset <ključ>` · `locale <kod>` · `show`"
   title: "Podešavanja za {guild}"

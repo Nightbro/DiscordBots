@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from utils.config import AUTO_JOIN, AUTO_LEAVE
+from utils.config import AUTO_JOIN, AUTO_LEAVE, TTS_DEFAULT_VOICE, TTS_DEFAULT_RATE
 from utils.persistence import GuildConfig
 
 _DEFAULT_LOCALE = 'en'
@@ -28,6 +28,8 @@ _DEFAULTS: dict[str, Any] = {
     'auto_join': AUTO_JOIN,
     'auto_leave': AUTO_LEAVE,
     'locale': _DEFAULT_LOCALE,
+    'tts_voice': TTS_DEFAULT_VOICE,
+    'tts_rate': TTS_DEFAULT_RATE,
 }
 
 
@@ -75,3 +77,19 @@ def get_locale(guild_id: int) -> str:
 
 def set_locale(guild_id: int, locale: str) -> None:
     set_setting(guild_id, 'locale', locale)
+
+
+def get_tts_voice(guild_id: int) -> str:
+    return str(get_setting(guild_id, 'tts_voice'))
+
+
+def set_tts_voice(guild_id: int, voice: str) -> None:
+    set_setting(guild_id, 'tts_voice', voice)
+
+
+def get_tts_rate(guild_id: int) -> str:
+    return str(get_setting(guild_id, 'tts_rate'))
+
+
+def set_tts_rate(guild_id: int, rate: str) -> None:
+    set_setting(guild_id, 'tts_rate', rate)

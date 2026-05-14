@@ -81,7 +81,18 @@ Alias: `!soundboard`
 
 ## TTS
 
-*Coming in a future update.*
+Text-to-speech via Microsoft Edge TTS. Speaks in your voice channel, pausing any music playback while speaking.
+
+| Command | Description |
+|---|---|
+| `!say <text>` | Speak text in your voice channel |
+| `!tts voice <name>` | Set the TTS voice for this server |
+| `!tts voices [locale]` | List available voices, optionally filtered by locale (e.g. `en`, `sr`) |
+| `!tts rate <+N%\|-N%>` | Set speech rate — e.g. `+10%` faster, `-20%` slower |
+| `!tts stop` | Stop TTS currently speaking |
+| `!tts show` | Show current voice and rate for this server |
+
+Default voice: `en-US-AriaNeural` (set in `config.yaml`)
 
 ---
 
