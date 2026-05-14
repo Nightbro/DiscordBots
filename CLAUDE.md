@@ -5,22 +5,41 @@
 - **Always** commit and push after every change. Do not leave work uncommitted.
 - Before staging new work, run `git status`. If there are unstaged changes, **ask the user** what to do with them before proceeding.
 
+## Session start
+- At the start of every session involving `echo-bot/`, read `echo-bot/ARCHITECTURE.md` before touching any code.
+- `music-bot/` is **frozen** — do not modify it under any circumstances.
+
 ## Help files
-- Whenever a command is added, removed, or renamed: update **both**:
-  - `music-bot/help.md` — the markdown reference file
-  - `_HELP_TEXT` constant in `music-bot/cogs/music.py` — what `!help` shows in Discord
+
+### echo-bot
+- Whenever a command is added, removed, or renamed: update `echo-bot/help.md`.
 - Help updates are mandatory, not optional.
 
+### music-bot (frozen — for reference only)
+- `music-bot/help.md` and `_HELP_TEXT` in `music-bot/cogs/music.py` are not to be modified.
+
 ## Tests
-- Every code change must include corresponding tests in `music-bot/tests/`.
-- Run the test suite (`pytest` from `music-bot/`) before committing to verify nothing broke.
+
+### echo-bot
+- Every code change must include corresponding tests in `echo-bot/tests/`.
+- Run the test suite (`pytest` from `echo-bot/`) before committing.
 - New commands → new test cases in the relevant cog test file.
-- New utility functions → new test cases in the relevant utils test file.
+- New utility functions → new test cases in the relevant util test file.
+
+### music-bot (frozen)
+- Do not run or modify music-bot tests.
 
 ## Architecture
-See `music-bot/ARCHITECTURE.md` for the full architecture description. Update it when the structure changes.
+- `echo-bot/ARCHITECTURE.md` — primary architecture reference for the active bot. Update it when structure changes.
+- `music-bot/ARCHITECTURE.md` — frozen, do not modify.
+
+## Code rules (echo-bot)
+- All runtime paths must be derived from `utils/config.py` constants — never hardcode `data/` paths in cogs.
+- All Discord embeds must use `MessageWriter` — never build `discord.Embed` inline in cogs.
+- All voice interactions must go through `VoiceStreamer` — never call `VoiceClient` methods directly in cogs.
 
 ## Bots in this repo
-| Folder | Description |
-|---|---|
-| `music-bot/` | Discord music bot — YouTube, Suno, playlists, intro sounds |
+| Folder | Description | Status |
+|---|---|---|
+| `echo-bot/` | Echo — audio, soundboard, intros, TTS, future voice listen | **Active** |
+| `music-bot/` | Legacy music bot — YouTube, Suno, playlists, intro sounds | **Frozen** |
