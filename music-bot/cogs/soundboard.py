@@ -6,7 +6,7 @@ from pathlib import Path
 import discord
 from discord.ext import commands
 
-from utils.config import SOUNDBOARD_DIR
+from utils.config import SOUNDBOARD_DIR, AUDIO_EXTS
 from utils.downloader import download_track, FFMPEG_OPTIONS
 from utils.player import get_state, play_with_interrupt
 from utils.soundboard_config import get_sounds, get_sound, add_sound, remove_sound
@@ -172,17 +172,25 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
 
     @sb_group.command(name='add')
     async def sb_add(self, ctx: commands.Context, name: str, emoji: str, *, query: str = None):
-        dest = SOUNDBOARD_DIR / f'{ctx.guild.id}_{name}.mp3'
-
         if ctx.message.attachments:
             attachment = ctx.message.attachments[0]
-            if not attachment.filename.lower().endswith('.mp3'):
-                return await ctx.send('Only MP3 attachments are supported.')
+            suffix = Path(attachment.filename).suffix.lower()
+            if suffix not in AUDIO_EXTS:
+                return await ctx.send(
+                    f'Unsupported file type. Attach an audio file '
+                    f'({", ".join(sorted(AUDIO_EXTS))}).'
+                )
+            dest = SOUNDBOARD_DIR / f'{ctx.guild.id}_{name}{suffix}'
+            # Delete old file if extension is changing to avoid orphans.
+            old_entry = get_sound(ctx.guild.id, name)
+            if old_entry and old_entry['file'] != str(dest):
+                Path(old_entry['file']).unlink(missing_ok=True)
             await ctx.send('Saving attachment...')
             dest.write_bytes(await attachment.read())
             source_label = attachment.filename
             log.info('Soundboard add from attachment — guild %s name %s', ctx.guild.id, name)
         elif query:
+            dest = SOUNDBOARD_DIR / f'{ctx.guild.id}_{name}.mp3'
             await ctx.send(f'Downloading **{name}**...')
             try:
                 loop  = asyncio.get_event_loop()
@@ -196,7 +204,10 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
             log.info('Soundboard add from URL — guild %s name %s: %s',
                      ctx.guild.id, name, source_label)
         else:
-            return await ctx.send('Provide a URL/search term or attach an MP3 file.')
+            return await ctx.send(
+                f'Provide a URL/search term or attach an audio file '
+                f'({", ".join(sorted(AUDIO_EXTS))}).'
+            )
 
         add_sound(ctx.guild.id, name, emoji, str(dest), source_label)
         await ctx.send(f'Sound **{name}** {emoji} added.')

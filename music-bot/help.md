@@ -73,7 +73,8 @@
 - Sounds are per-server and stored persistently.
 - `!sb trigger` uses the same voice rules as `!intro trigger`: user must be in a voice channel, and if the bot is already playing audio, the command is rejected.
 
-## Sources supported by `!play`, `!intro set`, and `!sb add`
+## Sources supported by `!play`, `!intro set`, `!intro schedule`, and `!sb add`
 - YouTube URLs and short links (`youtu.be/…`)
 - YouTube search queries (e.g. `!play never gonna give you up`)
 - Suno song URLs (`suno.com/song/…` or `app.suno.ai/s/…`)
+- Discord file attachments: `.mp3` `.ogg` `.opus` `.wav` `.flac` `.m4a` `.aac`

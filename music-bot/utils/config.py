@@ -23,3 +23,6 @@ SOUNDBOARD_DIR.mkdir(exist_ok=True)
 _INTRO_FILE         = BASE_DIR / os.getenv('INTRO_MP3', 'intro.mp3')
 _INTRO_ON_BOT_JOIN  = os.getenv('INTRO_ON_BOT_JOIN',  'true').lower() == 'true'
 _INTRO_ON_USER_JOIN = os.getenv('INTRO_ON_USER_JOIN', 'true').lower() == 'true'
+
+# Audio formats accepted as Discord attachments (FFmpeg handles all of these natively).
+AUDIO_EXTS = frozenset({'.mp3', '.ogg', '.opus', '.wav', '.flac', '.m4a', '.aac'})
