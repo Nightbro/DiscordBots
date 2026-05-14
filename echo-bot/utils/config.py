@@ -29,6 +29,8 @@ EMOJI_LOADING: str = _bot['emojis']['loading']
 # Audio settings
 PANEL_TIMEOUT: int = _audio['panel_timeout']
 MAX_QUEUE: int = _audio['max_queue']
+AUTO_JOIN: bool = _audio['auto_join']
+AUTO_LEAVE: bool = _audio['auto_leave']
 
 # Intro settings
 INTRO_ON_BOT_JOIN: bool = _intros['on_bot_join']

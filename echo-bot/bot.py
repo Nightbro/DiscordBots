@@ -17,7 +17,7 @@ from logging.handlers import RotatingFileHandler
 import discord
 from discord.ext import commands
 
-from utils.config import BOT_NAME, PREFIX, LOGS_DIR, DOWNLOADS_DIR
+from utils.config import AUTO_JOIN, AUTO_LEAVE, BOT_NAME, PREFIX, LOGS_DIR, DOWNLOADS_DIR
 from utils.guild_state import GuildState
 from utils.voice import VoiceStreamer
 
@@ -115,10 +115,22 @@ async def on_voice_state_update(
 ) -> None:
     if member.bot:
         return
-    for guild_id, state in list(_guild_states.items()):
-        vc = state.voice_client
-        if vc and vc.channel and before.channel and before.channel.id == vc.channel.id:
-            await VoiceStreamer.auto_leave_if_empty(bot, guild_id, vc.channel)
+
+    guild_id = member.guild.id
+
+    # Auto-leave: member left a channel the bot is in — check if it's now empty
+    if AUTO_LEAVE:
+        state = _guild_states.get(guild_id)
+        if state:
+            vc = state.voice_client
+            if vc and vc.channel and before.channel and before.channel.id == vc.channel.id:
+                await VoiceStreamer.auto_leave_if_empty(bot, guild_id, vc.channel)
+
+    # Auto-join: member joined a channel and bot isn't in any channel for this guild
+    if AUTO_JOIN and after.channel is not None and before.channel != after.channel:
+        state = _guild_states.get(guild_id)
+        if state is None or state.voice_client is None:
+            await VoiceStreamer(bot, guild_id).join(after.channel)
 
 
 @bot.event

@@ -12,6 +12,8 @@ bot:
 audio:
   panel_timeout: 300
   max_queue: 100
+  auto_join: false   # join a voice channel when the first person enters it
+  auto_leave: true   # leave when the last person exits the bot's channel
 
 intros:
   on_bot_join: false   # play the user's intro when the bot joins their channel
