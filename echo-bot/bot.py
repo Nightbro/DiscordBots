@@ -19,6 +19,7 @@ from discord.ext import commands
 
 from utils.config import BOT_NAME, PREFIX, LOGS_DIR, DOWNLOADS_DIR
 from utils.guild_state import GuildState
+from utils.voice import VoiceStreamer
 
 # --- Logging ---
 _fmt = logging.Formatter(
@@ -103,6 +104,20 @@ async def on_command_error(ctx: commands.Context, error: commands.CommandError):
         error,
         exc_info=error,
     )
+
+
+@bot.event
+async def on_voice_state_update(
+    member: discord.Member,
+    before: discord.VoiceState,
+    after: discord.VoiceState,
+) -> None:
+    if member.bot:
+        return
+    for guild_id, state in list(_guild_states.items()):
+        vc = state.voice_client
+        if vc and vc.channel and before.channel and before.channel.id == vc.channel.id:
+            await VoiceStreamer.auto_leave_if_empty(bot, guild_id, vc.channel)
 
 
 @bot.event
