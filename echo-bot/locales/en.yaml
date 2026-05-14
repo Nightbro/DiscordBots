@@ -96,6 +96,27 @@ soundboard:
   remove_done: "Removed sound **{name}**."
   play_not_found: "Sound **{name}** not found or file missing."
 
+tts:
+  hint: "`!say <text>` · `!tts voice <name>` · `!tts voices [locale]` · `!tts rate <+N%>` · `!tts stop` · `!tts show`"
+  synthesizing: "⏳ Synthesizing…"
+  speaking: "Speaking."
+  error_synthesis: "Failed to synthesize speech."
+  validating: "⏳ Checking voice…"
+  voice_set: "TTS voice set to `{name}`."
+  voice_not_found: "Voice `{name}` not found."
+  voice_not_found_hint: "Use `!tts voices` to see available voices."
+  loading_voices: "⏳ Loading voices…"
+  error_voices: "Could not fetch voice list."
+  voices_title: "Available TTS voices"
+  voices_more: "… and {count} more. Filter with `!tts voices <locale>`, e.g. `!tts voices en`."
+  no_voices_found: "No voices found for locale `{locale}`."
+  rate_set: "TTS rate set to `{rate}`."
+  rate_invalid: "Invalid rate format."
+  rate_invalid_hint: "Use `+N%` or `-N%`, e.g. `+10%` or `-20%`."
+  stopped: "TTS stopped."
+  show_title: "TTS settings"
+  show_desc: "Voice: `{voice}`\nRate: `{rate}`"
+
 settings:
   hint: "`set <key> <true|false>` · `reset <key>` · `locale <code>` · `show`"
   title: "Settings for {guild}"

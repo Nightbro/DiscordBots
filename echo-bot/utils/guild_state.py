@@ -17,6 +17,7 @@ class Track:
     duration: int | None = None
     requester: discord.Member | None = None
     source_id: str | None = None  # yt-dlp video ID used for cache lookup
+    cleanup_path: Path | None = None  # deleted after playback (used by TTS temp files)
 
 
 @dataclass

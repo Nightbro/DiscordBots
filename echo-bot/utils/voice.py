@@ -114,6 +114,8 @@ class VoiceStreamer:
         def after(error: Exception | None) -> None:
             if error:
                 log.error('Interrupt playback error in guild %s: %s', self._guild_id, error)
+            if track.cleanup_path:
+                track.cleanup_path.unlink(missing_ok=True)
             if interrupted:
                 # Re-queue at front so it restarts after the interrupt
                 state.queue.appendleft(interrupted)
