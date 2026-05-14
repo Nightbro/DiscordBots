@@ -1,0 +1,106 @@
+# Echo Bot — Srpski (Serbian) locale
+
+common:
+  error_no_voice: "Moraš biti u glasovnom kanalu."
+
+music:
+  resolving: "⏳ Učitavam…"
+  error_resolve: "Nisam mogao da pronađem pesmu."
+  joined: "Pridružio sam se kanalu."
+  left: "Napustio sam glasovni kanal."
+  paused: "Pauzirano."
+  resumed: "Nastavljeno."
+  stopped: "Zaustavljeno i red obrisan."
+  nothing_playing: "Trenutno ništa ne svira."
+  playlist_hint: "`save <ime>` · `load <ime>` · `list` · `delete <ime>` · `show <ime>`"
+
+  skip:
+    skipped: "Preskočeno **{title}**"
+    nothing: "Ništa ne svira."
+
+  queue:
+    now_playing: "{emoji} **Sada svira:** {title}{dur}"
+    cleared: "Red je obrisan."
+
+  remove:
+    removed: "Uklonjeno **{title}**"
+    error_range: "Pozicija mora biti između 1 i {max}."
+
+  shuffle:
+    shuffled: "Pomešano {count} pesama."
+
+  playlist:
+    save:
+      empty: "Nema ništa u redu za čuvanje."
+      title: "Sačuvana plejlista **{name}**"
+      desc: "{count} pesama."
+    load:
+      not_found: "Plejlista **{name}** nije pronađena."
+      title: "Učitana **{name}**"
+      desc: "Dodato {added}/{total} pesama u red."
+    list:
+      empty: "Nema sačuvanih plejlisti."
+      title: "Sačuvane plejliste"
+      entry: "• **{name}** ({count} pesama)"
+    delete:
+      not_found: "Plejlista **{name}** nije pronađena."
+      deleted: "Plejlista **{name}** je obrisana."
+    show:
+      not_found: "Plejlista **{name}** nije pronađena."
+      title: "Plejlista: {name}"
+      more: "… i još {count}"
+
+message:
+  track_duration: "Trajanje"
+  track_requested_by: "Zahtevao"
+  queue_title: "🎵 Red — Strana {page}/{total}"
+  queue_empty: "Red je prazan."
+  soundboard_title: "🔊 Tabla sa zvukovima"
+  soundboard_empty: "Nema zvukova. Dodaj ih pomoću `!sb add <ime>` sa prilogom."
+
+intro:
+  hint: "`set` · `schedule` · `override` · `unschedule` · `clear` · `list` · `show` · `trigger` · `autojoin`"
+  days_label: "pon · uto · sre · čet · pet · sub · ned"
+  invalid_days: "Nevažeći dani."
+  invalid_date: "Nevažeći datum. Koristi format YYYY-MM-DD."
+  no_intro_set: "Nema podešenog intra."
+  set_title: "Podrazumevano intro podešeno."
+  set_desc: "Fajl: `{filename}`"
+  schedule_title: "Raspored podešen za {days}."
+  schedule_desc: "Fajl: `{filename}`"
+  override_title: "Zamena podešena za {date}."
+  override_desc: "Fajl: `{filename}`"
+  unschedule_removed: "Uklonjeno iz rasporeda: {days}"
+  unschedule_not_found: "Nisu pronađeni odgovarajući unosi u rasporedu."
+  clear_done: "Tvoje intro podešavanje je obrisano."
+  clear_nothing: "Nisi imao podešeno intro."
+  list_empty: "Nema podešenih intra."
+  list_title: "Intro podešavanja"
+  show_none: "Nemaš podešeno intro."
+  show_title: "Intro korisnika {name}"
+  trigger_no_file: "Nemaš intro fajl podešen za danas."
+  trigger_playing: "Puštam tvoje intro."
+  autojoin_enabled: "Automatsko pridruživanje uključeno."
+  autojoin_disabled: "Automatsko pridruživanje isključeno."
+
+soundboard:
+  hint: "`add <ime>` · `remove <ime>` · `play <ime>` · `list` · `panel`"
+  add_duplicate: "Zvuk **{name}** već postoji."
+  add_duplicate_hint: "Prvo koristi `!sb remove {name}`."
+  add_title: "Dodat zvuk **{name}**"
+  add_desc: "Emoji: {emoji}  Fajl: `{filename}`"
+  remove_not_found: "Zvuk **{name}** nije pronađen."
+  remove_done: "Zvuk **{name}** je uklonjen."
+  play_not_found: "Zvuk **{name}** nije pronađen ili fajl nedostaje."
+
+settings:
+  hint: "`set <ključ> <true|false>` · `reset <ključ>` · `locale <kod>` · `show`"
+  title: "Podešavanja za {guild}"
+  set_done: "`{key}` postavljeno na {value} za ovaj server."
+  reset_done: "`{key}` resetovano na globalnu podrazumevanu vrednost ({value})."
+  unknown_key: "Nepoznato podešavanje `{key}`."
+  unknown_key_hint: "Važeća podešavanja: {valid}"
+  locale_set: "Jezik postavljen na **{locale}** za ovaj server."
+  locale_invalid: "Nepodržan jezik `{locale}`."
+  locale_invalid_hint: "Dostupni: {available}"
+  locale_current: "Trenutni jezik: **{locale}**"
