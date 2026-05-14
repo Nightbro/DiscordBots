@@ -23,4 +23,6 @@ music-bot/cookies.txt
 /music-bot/intro_sounds
 /music-bot/logs
 /.claude
-music-bot/intro_config.json
+music-bot/*_config.json
+music-bot/*_config.json
+music-bot/soundboard
