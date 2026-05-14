@@ -6,7 +6,7 @@ from pathlib import Path
 import discord
 from discord.ext import commands
 
-from utils.config import INTRO_SOUNDS_DIR, _INTRO_FILE, _INTRO_ON_BOT_JOIN, _INTRO_ON_USER_JOIN
+from utils.config import INTRO_SOUNDS_DIR, _INTRO_FILE, _INTRO_ON_BOT_JOIN, _INTRO_ON_USER_JOIN, AUDIO_EXTS
 from utils.downloader import download_track, FFMPEG_OPTIONS
 from utils.player import get_state, play_with_interrupt
 from utils.intro_config import (
@@ -144,23 +144,30 @@ class IntrosCog(commands.Cog, name='Intros'):
         if trigger_key is None:
             return
 
-        if member:
-            dest     = INTRO_SOUNDS_DIR / f'{ctx.guild.id}_user_{member.id}.mp3'
-            dl_label = f'intro for **{member.display_name}**'
-        else:
-            dest     = INTRO_SOUNDS_DIR / f'{ctx.guild.id}_{trigger}.mp3'
-            dl_label = f'**{trigger}**-join intro'
+        stem     = f'{ctx.guild.id}_user_{member.id}' if member else f'{ctx.guild.id}_{trigger}'
+        dl_label = f'intro for **{member.display_name}**' if member else f'**{trigger}**-join intro'
 
         if ctx.message.attachments:
             attachment = ctx.message.attachments[0]
-            if not attachment.filename.lower().endswith('.mp3'):
-                return await ctx.send('Only MP3 attachments are supported.')
+            suffix = Path(attachment.filename).suffix.lower()
+            if suffix not in AUDIO_EXTS:
+                return await ctx.send(
+                    f'Unsupported file type. Attach an audio file '
+                    f'({", ".join(sorted(AUDIO_EXTS))}).'
+                )
+            dest = INTRO_SOUNDS_DIR / f'{stem}{suffix}'
+            # Delete old default file if extension is changing to avoid orphans.
+            existing = load_intro_config().get(str(ctx.guild.id), {}).get(trigger_key, {})
+            old_file = (existing.get('default') or existing).get('file')
+            if old_file and old_file != str(dest):
+                Path(old_file).unlink(missing_ok=True)
             await ctx.send('Saving attachment...')
             dest.write_bytes(await attachment.read())
             source_label = attachment.filename
             log.info('Intro set from attachment — guild %s key %s: %s',
                      ctx.guild.id, trigger_key, source_label)
         elif query:
+            dest = INTRO_SOUNDS_DIR / f'{stem}.mp3'
             await ctx.send(f'Downloading {dl_label}...')
             try:
                 loop  = asyncio.get_event_loop()
@@ -174,7 +181,10 @@ class IntrosCog(commands.Cog, name='Intros'):
             log.info('Intro set from URL — guild %s key %s: %s',
                      ctx.guild.id, trigger_key, source_label)
         else:
-            return await ctx.send('Provide a URL/search term or attach an MP3 file.')
+            return await ctx.send(
+                f'Provide a URL/search term or attach an audio file '
+                f'({", ".join(sorted(AUDIO_EXTS))}).'
+            )
 
         set_default_entry(
             ctx.guild.id, trigger_key, str(dest), source_label,
@@ -200,23 +210,33 @@ class IntrosCog(commands.Cog, name='Intros'):
             return await ctx.send(f'Invalid day pattern: {e}')
 
         days_norm = canon_days.replace(',', '_')
-        if member:
-            dest     = INTRO_SOUNDS_DIR / f'{ctx.guild.id}_user_{member.id}_s_{days_norm}.mp3'
-            dl_label = f'intro for **{member.display_name}** on {canon_days}'
-        else:
-            dest     = INTRO_SOUNDS_DIR / f'{ctx.guild.id}_{trigger}_s_{days_norm}.mp3'
-            dl_label = f'**{trigger}**-join intro for {canon_days}'
+        stem      = (
+            f'{ctx.guild.id}_user_{member.id}_s_{days_norm}'
+            if member else
+            f'{ctx.guild.id}_{trigger}_s_{days_norm}'
+        )
+        dl_label = (
+            f'intro for **{member.display_name}** on {canon_days}'
+            if member else
+            f'**{trigger}**-join intro for {canon_days}'
+        )
 
         if ctx.message.attachments:
             attachment = ctx.message.attachments[0]
-            if not attachment.filename.lower().endswith('.mp3'):
-                return await ctx.send('Only MP3 attachments are supported.')
+            suffix = Path(attachment.filename).suffix.lower()
+            if suffix not in AUDIO_EXTS:
+                return await ctx.send(
+                    f'Unsupported file type. Attach an audio file '
+                    f'({", ".join(sorted(AUDIO_EXTS))}).'
+                )
+            dest = INTRO_SOUNDS_DIR / f'{stem}{suffix}'
             await ctx.send('Saving attachment...')
             dest.write_bytes(await attachment.read())
             source_label = attachment.filename
             log.info('Schedule entry set from attachment — guild %s key %s days %s: %s',
                      ctx.guild.id, trigger_key, canon_days, source_label)
         elif query:
+            dest = INTRO_SOUNDS_DIR / f'{stem}.mp3'
             await ctx.send(f'Downloading {dl_label}...')
             try:
                 loop  = asyncio.get_event_loop()
@@ -230,7 +250,10 @@ class IntrosCog(commands.Cog, name='Intros'):
             log.info('Schedule entry set from URL — guild %s key %s days %s: %s',
                      ctx.guild.id, trigger_key, canon_days, source_label)
         else:
-            return await ctx.send('Provide a URL/search term or attach an MP3 file.')
+            return await ctx.send(
+                f'Provide a URL/search term or attach an audio file '
+                f'({", ".join(sorted(AUDIO_EXTS))}).'
+            )
 
         set_schedule_entry(ctx.guild.id, trigger_key, days, str(dest), source_label)
 

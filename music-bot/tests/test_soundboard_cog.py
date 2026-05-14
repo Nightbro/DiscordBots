@@ -139,12 +139,12 @@ class TestSbAdd:
         await cog.sb_add.callback(cog, ctx, 'boom', '💥', query=None)
         assert 'Provide' in ctx.send.call_args[0][0]
 
-    async def test_add_non_mp3_attachment(self, cog, ctx):
+    async def test_add_unsupported_attachment(self, cog, ctx):
         attachment = MagicMock()
-        attachment.filename = 'file.wav'
+        attachment.filename = 'file.txt'
         ctx.message.attachments = [attachment]
         await cog.sb_add.callback(cog, ctx, 'boom', '💥', query=None)
-        assert 'MP3' in ctx.send.call_args[0][0]
+        assert 'Unsupported' in ctx.send.call_args[0][0]
 
     async def test_add_from_attachment(self, cog, ctx, tmp_path):
         dest_dir = tmp_path / 'soundboard'

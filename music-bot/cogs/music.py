@@ -54,10 +54,11 @@ _HELP_PAGES = [
 Days: `MON` `SAT,SUN` `MON-FRI` `WEEKDAY` `WEEKEND`
 
 **Soundboard** (`!soundboard` / `!sb`)
-`!sb add <name> <emoji> [url/search]` — Add a sound (attach MP3 or provide URL/search).
+`!sb add <name> <emoji> [url/search]` — Add a sound (attach audio or provide URL/search).
 `!sb remove <name>` — Remove a sound.
 `!sb trigger <name>` — Play a sound (bot must be idle in voice).
-`!sb list` — List all sounds configured for this server.\
+`!sb list` — List all sounds configured for this server.
+Attachments: .mp3 .ogg .opus .wav .flac .m4a .aac\
 """,
 ]
 

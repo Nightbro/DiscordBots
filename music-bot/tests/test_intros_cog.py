@@ -42,15 +42,28 @@ class TestIntroSet:
 
     async def test_no_attachment_no_query(self, cog, ctx):
         await cog.intro_set.callback(cog, ctx, "bot", query=None)
-        ctx.send.assert_called_with("Provide a URL/search term or attach an MP3 file.")
+        assert any("Provide" in str(c) for c in ctx.send.call_args_list)
 
-    async def test_rejects_non_mp3_attachment(self, cog, ctx):
+    async def test_rejects_unsupported_attachment(self, cog, ctx):
         att = MagicMock()
-        att.filename = "file.wav"
+        att.filename = "file.txt"
         att.read = AsyncMock(return_value=b"data")
         ctx.message.attachments = [att]
         await cog.intro_set.callback(cog, ctx, "bot")
-        ctx.send.assert_called_with("Only MP3 attachments are supported.")
+        assert any("Unsupported" in str(c) for c in ctx.send.call_args_list)
+
+    async def test_accepts_ogg_attachment(self, cog, ctx, tmp_path):
+        att = MagicMock()
+        att.filename = "intro.ogg"
+        att.read = AsyncMock(return_value=b"OggS" + b"\x00" * 20)
+        ctx.message.attachments = [att]
+        with patch("cogs.intros.INTRO_SOUNDS_DIR", tmp_path):
+            with patch("cogs.intros.set_default_entry") as mock_sde:
+                with patch("cogs.intros.load_intro_config", return_value={}):
+                    await cog.intro_set.callback(cog, ctx, "bot")
+        mock_sde.assert_called_once()
+        saved_path = mock_sde.call_args[0][2]
+        assert saved_path.endswith(".ogg")
 
     async def test_saves_mp3_attachment_for_bot(self, cog, ctx, tmp_path):
         att = MagicMock()
@@ -123,15 +136,15 @@ class TestIntroSchedule:
 
     async def test_no_attachment_no_query(self, cog, ctx):
         await cog.intro_schedule.callback(cog, ctx, "bot", "SAT,SUN", query=None)
-        ctx.send.assert_called_with("Provide a URL/search term or attach an MP3 file.")
+        assert any("Provide" in str(c) for c in ctx.send.call_args_list)
 
-    async def test_rejects_non_mp3_attachment(self, cog, ctx):
+    async def test_rejects_unsupported_attachment(self, cog, ctx):
         att = MagicMock()
-        att.filename = "file.wav"
+        att.filename = "file.txt"
         att.read = AsyncMock(return_value=b"data")
         ctx.message.attachments = [att]
         await cog.intro_schedule.callback(cog, ctx, "bot", "SAT,SUN")
-        ctx.send.assert_called_with("Only MP3 attachments are supported.")
+        assert any("Unsupported" in str(c) for c in ctx.send.call_args_list)
 
     async def test_saves_attachment_and_calls_set_schedule_entry(self, cog, ctx, tmp_path):
         att = MagicMock()
