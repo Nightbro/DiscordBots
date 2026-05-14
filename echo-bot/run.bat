@@ -45,6 +45,11 @@ if not exist "venv\" (
 :: Activate venv
 call venv\Scripts\activate.bat
 
+:: Upgrade pip itself first
+echo Upgrading pip...
+python -m pip install --upgrade pip
+echo.
+
 :: Install/update dependencies
 echo Installing dependencies...
 pip install -r requirements.txt
