@@ -8,7 +8,7 @@ from discord.ext import commands
 
 from utils.config import INTRO_SOUNDS_DIR, _INTRO_FILE, _INTRO_ON_BOT_JOIN, _INTRO_ON_USER_JOIN
 from utils.downloader import download_track, FFMPEG_OPTIONS
-from utils.player import get_state
+from utils.player import get_state, play_with_interrupt
 from utils.intro_config import (
     load_intro_config, save_intro_config, get_intro_file, get_user_intro,
     get_auto_join, set_auto_join,
@@ -314,9 +314,6 @@ class IntrosCog(commands.Cog, name='Intros'):
             state['voice_client'] = await ctx.author.voice.channel.connect()
             vc = state['voice_client']
 
-        if vc.is_playing() or vc.is_paused():
-            return await ctx.send('Cannot play intro while audio is already playing.')
-
         if trigger_key:
             intro = get_intro_file(ctx.guild.id, trigger_key)
             display = trigger_key.capitalize() + '-join'
@@ -329,7 +326,7 @@ class IntrosCog(commands.Cog, name='Intros'):
 
         log.info('Manually triggering intro %s in guild %s (by %s)',
                  trigger_key or member, ctx.guild.id, ctx.author)
-        vc.play(discord.FFmpegPCMAudio(str(intro), **FFMPEG_OPTIONS))
+        await play_with_interrupt(self.bot, ctx.guild.id, str(intro), ctx.channel)
         await ctx.send(f'Playing **{display}** intro.')
 
     @intro_group.command(name='autojoin')
@@ -373,13 +370,11 @@ class IntrosCog(commands.Cog, name='Intros'):
             return
         if vc is None or not vc.is_connected() or vc.channel != after.channel:
             return
-        if vc.is_playing() or vc.is_paused():
-            return
         intro = get_user_intro(member.guild.id, member.id)
         if not intro:
             return
         log.info('Playing user-join intro for %s in guild %s', member, member.guild.id)
-        vc.play(discord.FFmpegPCMAudio(str(intro), **FFMPEG_OPTIONS))
+        await play_with_interrupt(self.bot, member.guild.id, str(intro))
 
 
 async def setup(bot):
