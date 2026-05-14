@@ -6,9 +6,7 @@ from typing import Any
 import discord
 from discord.ext import commands
 
-from utils.config import (
-    BOT_NAME, COLOR, EMOJI_LOADING, EMOJI_MUSIC, MAX_QUEUE, PLAYLISTS_FILE,
-)
+from utils.config import EMOJI_LOADING, EMOJI_MUSIC, MAX_QUEUE
 from utils.downloader import Downloader
 from utils.guild_state import GuildState, Track
 from utils.message import MessageWriter
@@ -16,74 +14,6 @@ from utils.persistence import PlaylistConfig
 from utils.voice import VoiceStreamer
 
 _PAGE_SIZE = 10
-
-_HELP_PAGES: list[str] = [
-    (
-        '**Music — Playback**\n'
-        '`!play <url|search>` — add a track to the queue\n'
-        '`!skip` — skip the current track\n'
-        '`!pause` — pause playback\n'
-        '`!resume` — resume playback\n'
-        '`!stop` — stop and clear the queue\n'
-        '`!nowplaying` (`!np`) — show current track\n'
-    ),
-    (
-        '**Music — Queue**\n'
-        '`!queue` (`!q`) — show the queue\n'
-        '`!clear` — clear the queue (keeps current track)\n'
-        '`!remove <#>` — remove a track by position\n'
-        '`!shuffle` — shuffle the queue\n'
-    ),
-    (
-        '**Music — Voice**\n'
-        '`!join` — join your voice channel\n'
-        '`!leave` — leave the voice channel\n'
-    ),
-    (
-        '**Music — Playlists**\n'
-        '`!playlist save <name>` — save current queue as playlist\n'
-        '`!playlist load <name>` — load a playlist into the queue\n'
-        '`!playlist list` — list saved playlists\n'
-        '`!playlist delete <name>` — delete a playlist\n'
-        '`!playlist show <name>` — show playlist contents\n'
-    ),
-]
-
-
-# ---------------------------------------------------------------------------
-# Paginated help view
-# ---------------------------------------------------------------------------
-
-class _PagedView(discord.ui.View):
-    def __init__(self, pages: list[str], *, timeout: float = 120.0) -> None:
-        super().__init__(timeout=timeout)
-        self._pages = pages
-        self._page = 0
-        self._update_buttons()
-
-    def _update_buttons(self) -> None:
-        self.prev_button.disabled = self._page == 0
-        self.next_button.disabled = self._page >= len(self._pages) - 1
-
-    def _build_embed(self) -> discord.Embed:
-        e = discord.Embed(
-            description=self._pages[self._page],
-            color=COLOR,
-        )
-        e.set_footer(text=f'{BOT_NAME} • Page {self._page + 1}/{len(self._pages)}')
-        return e
-
-    @discord.ui.button(label='◀ Prev', style=discord.ButtonStyle.secondary)
-    async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        self._page -= 1
-        self._update_buttons()
-        await interaction.response.edit_message(embed=self._build_embed(), view=self)
-
-    @discord.ui.button(label='Next ▶', style=discord.ButtonStyle.secondary)
-    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        self._page += 1
-        self._update_buttons()
-        await interaction.response.edit_message(embed=self._build_embed(), view=self)
 
 
 # ---------------------------------------------------------------------------
@@ -139,16 +69,6 @@ class MusicCog(commands.Cog, name='Music'):
 
         await streamer.join(ctx.author.voice.channel)
         return streamer, just_connected
-
-    # -----------------------------------------------------------------------
-    # Help
-    # -----------------------------------------------------------------------
-
-    @commands.hybrid_command(name='musichelp', aliases=['mhelp'])
-    async def music_help(self, ctx: commands.Context) -> None:
-        """Show music command help."""
-        view = _PagedView(_HELP_PAGES)
-        await ctx.send(embed=view._build_embed(), view=view)
 
     # -----------------------------------------------------------------------
     # Playback

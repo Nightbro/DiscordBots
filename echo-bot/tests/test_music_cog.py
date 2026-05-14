@@ -4,7 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import discord
 from discord.ext import commands
 
-from cogs.music import MusicCog, _track_to_dict, _dict_to_track, _PagedView
+from cogs.music import MusicCog, _track_to_dict, _dict_to_track
+from cogs.help import _HelpView
 from utils.guild_state import Track
 
 
@@ -37,25 +38,7 @@ def test_dict_to_track_missing_optional():
     assert track.source_id is None
 
 
-# ---------------------------------------------------------------------------
-# _PagedView
-# ---------------------------------------------------------------------------
-
-def test_paged_view_starts_on_first_page():
-    view = _PagedView(['Page A', 'Page B'])
-    embed = view._build_embed()
-    assert 'Page A' in embed.description
-
-
-def test_paged_view_prev_disabled_on_first():
-    view = _PagedView(['A', 'B'])
-    assert view.prev_button.disabled is True
-    assert view.next_button.disabled is False
-
-
-def test_paged_view_next_disabled_on_last():
-    view = _PagedView(['A'])
-    assert view.next_button.disabled is True
+# _PagedView tests moved to test_help_cog.py
 
 
 # ---------------------------------------------------------------------------
