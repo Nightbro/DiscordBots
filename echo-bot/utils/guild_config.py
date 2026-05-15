@@ -32,6 +32,7 @@ _DEFAULTS: dict[str, Any] = {
     'tts_rate': TTS_DEFAULT_RATE,
     'notify_write': True,
     'notify_say': False,
+    'voice_language': '',   # locale prefix for TTS (e.g. 'en', 'sr'); empty = use tts_voice
 }
 
 
@@ -103,3 +104,17 @@ def get_notify_write(guild_id: int) -> bool:
 
 def get_notify_say(guild_id: int) -> bool:
     return bool(get_setting(guild_id, 'notify_say'))
+
+
+def get_voice_language(guild_id: int) -> str:
+    return str(get_setting(guild_id, 'voice_language'))
+
+
+def set_voice_language(guild_id: int, locale: str) -> None:
+    set_setting(guild_id, 'voice_language', locale)
+
+
+def has_override(guild_id: int, key: str) -> bool:
+    """Return True if the guild has an explicit per-guild override for this key."""
+    cfg = GuildConfig()
+    return key in cfg.get(str(guild_id), {})

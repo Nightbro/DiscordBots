@@ -13,7 +13,7 @@ from utils.guild_config import get_tts_rate, get_tts_voice, set_tts_rate, set_tt
 from utils.guild_state import Track
 from utils.i18n import t
 from utils.message import MessageWriter
-from utils.notifier import Notifier
+from utils.notifier import Notifier, resolve_tts_voice
 from utils.voice import VoiceStreamer
 
 log = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ class TTSCog(commands.Cog, name='TTS'):
         if streamer is None:
             return
 
-        voice = get_tts_voice(gid)
+        voice = await resolve_tts_voice(gid)
         rate = get_tts_rate(gid)
 
         tmp_path = DOWNLOADS_DIR / f'tts_{uuid.uuid4().hex}.mp3'
