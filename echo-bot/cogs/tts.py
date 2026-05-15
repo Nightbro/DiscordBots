@@ -55,7 +55,7 @@ class TTSCog(commands.Cog, name='TTS'):
         rate = get_tts_rate(gid)
 
         tmp_path = DOWNLOADS_DIR / f'tts_{uuid.uuid4().hex}.mp3'
-        loading = await notifier.loading(ctx, t('tts.synthesizing', gid))
+        loading = await notifier.say_loading(ctx, t('tts.synthesizing', gid))
         try:
             communicate = edge_tts.Communicate(text, voice, rate=rate)
             await communicate.save(str(tmp_path))
@@ -71,7 +71,7 @@ class TTSCog(commands.Cog, name='TTS'):
             cleanup_path=tmp_path,
         )
         await streamer.interrupt(track)
-        await notifier.success(ctx, t('tts.speaking', gid), loading=loading)
+        await notifier.say_response(ctx, t('tts.speaking', gid), loading=loading)
 
     # -----------------------------------------------------------------------
     # !tts group

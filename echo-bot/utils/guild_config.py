@@ -34,6 +34,8 @@ _DEFAULTS: dict[str, Any] = {
     'notify_say': False,
     'notify_song_text': True,   # send track card embed when a song is loaded
     'notify_song_voice': False, # speak track title via TTS when a song is loaded
+    'notify_say_text': False,   # send text embed after !say (default: react only)
+    'notify_say_voice': False,  # speak the "Speaking." confirmation after !say
     'voice_language': '',   # locale prefix for TTS (e.g. 'en', 'sr'); empty = use tts_voice
 }
 
@@ -114,6 +116,14 @@ def get_notify_song_text(guild_id: int) -> bool:
 
 def get_notify_song_voice(guild_id: int) -> bool:
     return bool(get_setting(guild_id, 'notify_song_voice'))
+
+
+def get_notify_say_text(guild_id: int) -> bool:
+    return bool(get_setting(guild_id, 'notify_say_text'))
+
+
+def get_notify_say_voice(guild_id: int) -> bool:
+    return bool(get_setting(guild_id, 'notify_say_voice'))
 
 
 def get_voice_language(guild_id: int) -> str:
