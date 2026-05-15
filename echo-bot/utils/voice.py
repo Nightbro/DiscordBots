@@ -6,6 +6,7 @@ import discord
 from discord.ext import commands
 
 from utils.config import MAX_QUEUE
+from utils.downloader import Downloader
 from utils.guild_state import GuildState, Track
 
 log = logging.getLogger(__name__)
@@ -88,6 +89,16 @@ class VoiceStreamer:
             return
         track = state.queue.popleft()
         state.current_track = track
+
+        # Download remote tracks before playback; local files (intros, TTS, soundboard) skip this.
+        if track.url.startswith('http') and not (track.file_path and track.file_path.exists()):
+            try:
+                await Downloader.download(track)
+            except Exception as exc:
+                log.error('Failed to download "%s": %s — skipping', track.title, exc)
+                asyncio.run_coroutine_threadsafe(self.play_next(), self._bot.loop)
+                return
+
         source = _make_source(track)
 
         def after(error: Exception | None) -> None:
