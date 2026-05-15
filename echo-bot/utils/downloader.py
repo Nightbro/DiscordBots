@@ -80,6 +80,9 @@ class Downloader:
 
     @staticmethod
     async def _resolve_search(query: str) -> Track:
+        lower = query.lower()
+        if 'live' not in lower and 'music video' not in lower:
+            query = query + ' audio'
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None, Downloader._ydl_info, f'ytsearch1:{query}'
