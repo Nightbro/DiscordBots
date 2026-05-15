@@ -10,6 +10,7 @@ from utils.config import SOUNDBOARD_DIR
 from utils.guild_state import Track
 from utils.i18n import t
 from utils.message import MessageWriter
+from utils.notifier import Notifier
 from utils.soundboard_config import (
     add_sound,
     get_sound,
@@ -38,10 +39,13 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         # Maps message_id → guild_id so the reaction listener can find the panel
         self._panel_messages: dict[int, int] = {}
 
+    def _notifier(self, ctx) -> Notifier:
+        return Notifier(self.bot, ctx.guild.id)
+
     async def _ask_to_join(self, ctx) -> VoiceStreamer | None:
         gid = ctx.guild.id
         if ctx.author.voice is None:
-            await ctx.send(embed=MessageWriter.error(t('common.error_no_voice', gid)))
+            await self._notifier(ctx).error(ctx, t('common.error_no_voice', gid))
             return None
         streamer = VoiceStreamer(self.bot, gid)
         await streamer.join(ctx.author.voice.channel)
@@ -70,7 +74,6 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         emoji = str(payload.emoji)
         sounds = get_sounds()
 
-        # Find the sound with this emoji
         target_name: str | None = None
         for name, meta in sounds.items():
             if meta.get('emoji') == emoji:
@@ -108,20 +111,19 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
     async def sb(self, ctx: commands.Context) -> None:
         """Soundboard management."""
         gid = ctx.guild.id
-        await ctx.send(embed=MessageWriter.info(
-            'Soundboard commands',
-            t('soundboard.hint', gid),
-        ))
+        await ctx.send(embed=MessageWriter.info('Soundboard commands', t('soundboard.hint', gid)))
 
     @sb.command(name='add')
     async def sb_add(self, ctx: commands.Context, name: str, emoji: str = '') -> None:
         """Add a sound to the soundboard (attach an audio file)."""
         gid = ctx.guild.id
+        notifier = self._notifier(ctx)
         if sound_exists(name):
-            await ctx.send(embed=MessageWriter.error(
+            await notifier.error(
+                ctx,
                 t('soundboard.add_duplicate', gid, name=name),
                 t('soundboard.add_duplicate_hint', gid, name=name),
-            ))
+            )
             return
 
         dest_dir = SOUNDBOARD_DIR
@@ -133,38 +135,40 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
 
         assigned_emoji = emoji.strip() if emoji.strip() else _pick_emoji(get_sounds())
         add_sound(name, filename, assigned_emoji)
-        await ctx.send(embed=MessageWriter.success(
+        await notifier.success(
+            ctx,
             t('soundboard.add_title', gid, name=name),
             t('soundboard.add_desc', gid, emoji=assigned_emoji, filename=filename),
-        ))
+        )
 
     @sb.command(name='remove')
     async def sb_remove(self, ctx: commands.Context, name: str) -> None:
         """Remove a sound from the soundboard (also deletes the file)."""
         gid = ctx.guild.id
+        notifier = self._notifier(ctx)
         meta = get_sound(name)
         if meta is None:
-            await ctx.send(embed=MessageWriter.error(t('soundboard.remove_not_found', gid, name=name)))
+            await notifier.error(ctx, t('soundboard.remove_not_found', gid, name=name))
             return
 
-        # Delete file
         file_path = SOUNDBOARD_DIR / meta['file']
         if file_path.exists():
             file_path.unlink()
 
         remove_sound(name)
-        await ctx.send(embed=MessageWriter.success(t('soundboard.remove_done', gid, name=name)))
+        await notifier.success(ctx, t('soundboard.remove_done', gid, name=name))
 
     @sb.command(name='play')
     async def sb_play(self, ctx: commands.Context, name: str) -> None:
         """Play a soundboard sound in your voice channel."""
         gid = ctx.guild.id
+        notifier = self._notifier(ctx)
         streamer = await self._ask_to_join(ctx)
         if streamer is None:
             return
         path = get_sound_path(name)
         if path is None:
-            await ctx.send(embed=MessageWriter.error(t('soundboard.play_not_found', gid, name=name)))
+            await notifier.error(ctx, t('soundboard.play_not_found', gid, name=name))
             return
         track = Track(title=f'SFX: {name}', url=str(path), file_path=path)
         await streamer.interrupt(track)
@@ -183,7 +187,6 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         embed.set_footer(text='React to play a sound')
         msg = await ctx.send(embed=embed)
 
-        # Register message and add reactions
         self._panel_messages[msg.id] = ctx.guild.id
         for meta in sounds.values():
             try:

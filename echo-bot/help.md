@@ -113,6 +113,14 @@ Per-server overrides for bot behaviour. Values marked *(overridden)* differ from
 |---|---|---|
 | `auto_join` | `false` | Join a voice channel when the first person enters it |
 | `auto_leave` | `true` | Leave when the last person exits the bot's channel |
+| `notify_write` | `true` | Send a text message for command responses |
+| `notify_say` | `false` | Speak responses via TTS when bot is in voice |
+
+**Notification modes** (`notify_write` + `notify_say`):
+- Both on: sends a text embed **and** speaks the response
+- Write only (default): sends a text embed — silent
+- Say only: reacts with ✅ / ❌ / ❓ to your message and speaks the response
+- Both off: only reacts with ✅ / ❌ / ❓ — fully silent
 
 ---
 

@@ -19,6 +19,7 @@ _UTIL_MODULES = [
     'utils.downloader',
     'utils.i18n',
     'utils.guild_config',
+    'utils.notifier',
 ]
 
 

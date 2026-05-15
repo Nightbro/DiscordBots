@@ -125,3 +125,5 @@ settings:
   locale_invalid: "Nepodržan jezik `{locale}`."
   locale_invalid_hint: "Dostupni: {available}"
   locale_current: "Trenutni jezik: **{locale}**"
+  notify_write_label: "Šalji tekstualnu poruku za odgovore na komande"
+  notify_say_label: "Izgovaraj odgovore putem TTS-a kada je bot u glasovnom kanalu"

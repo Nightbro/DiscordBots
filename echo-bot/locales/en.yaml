@@ -128,3 +128,5 @@ settings:
   locale_invalid: "Unsupported locale `{locale}`."
   locale_invalid_hint: "Available: {available}"
   locale_current: "Current locale: **{locale}**"
+  notify_write_label: "Send a text message for command responses"
+  notify_say_label: "Speak responses via TTS when bot is in voice"
