@@ -22,6 +22,8 @@ from utils.config import DOWNLOADS_DIR
 from utils.config import TTS_DEFAULT_VOICE
 from utils.guild_config import (
     get_notify_say,
+    get_notify_say_text,
+    get_notify_say_voice,
     get_notify_song_text,
     get_notify_song_voice,
     get_notify_write,
@@ -178,6 +180,46 @@ class Notifier:
                 pass
 
         if get_notify_song_voice(self._gid) and title:
+            await self._speak(title)
+
+    async def say_loading(self, ctx, title: str) -> discord.Message | None:
+        """Loading indicator for the !say command (uses notify_say_text, not notify_write)."""
+        if get_notify_say_text(self._gid):
+            return await ctx.send(embed=MessageWriter.info(title))
+        try:
+            await ctx.message.add_reaction('⏳')
+        except Exception:
+            pass
+        return None
+
+    async def say_response(
+        self,
+        ctx,
+        title: str,
+        *,
+        loading: discord.Message | None = None,
+    ) -> None:
+        """Completion notification for the !say command.
+
+        Controlled by notify_say_text (default off → react only) and
+        notify_say_voice (default off → no spoken confirmation).
+        Bypasses notify_write and notify_say entirely.
+        """
+        if get_notify_say_text(self._gid):
+            embed = MessageWriter.success(title)
+            if loading is not None:
+                await loading.edit(embed=embed)
+            else:
+                await ctx.send(embed=embed)
+        else:
+            if loading is not None:
+                try:
+                    await loading.delete()
+                except Exception:
+                    pass
+            await self._react(ctx, 'success')
+
+        if get_notify_say_voice(self._gid) and title:
             await self._speak(title)
 
     # ------------------------------------------------------------------

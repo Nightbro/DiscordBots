@@ -30,6 +30,8 @@ _BOOL_SETTINGS: dict[str, str] = {
     'notify_say': 'Notify say (speak responses via TTS when bot is in voice)',
     'notify_song_text': 'Song details text (show track card embed when a song is loaded)',
     'notify_song_voice': 'Song details voice (speak track title via TTS when a song is loaded)',
+    'notify_say_text': 'Say command text (send embed after !say — off by default, reacts instead)',
+    'notify_say_voice': 'Say command voice (speak the "Speaking." confirmation after !say)',
 }
 
 # String settings managed via dedicated subcommands (shown in settings embed)
@@ -48,6 +50,8 @@ _BOOL_DEFAULTS: dict[str, bool] = {
     'notify_say': False,
     'notify_song_text': True,
     'notify_song_voice': False,
+    'notify_say_text': False,
+    'notify_say_voice': False,
 }
 
 _STRING_DEFAULTS: dict[str, str] = {

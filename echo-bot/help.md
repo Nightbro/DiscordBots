@@ -117,6 +117,8 @@ Per-server overrides for bot behaviour. Values marked *(overridden)* differ from
 | `notify_say` | `false` | Speak responses via TTS when bot is in voice |
 | `notify_song_text` | `true` | Show track card embed when a song is loaded via `!play` |
 | `notify_song_voice` | `false` | Speak track title via TTS when a song is loaded via `!play` |
+| `notify_say_text` | `false` | Send embed after `!say` completes (off by default — reacts with ✅ instead) |
+| `notify_say_voice` | `false` | Speak the "Speaking." confirmation after `!say` completes |
 
 **Notification modes** (`notify_write` + `notify_say`):
 - Both on: sends a text embed **and** speaks the response
@@ -127,6 +129,11 @@ Per-server overrides for bot behaviour. Values marked *(overridden)* differ from
 **Song detail notifications** (`notify_song_text` + `notify_song_voice`) are independent of the above:
 - `notify_song_text` controls only the `!play` track card — not other command responses
 - `notify_song_voice` controls only speaking the song title — not other TTS responses
+- These two settings bypass `notify_write` and `notify_say` entirely
+
+**Say command notifications** (`notify_say_text` + `notify_say_voice`) are also independent:
+- `notify_say_text` off (default): `!say` reacts with ✅ after speaking — no embed sent
+- `notify_say_voice` controls whether the "Speaking." confirmation is spoken after the text — the user's text is always spoken regardless
 - These two settings bypass `notify_write` and `notify_say` entirely
 
 ---

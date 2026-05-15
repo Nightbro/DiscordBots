@@ -26,6 +26,7 @@ _ALL_SETTINGS = {
     'auto_join': False, 'auto_leave': True,
     'notify_write': True, 'notify_say': False,
     'notify_song_text': True, 'notify_song_voice': False,
+    'notify_say_text': False, 'notify_say_voice': False,
 }
 
 
@@ -40,6 +41,8 @@ def test_settings_embed_contains_keys():
     assert 'notify_say' in embed.description
     assert 'notify_song_text' in embed.description
     assert 'notify_song_voice' in embed.description
+    assert 'notify_say_text' in embed.description
+    assert 'notify_say_voice' in embed.description
 
 
 def test_settings_embed_marks_override():

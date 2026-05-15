@@ -31,8 +31,8 @@ async def test_say_synthesis_error(mock_bot, ctx):
             MockComm.return_value = instance
             await cog.say.callback(cog, ctx, text='hello')
 
-    # Last send or edit should be an error embed
-    call = ctx.send.return_value.edit.call_args
+    # notify_say_text is False by default → no loading embed → error sent directly
+    call = ctx.send.call_args
     embed = call.kwargs.get('embed') or call.args[0]
     assert '❌' in embed.title
 
