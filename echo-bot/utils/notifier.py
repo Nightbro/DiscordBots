@@ -22,6 +22,8 @@ from utils.config import DOWNLOADS_DIR
 from utils.config import TTS_DEFAULT_VOICE
 from utils.guild_config import (
     get_notify_say,
+    get_notify_song_text,
+    get_notify_song_voice,
     get_notify_write,
     get_tts_rate,
     get_tts_voice,
@@ -150,6 +152,33 @@ class Notifier:
     ) -> None:
         """Send a custom embed (e.g. track_card). Falls back to react when write is off."""
         await self._dispatch(ctx, embed, level, tts_text, loading)
+
+    async def track_card(
+        self,
+        ctx,
+        embed: discord.Embed,
+        *,
+        title: str = '',
+        loading: discord.Message | None = None,
+    ) -> None:
+        """Send the song-loaded track card. Bypasses notify_write/notify_say entirely.
+
+        Controlled exclusively by notify_song_text (default on) and
+        notify_song_voice (default off).
+        """
+        if get_notify_song_text(self._gid):
+            if loading is not None:
+                await loading.edit(embed=embed)
+            else:
+                await ctx.send(embed=embed)
+        elif loading is not None:
+            try:
+                await loading.delete()
+            except Exception:
+                pass
+
+        if get_notify_song_voice(self._gid) and title:
+            await self._speak(title)
 
     # ------------------------------------------------------------------
     # Internal

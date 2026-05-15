@@ -28,6 +28,8 @@ _BOOL_SETTINGS: dict[str, str] = {
     'auto_leave': 'Auto-leave (leave when last person exits the channel)',
     'notify_write': 'Notify write (send a text message for command responses)',
     'notify_say': 'Notify say (speak responses via TTS when bot is in voice)',
+    'notify_song_text': 'Song details text (show track card embed when a song is loaded)',
+    'notify_song_voice': 'Song details voice (speak track title via TTS when a song is loaded)',
 }
 
 # String settings managed via dedicated subcommands (shown in settings embed)
@@ -44,6 +46,8 @@ _BOOL_DEFAULTS: dict[str, bool] = {
     'auto_leave': AUTO_LEAVE,
     'notify_write': True,
     'notify_say': False,
+    'notify_song_text': True,
+    'notify_song_voice': False,
 }
 
 _STRING_DEFAULTS: dict[str, str] = {

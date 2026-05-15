@@ -94,11 +94,10 @@ class MusicCog(commands.Cog, name='Music'):
             await notifier.error(ctx, str(exc), loading=loading)
             return
 
-        await notifier.send(
+        await notifier.track_card(
             ctx,
             MessageWriter.track_card(track, guild_id=gid),
-            tts_text=track.title,
-            level='success',
+            title=track.title,
             loading=loading,
         )
 
