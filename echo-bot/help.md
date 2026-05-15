@@ -115,12 +115,19 @@ Per-server overrides for bot behaviour. Values marked *(overridden)* differ from
 | `auto_leave` | `true` | Leave when the last person exits the bot's channel |
 | `notify_write` | `true` | Send a text message for command responses |
 | `notify_say` | `false` | Speak responses via TTS when bot is in voice |
+| `notify_song_text` | `true` | Show track card embed when a song is loaded via `!play` |
+| `notify_song_voice` | `false` | Speak track title via TTS when a song is loaded via `!play` |
 
 **Notification modes** (`notify_write` + `notify_say`):
 - Both on: sends a text embed **and** speaks the response
 - Write only (default): sends a text embed — silent
 - Say only: reacts with ✅ / ❌ / ❓ to your message and speaks the response
 - Both off: only reacts with ✅ / ❌ / ❓ — fully silent
+
+**Song detail notifications** (`notify_song_text` + `notify_song_voice`) are independent of the above:
+- `notify_song_text` controls only the `!play` track card — not other command responses
+- `notify_song_voice` controls only speaking the song title — not other TTS responses
+- These two settings bypass `notify_write` and `notify_say` entirely
 
 ---
 

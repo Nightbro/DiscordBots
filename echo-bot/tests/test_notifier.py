@@ -182,3 +182,102 @@ async def test_say_skipped_when_not_in_voice():
                 MockStreamer.return_value = mock_streamer
                 await n.success(ctx, 'Track skipped')
     mock_streamer.interrupt.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# track_card() — song details notifications (bypass notify_write / notify_say)
+# ---------------------------------------------------------------------------
+
+async def test_track_card_sends_embed_when_song_text_on():
+    ctx = _ctx()
+    n = _notifier()
+    embed = MagicMock(spec=discord.Embed)
+    with patch('utils.notifier.get_notify_song_text', return_value=True):
+        with patch('utils.notifier.get_notify_song_voice', return_value=False):
+            await n.track_card(ctx, embed, title='My Song')
+    ctx.send.assert_awaited_once()
+
+
+async def test_track_card_skips_embed_when_song_text_off():
+    ctx = _ctx()
+    n = _notifier()
+    embed = MagicMock(spec=discord.Embed)
+    with patch('utils.notifier.get_notify_song_text', return_value=False):
+        with patch('utils.notifier.get_notify_song_voice', return_value=False):
+            await n.track_card(ctx, embed, title='My Song')
+    ctx.send.assert_not_awaited()
+
+
+async def test_track_card_edits_loading_when_song_text_on():
+    ctx = _ctx()
+    n = _notifier()
+    embed = MagicMock(spec=discord.Embed)
+    loading = AsyncMock()
+    with patch('utils.notifier.get_notify_song_text', return_value=True):
+        with patch('utils.notifier.get_notify_song_voice', return_value=False):
+            await n.track_card(ctx, embed, title='My Song', loading=loading)
+    loading.edit.assert_awaited_once()
+    ctx.send.assert_not_awaited()
+
+
+async def test_track_card_deletes_loading_when_song_text_off():
+    ctx = _ctx()
+    n = _notifier()
+    embed = MagicMock(spec=discord.Embed)
+    loading = AsyncMock()
+    with patch('utils.notifier.get_notify_song_text', return_value=False):
+        with patch('utils.notifier.get_notify_song_voice', return_value=False):
+            await n.track_card(ctx, embed, title='My Song', loading=loading)
+    loading.delete.assert_awaited_once()
+    ctx.send.assert_not_awaited()
+
+
+async def test_track_card_speaks_when_song_voice_on():
+    ctx = _ctx()
+    bot = _bot()
+    vc = MagicMock()
+    vc.is_connected.return_value = True
+    bot.get_guild_state.return_value.voice_client = vc
+    n = Notifier(bot, 123456789)
+    embed = MagicMock(spec=discord.Embed)
+    with patch('utils.notifier.get_notify_song_text', return_value=False):
+        with patch('utils.notifier.get_notify_song_voice', return_value=True):
+            with patch('utils.notifier.get_tts_rate', return_value='+0%'):
+                with patch('utils.notifier.VoiceStreamer') as MockStreamer:
+                    mock_streamer = AsyncMock()
+                    MockStreamer.return_value = mock_streamer
+                    with patch('utils.notifier.edge_tts') as mock_edge:
+                        mock_edge.Communicate.return_value = AsyncMock()
+                        await n.track_card(ctx, embed, title='My Song')
+    mock_streamer.interrupt.assert_awaited_once()
+
+
+async def test_track_card_ignores_notify_write_when_song_text_on():
+    """song_text=True sends the embed even when notify_write is False."""
+    ctx = _ctx()
+    n = _notifier()
+    embed = MagicMock(spec=discord.Embed)
+    with patch('utils.notifier.get_notify_song_text', return_value=True):
+        with patch('utils.notifier.get_notify_song_voice', return_value=False):
+            with patch('utils.notifier.get_notify_write', return_value=False):
+                await n.track_card(ctx, embed, title='My Song')
+    ctx.send.assert_awaited_once()
+
+
+async def test_track_card_ignores_notify_say_when_song_voice_off():
+    """song_voice=False suppresses TTS even when notify_say is True."""
+    ctx = _ctx()
+    bot = _bot()
+    vc = MagicMock()
+    vc.is_connected.return_value = True
+    bot.get_guild_state.return_value.voice_client = vc
+    n = Notifier(bot, 123456789)
+    embed = MagicMock(spec=discord.Embed)
+    with patch('utils.notifier.get_notify_song_text', return_value=True):
+        with patch('utils.notifier.get_notify_song_voice', return_value=False):
+            with patch('utils.notifier.get_notify_say', return_value=True):
+                with patch('utils.notifier.VoiceStreamer') as MockStreamer:
+                    mock_streamer = AsyncMock()
+                    MockStreamer.return_value = mock_streamer
+                    await n.track_card(ctx, embed, title='My Song')
+    mock_streamer.interrupt.assert_not_awaited()

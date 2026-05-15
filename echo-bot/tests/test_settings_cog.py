@@ -23,7 +23,9 @@ def test_format_bool_false():
 # ---------------------------------------------------------------------------
 
 _ALL_SETTINGS = {
-    'auto_join': False, 'auto_leave': True, 'notify_write': True, 'notify_say': False,
+    'auto_join': False, 'auto_leave': True,
+    'notify_write': True, 'notify_say': False,
+    'notify_song_text': True, 'notify_song_voice': False,
 }
 
 
@@ -36,6 +38,8 @@ def test_settings_embed_contains_keys():
     assert 'auto_leave' in embed.description
     assert 'notify_write' in embed.description
     assert 'notify_say' in embed.description
+    assert 'notify_song_text' in embed.description
+    assert 'notify_song_voice' in embed.description
 
 
 def test_settings_embed_marks_override():
