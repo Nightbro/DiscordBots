@@ -27,6 +27,7 @@ from utils.intro_config import (
     user_dir,
 )
 from utils.message import MessageWriter
+from utils.notifier import Notifier
 from utils.voice import VoiceStreamer
 
 
@@ -62,11 +63,14 @@ class IntrosCog(commands.Cog, name='Intros'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
+    def _notifier(self, ctx) -> Notifier:
+        return Notifier(self.bot, ctx.guild.id)
+
     async def _ask_to_join(self, ctx) -> VoiceStreamer | None:
         """Join the author's voice channel, or send an error if they aren't in one."""
         gid = ctx.guild.id
         if ctx.author.voice is None:
-            await ctx.send(embed=MessageWriter.error(t('common.error_no_voice', gid)))
+            await self._notifier(ctx).error(ctx, t('common.error_no_voice', gid))
             return None
         streamer = VoiceStreamer(self.bot, gid)
         await streamer.join(ctx.author.voice.channel)
@@ -95,24 +99,19 @@ class IntrosCog(commands.Cog, name='Intros'):
     ) -> None:
         if member.bot:
             return
-
-        # User joined a voice channel
         if after.channel is not None and before.channel != after.channel:
             if INTRO_ON_USER_JOIN:
                 await self._play_intro(member.guild.id, member.id, after.channel)
 
     # -----------------------------------------------------------------------
-    # !intro set (default)
+    # Commands
     # -----------------------------------------------------------------------
 
     @commands.hybrid_group(name='intro', invoke_without_command=True)
     async def intro(self, ctx: commands.Context) -> None:
         """Intro sound management."""
         gid = ctx.guild.id
-        await ctx.send(embed=MessageWriter.info(
-            'Intro commands',
-            t('intro.hint', gid),
-        ))
+        await ctx.send(embed=MessageWriter.info('Intro commands', t('intro.hint', gid)))
 
     @intro.command(name='set')
     async def intro_set(self, ctx: commands.Context) -> None:
@@ -125,10 +124,11 @@ class IntrosCog(commands.Cog, name='Intros'):
         if path is None:
             return
         set_default_entry(uid, path.name)
-        await ctx.send(embed=MessageWriter.success(
+        await self._notifier(ctx).success(
+            ctx,
             t('intro.set_title', gid),
             t('intro.set_desc', gid, filename=path.name),
-        ))
+        )
 
     @intro.command(name='schedule')
     async def intro_schedule(self, ctx: commands.Context, days: str) -> None:
@@ -137,12 +137,10 @@ class IntrosCog(commands.Cog, name='Intros'):
         days: comma-separated day names, e.g. `mon,fri` or `monday,friday`
         """
         gid = ctx.guild.id
+        notifier = self._notifier(ctx)
         parsed = parse_days(days)
         if not parsed:
-            await ctx.send(embed=MessageWriter.error(
-                t('intro.invalid_days', gid),
-                t('intro.days_label', gid),
-            ))
+            await notifier.error(ctx, t('intro.invalid_days', gid), t('intro.days_label', gid))
             return
 
         uid = ctx.author.id
@@ -155,19 +153,21 @@ class IntrosCog(commands.Cog, name='Intros'):
             return
         set_schedule_entry(uid, canonical, path.name)
         days_str = ', '.join(canonical)
-        await ctx.send(embed=MessageWriter.success(
+        await notifier.success(
+            ctx,
             t('intro.schedule_title', gid, days=days_str),
             t('intro.schedule_desc', gid, filename=path.name),
-        ))
+        )
 
     @intro.command(name='override')
     async def intro_override(self, ctx: commands.Context, date: str) -> None:
         """Set a one-off intro for a specific date (YYYY-MM-DD, attach an audio file)."""
         gid = ctx.guild.id
+        notifier = self._notifier(ctx)
         try:
             datetime.date.fromisoformat(date)
         except ValueError:
-            await ctx.send(embed=MessageWriter.error(t('intro.invalid_date', gid)))
+            await notifier.error(ctx, t('intro.invalid_date', gid))
             return
 
         uid = ctx.author.id
@@ -177,38 +177,38 @@ class IntrosCog(commands.Cog, name='Intros'):
         if path is None:
             return
         set_override_entry(uid, date, path.name)
-        await ctx.send(embed=MessageWriter.success(
+        await notifier.success(
+            ctx,
             t('intro.override_title', gid, date=date),
             t('intro.override_desc', gid, filename=path.name),
-        ))
+        )
 
     @intro.command(name='unschedule')
     async def intro_unschedule(self, ctx: commands.Context, days: str) -> None:
         """Remove scheduled intro entries for the given days."""
         gid = ctx.guild.id
+        notifier = self._notifier(ctx)
         parsed = parse_days(days)
         if not parsed:
-            await ctx.send(embed=MessageWriter.error(
-                t('intro.invalid_days', gid),
-                t('intro.days_label', gid),
-            ))
+            await notifier.error(ctx, t('intro.invalid_days', gid), t('intro.days_label', gid))
             return
         removed = remove_schedule_entry(ctx.author.id, parsed)
         if removed:
-            await ctx.send(embed=MessageWriter.success(
-                t('intro.unschedule_removed', gid, days=', '.join(removed)),
-            ))
+            await notifier.success(
+                ctx, t('intro.unschedule_removed', gid, days=', '.join(removed))
+            )
         else:
-            await ctx.send(embed=MessageWriter.error(t('intro.unschedule_not_found', gid)))
+            await notifier.error(ctx, t('intro.unschedule_not_found', gid))
 
     @intro.command(name='clear')
     async def intro_clear(self, ctx: commands.Context) -> None:
         """Remove all your intro settings."""
         gid = ctx.guild.id
+        notifier = self._notifier(ctx)
         if clear_trigger(ctx.author.id):
-            await ctx.send(embed=MessageWriter.success(t('intro.clear_done', gid)))
+            await notifier.success(ctx, t('intro.clear_done', gid))
         else:
-            await ctx.send(embed=MessageWriter.info(t('intro.clear_nothing', gid)))
+            await notifier.info(ctx, t('intro.clear_nothing', gid))
 
     @intro.command(name='list')
     async def intro_list(self, ctx: commands.Context) -> None:
@@ -239,24 +239,25 @@ class IntrosCog(commands.Cog, name='Intros'):
     async def intro_trigger(self, ctx: commands.Context) -> None:
         """Manually trigger your intro sound."""
         gid = ctx.guild.id
+        notifier = self._notifier(ctx)
         streamer = await self._ask_to_join(ctx)
         if streamer is None:
             return
         path = get_intro_file(ctx.author.id)
         if path is None:
-            await ctx.send(embed=MessageWriter.error(t('intro.trigger_no_file', gid)))
+            await notifier.error(ctx, t('intro.trigger_no_file', gid))
             return
         track = Track(title=f'Intro: {ctx.author.display_name}', url=str(path), file_path=path)
         await streamer.interrupt(track)
-        await ctx.send(embed=MessageWriter.success(t('intro.trigger_playing', gid)))
+        await notifier.success(ctx, t('intro.trigger_playing', gid))
 
     @intro.command(name='autojoin')
     async def intro_autojoin(self, ctx: commands.Context, enabled: bool) -> None:
         """Toggle whether the bot auto-joins when you connect to a voice channel."""
         gid = ctx.guild.id
         set_auto_join(ctx.author.id, enabled)
-        key = 'intro.autojoin_enabled' if enabled else 'intro.autojoin_disabled'
-        await ctx.send(embed=MessageWriter.success(t(key, gid)))
+        msg_key = 'intro.autojoin_enabled' if enabled else 'intro.autojoin_disabled'
+        await self._notifier(ctx).success(ctx, t(msg_key, gid))
 
 
 def _ext_from_ctx(ctx: commands.Context) -> str:

@@ -22,19 +22,26 @@ def test_format_bool_false():
 # _settings_embed
 # ---------------------------------------------------------------------------
 
+_ALL_SETTINGS = {
+    'auto_join': False, 'auto_leave': True, 'notify_write': True, 'notify_say': False,
+}
+
+
 def test_settings_embed_contains_keys():
-    with patch('cogs.settings.get_all_settings', return_value={'auto_join': False, 'auto_leave': True}):
+    with patch('cogs.settings.get_all_settings', return_value=_ALL_SETTINGS):
         embed = _settings_embed(123, 'Test Server')
     assert 'auto_join' in embed.description
     assert 'auto_leave' in embed.description
+    assert 'notify_write' in embed.description
+    assert 'notify_say' in embed.description
 
 
 def test_settings_embed_marks_override():
     from utils.config import AUTO_JOIN
-    # Set auto_join to the opposite of the default so it shows as overridden
     overridden_value = not AUTO_JOIN
-    with patch('cogs.settings.get_all_settings', return_value={'auto_join': overridden_value, 'auto_leave': True}):
-        with patch('cogs.settings._GLOBAL_DEFAULTS', {'auto_join': AUTO_JOIN, 'auto_leave': True}):
+    overrides = {**_ALL_SETTINGS, 'auto_join': overridden_value}
+    with patch('cogs.settings.get_all_settings', return_value=overrides):
+        with patch('cogs.settings._GLOBAL_DEFAULTS', {**_ALL_SETTINGS, 'auto_join': AUTO_JOIN}):
             embed = _settings_embed(123, 'Test Server')
     assert 'overridden' in embed.description
 
@@ -147,7 +154,7 @@ async def test_settings_reset_invalid_key(mock_bot):
 async def test_settings_show_sends_embed(mock_bot):
     cog = _cog(mock_bot)
     ctx = _admin_ctx(mock_bot)
-    with patch('cogs.settings.get_all_settings', return_value={'auto_join': False, 'auto_leave': True}):
+    with patch('cogs.settings.get_all_settings', return_value=_ALL_SETTINGS):
         await cog.settings_show.callback(cog, ctx)
     ctx.send.assert_awaited_once()
     embed = ctx.send.call_args.kwargs.get('embed') or ctx.send.call_args.args[0]

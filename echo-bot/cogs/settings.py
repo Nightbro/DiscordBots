@@ -12,11 +12,15 @@ from utils.message import MessageWriter
 _BOOL_SETTINGS: dict[str, str] = {
     'auto_join': 'Auto-join (join when first person enters a channel)',
     'auto_leave': 'Auto-leave (leave when last person exits the channel)',
+    'notify_write': 'Notify write (send a text message for command responses)',
+    'notify_say': 'Notify say (speak responses via TTS when bot is in voice)',
 }
 
 _GLOBAL_DEFAULTS: dict[str, bool] = {
     'auto_join': AUTO_JOIN,
     'auto_leave': AUTO_LEAVE,
+    'notify_write': True,
+    'notify_say': False,
 }
 
 

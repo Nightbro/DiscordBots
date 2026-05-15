@@ -13,6 +13,7 @@ from utils.guild_config import get_tts_rate, get_tts_voice, set_tts_rate, set_tt
 from utils.guild_state import Track
 from utils.i18n import t
 from utils.message import MessageWriter
+from utils.notifier import Notifier
 from utils.voice import VoiceStreamer
 
 log = logging.getLogger(__name__)
@@ -25,10 +26,13 @@ class TTSCog(commands.Cog, name='TTS'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
+    def _notifier(self, ctx) -> Notifier:
+        return Notifier(self.bot, ctx.guild.id)
+
     async def _ensure_voice(self, ctx) -> VoiceStreamer | None:
         gid = ctx.guild.id
         if ctx.author.voice is None:
-            await ctx.send(embed=MessageWriter.error(t('common.error_no_voice', gid)))
+            await self._notifier(ctx).error(ctx, t('common.error_no_voice', gid))
             return None
         streamer = VoiceStreamer(self.bot, gid)
         await streamer.join(ctx.author.voice.channel)
@@ -42,6 +46,7 @@ class TTSCog(commands.Cog, name='TTS'):
     async def say(self, ctx: commands.Context, *, text: str) -> None:
         """Speak text in your voice channel."""
         gid = ctx.guild.id
+        notifier = self._notifier(ctx)
         streamer = await self._ensure_voice(ctx)
         if streamer is None:
             return
@@ -50,13 +55,13 @@ class TTSCog(commands.Cog, name='TTS'):
         rate = get_tts_rate(gid)
 
         tmp_path = DOWNLOADS_DIR / f'tts_{uuid.uuid4().hex}.mp3'
-        loading = await ctx.send(embed=MessageWriter.info(t('tts.synthesizing', gid)))
+        loading = await notifier.loading(ctx, t('tts.synthesizing', gid))
         try:
             communicate = edge_tts.Communicate(text, voice, rate=rate)
             await communicate.save(str(tmp_path))
         except Exception as exc:
             log.error('TTS synthesis failed for guild %s: %s', gid, exc)
-            await loading.edit(embed=MessageWriter.error(t('tts.error_synthesis', gid), str(exc)))
+            await notifier.error(ctx, t('tts.error_synthesis', gid), str(exc), loading=loading)
             return
 
         track = Track(
@@ -66,7 +71,7 @@ class TTSCog(commands.Cog, name='TTS'):
             cleanup_path=tmp_path,
         )
         await streamer.interrupt(track)
-        await loading.edit(embed=MessageWriter.success(t('tts.speaking', gid)))
+        await notifier.success(ctx, t('tts.speaking', gid), loading=loading)
 
     # -----------------------------------------------------------------------
     # !tts group
@@ -82,23 +87,26 @@ class TTSCog(commands.Cog, name='TTS'):
     async def tts_voice(self, ctx: commands.Context, *, name: str) -> None:
         """Set the TTS voice for this server (use !tts voices to see options)."""
         gid = ctx.guild.id
-        loading = await ctx.send(embed=MessageWriter.info(t('tts.validating', gid)))
+        notifier = self._notifier(ctx)
+        loading = await notifier.loading(ctx, t('tts.validating', gid))
         try:
             voices = await edge_tts.list_voices()
             valid = {v['ShortName'] for v in voices}
         except Exception as exc:
-            await loading.edit(embed=MessageWriter.error(t('tts.error_voices', gid), str(exc)))
+            await notifier.error(ctx, t('tts.error_voices', gid), str(exc), loading=loading)
             return
 
         if name not in valid:
-            await loading.edit(embed=MessageWriter.error(
+            await notifier.error(
+                ctx,
                 t('tts.voice_not_found', gid, name=name),
                 t('tts.voice_not_found_hint', gid),
-            ))
+                loading=loading,
+            )
             return
 
         set_tts_voice(gid, name)
-        await loading.edit(embed=MessageWriter.success(t('tts.voice_set', gid, name=name)))
+        await notifier.success(ctx, t('tts.voice_set', gid, name=name), loading=loading)
 
     @tts.command(name='voices')
     async def tts_voices(self, ctx: commands.Context, locale: str = '') -> None:
@@ -132,14 +140,16 @@ class TTSCog(commands.Cog, name='TTS'):
     async def tts_rate(self, ctx: commands.Context, rate: str) -> None:
         """Set the TTS speech rate, e.g. `+10%`, `-20%`, `+0%`."""
         gid = ctx.guild.id
+        notifier = self._notifier(ctx)
         if not _RATE_RE.match(rate):
-            await ctx.send(embed=MessageWriter.error(
+            await notifier.error(
+                ctx,
                 t('tts.rate_invalid', gid),
                 t('tts.rate_invalid_hint', gid),
-            ))
+            )
             return
         set_tts_rate(gid, rate)
-        await ctx.send(embed=MessageWriter.success(t('tts.rate_set', gid, rate=rate)))
+        await notifier.success(ctx, t('tts.rate_set', gid, rate=rate))
 
     @tts.command(name='stop')
     async def tts_stop(self, ctx: commands.Context) -> None:
@@ -147,7 +157,7 @@ class TTSCog(commands.Cog, name='TTS'):
         gid = ctx.guild.id
         streamer = VoiceStreamer(self.bot, gid)
         await streamer.skip()
-        await ctx.send(embed=MessageWriter.success(t('tts.stopped', gid)))
+        await self._notifier(ctx).success(ctx, t('tts.stopped', gid))
 
     @tts.command(name='show')
     async def tts_show(self, ctx: commands.Context) -> None:

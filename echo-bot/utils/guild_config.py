@@ -30,6 +30,8 @@ _DEFAULTS: dict[str, Any] = {
     'locale': _DEFAULT_LOCALE,
     'tts_voice': TTS_DEFAULT_VOICE,
     'tts_rate': TTS_DEFAULT_RATE,
+    'notify_write': True,
+    'notify_say': False,
 }
 
 
@@ -93,3 +95,11 @@ def get_tts_rate(guild_id: int) -> str:
 
 def set_tts_rate(guild_id: int, rate: str) -> None:
     set_setting(guild_id, 'tts_rate', rate)
+
+
+def get_notify_write(guild_id: int) -> bool:
+    return bool(get_setting(guild_id, 'notify_write'))
+
+
+def get_notify_say(guild_id: int) -> bool:
+    return bool(get_setting(guild_id, 'notify_say'))
