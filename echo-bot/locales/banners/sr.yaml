@@ -50,18 +50,20 @@ help:
   intros:
     title: "👋 Intra"
     body: |
-      `{prefix}intro set` — postavi podrazumevano intro (priloži audio)
-      `{prefix}intro schedule <dani>` — postavi intro za određene dane (npr. `pon,pet`)
-      `{prefix}intro override <YYYY-MM-DD>` — postavi intro za određeni datum
-      `{prefix}intro unschedule <dani>` — ukloni zakazane dane
-      `{prefix}intro clear` — ukloni sva tvoja intro podešavanja
-      `{prefix}intro show` — prikaži tvoju intro konfiguraciju
-      `{prefix}intro list` — lista svih intro konfiguracija na serveru
-      `{prefix}intro trigger` — pusti tvoje intro odmah
-      `{prefix}intro autojoin <true|false>` — uključi/isključi automatsko pridruživanje
+      **Okidač:** `bot` · `user` · `@pominjanje`
 
+      `{prefix}intro set <okidač>` — postavi podrazumevano intro (priloži audio ili URL)
+      `{prefix}intro schedule <okidač> <dani>` — zamena za određene dane (npr. `MON-FRI`, `WEEKDAY`)
+      `{prefix}intro unschedule <okidač> <dani>` — ukloni zamenu za određene dane
+      `{prefix}intro clear <okidač>` — ukloni sva intra za okidač
+      `{prefix}intro rename <okidač> <ime>` — postavi oznaku koja se čita
+      `{prefix}intro list` — lista svih okidača za ovaj server
+      `{prefix}intro show` — pregled bot/user okidača i podešavanja
+      `{prefix}intro trigger <okidač>` — ručno pusti intro
+      `{prefix}intro autojoin on|off` — uključi/isključi automatsko pridruživanje
+
+      **Dani:** `MON` `SAT,SUN` `MON-FRI` `WEEKDAY` `WEEKEND`
       Podržani audio formati: `.mp3 .ogg .wav .flac .m4a .opus .aac`
-      Prioritet: zamena datuma → raspored po danu → podrazumevano
 
   soundboard:
     title: "🔊 Tabla sa Zvukovima"

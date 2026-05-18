@@ -318,19 +318,22 @@ Hybrid commands (prefix + slash). All audio routing via `VoiceStreamer`. All out
 
 ### `cogs/intros.py` — IntrosCog
 
-| Command | Aliases | Description |
-|---|---|---|
-| `!intro set <user>` | `!in set` | Assign an intro sound to a user (attachment) |
-| `!intro schedule <user> <days> <time>` | — | Day/time-scoped intro overrides |
-| `!intro unschedule <user>` | — | Remove schedule |
-| `!intro clear <user>` | — | Remove intro for user |
-| `!intro list` | — | List all assigned intros |
-| `!intro show <user>` | — | Show intro details for user |
-| `!intro rename <user> <name>` | — | Rename intro file |
-| `!intro trigger <user>` | — | Manually fire an intro |
-| `!intro autojoin` | — | Toggle auto-join behavior |
+Trigger types: `bot` (bot join), `user` (any user join), `user_<id>` (specific member).
 
-Plays via `VoiceStreamer.interrupt()` — does not kill music, pauses and resumes.
+| Command | Description |
+|---|---|
+| `!intro set <trigger>` | Set default intro (attachment or URL). Trigger: bot/user/@mention |
+| `!intro schedule <trigger> <days>` | Day-specific override (MON-FRI, WEEKDAY, SAT,SUN, etc.) |
+| `!intro unschedule <trigger> <days>` | Remove a day-specific override |
+| `!intro clear <trigger>` | Remove all intros for a trigger (deletes audio files) |
+| `!intro rename <trigger> <name>` | Update source label of a trigger's default entry |
+| `!intro list` | List all triggers configured for this server |
+| `!intro show` | Show bot/user overview and global enable flags |
+| `!intro trigger <trigger>` | Manually play an intro |
+| `!intro autojoin on\|off` | Toggle bot auto-join (updates guild_config `auto_join`) |
+
+Plays via `VoiceStreamer.interrupt()` — pauses music and resumes after.
+Bot-join intro fires via `on_voice_state_update` when `member.id == bot.user.id`.
 
 ### `cogs/soundboard.py` — SoundboardCog
 

@@ -1,180 +1,257 @@
 """
-Intro configuration helpers.
+Intro configuration helpers — guild-scoped.
 
-All state is stored in data/intro_config.json via IntroConfig (persistence.py).
-
-Schema per user entry (keyed by str(user_id)):
+Schema (data/intro_config.json), keyed by str(guild_id):
 {
-    "default": "filename.mp3",          # played when no schedule matches
-    "schedule": {
-        "mon": "weekday.mp3",
-        "fri": "friday.mp3"
+  "guild_id": {
+    "bot": {
+      "default": {"file": "/abs/path.mp3", "source": "human label"},
+      "schedule": [{"days": "MON,FRI", "file": "/abs/path.mp3", "source": "label"}]
     },
-    "overrides": {                       # YYYY-MM-DD → filename
-        "2024-12-25": "xmas.mp3"
-    },
-    "auto_join": false                   # bot auto-joins user's channel on guild join
+    "user": { ... },
+    "user_<member_id>": {
+      "default": {...},
+      "schedule": [...],
+      "member_name": "DisplayName"
+    }
+  }
 }
+
+Trigger keys: "bot", "user", "user_<member_id>"
+Day patterns:  MON  SAT,SUN  MON-FRI  WEEKDAY  WEEKEND  * (any)
 """
 
 from __future__ import annotations
 
-import datetime
+import logging
+from datetime import date
 from pathlib import Path
-from typing import Optional
 
-from utils.config import INTRO_SOUNDS_DIR
 from utils.persistence import IntroConfig
 
-_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
-_DAY_ALIASES: dict[str, str] = {
-    'monday': 'mon', 'tuesday': 'tue', 'wednesday': 'wed', 'thursday': 'thu',
-    'friday': 'fri', 'saturday': 'sat', 'sunday': 'sun',
-    **{d: d for d in _DAYS},
+log = logging.getLogger(__name__)
+
+_DAY_NAMES   = {'MON': 0, 'TUE': 1, 'WED': 2, 'THU': 3, 'FRI': 4, 'SAT': 5, 'SUN': 6}
+_DAY_ABBREVS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
+_ALIASES: dict[str, frozenset] = {
+    'WEEKDAY': frozenset(range(5)),
+    'WEEKEND': frozenset({5, 6}),
 }
 
 
-def parse_days(text: str) -> list[str]:
-    """Parse comma-separated day names/abbreviations into canonical 3-letter codes."""
-    result = []
-    for part in text.split(','):
-        key = part.strip().lower()
-        if key in _DAY_ALIASES:
-            result.append(_DAY_ALIASES[key])
-    return result
+def parse_days(pattern: str) -> frozenset:
+    """Parse a day pattern into a frozenset of weekday ints (0=Mon … 6=Sun).
 
-
-def canonicalize_days(days: list[str]) -> list[str]:
-    """Return days sorted in week order (mon→sun), deduped."""
-    seen = set()
-    out = []
-    for d in _DAYS:
-        if d in days and d not in seen:
-            seen.add(d)
-            out.append(d)
-    return out
-
-
-def user_dir(user_id: int) -> Path:
-    """Return the per-user intro sounds directory, creating it if needed."""
-    d = INTRO_SOUNDS_DIR / str(user_id)
-    d.mkdir(parents=True, exist_ok=True)
-    return d
-
-
-def get_user_entry(user_id: int) -> dict:
-    cfg = IntroConfig()
-    return cfg.get(str(user_id), {})
-
-
-def _save_user_entry(user_id: int, entry: dict) -> None:
-    cfg = IntroConfig()
-    cfg.set(str(user_id), entry)
-
-
-def set_default_entry(user_id: int, filename: str) -> None:
-    entry = get_user_entry(user_id)
-    entry['default'] = filename
-    _save_user_entry(user_id, entry)
-
-
-def set_schedule_entry(user_id: int, days: list[str], filename: str) -> None:
-    entry = get_user_entry(user_id)
-    schedule: dict[str, str] = entry.get('schedule', {})
-    for day in days:
-        schedule[day] = filename
-    entry['schedule'] = schedule
-    _save_user_entry(user_id, entry)
-
-
-def remove_schedule_entry(user_id: int, days: list[str]) -> list[str]:
-    """Remove schedule entries for the given days. Returns days actually removed."""
-    entry = get_user_entry(user_id)
-    schedule: dict[str, str] = entry.get('schedule', {})
-    removed = []
-    for day in days:
-        if day in schedule:
-            del schedule[day]
-            removed.append(day)
-    entry['schedule'] = schedule
-    _save_user_entry(user_id, entry)
-    return removed
-
-
-def set_override_entry(user_id: int, date_str: str, filename: str) -> None:
-    """Set a YYYY-MM-DD date override."""
-    entry = get_user_entry(user_id)
-    overrides: dict[str, str] = entry.get('overrides', {})
-    overrides[date_str] = filename
-    entry['overrides'] = overrides
-    _save_user_entry(user_id, entry)
-
-
-def remove_override_entry(user_id: int, date_str: str) -> bool:
-    entry = get_user_entry(user_id)
-    overrides: dict[str, str] = entry.get('overrides', {})
-    if date_str in overrides:
-        del overrides[date_str]
-        entry['overrides'] = overrides
-        _save_user_entry(user_id, entry)
-        return True
-    return False
-
-
-def clear_trigger(user_id: int) -> bool:
-    """Remove all intro config for a user. Returns True if anything was cleared."""
-    cfg = IntroConfig()
-    return cfg.delete(str(user_id))
-
-
-def get_intro_file(user_id: int, today: Optional[datetime.date] = None) -> Optional[Path]:
+    Supports: MON  SAT,SUN  MON-FRI  WEEKDAY  WEEKEND  * (any day).
+    Raises ValueError for unrecognised input.
     """
-    Return the Path to the correct intro file for today, or None if unset.
+    p = pattern.strip().upper()
+    if p == '*':
+        return frozenset(range(7))
+    if p in _ALIASES:
+        return _ALIASES[p]
+    days: set[int] = set()
+    for token in p.split(','):
+        token = token.strip()
+        if not token:
+            continue
+        if '-' in token:
+            lo, _, hi = token.partition('-')
+            if lo not in _DAY_NAMES or hi not in _DAY_NAMES:
+                raise ValueError(f'Invalid day range: {token!r}. Use names like MON-FRI.')
+            start, end = _DAY_NAMES[lo], _DAY_NAMES[hi]
+            if start > end:
+                raise ValueError(
+                    f'Day range must go low→high (e.g. MON-FRI, not FRI-MON): {token!r}'
+                )
+            days.update(range(start, end + 1))
+        elif token in _DAY_NAMES:
+            days.add(_DAY_NAMES[token])
+        else:
+            raise ValueError(
+                f'Unknown day: {token!r}. Use MON/TUE/WED/THU/FRI/SAT/SUN, '
+                f'a range like MON-FRI, or WEEKDAY/WEEKEND.'
+            )
+    if not days:
+        raise ValueError(f'Empty day pattern: {pattern!r}')
+    return frozenset(days)
 
-    Priority: date override → weekday schedule → default.
+
+def canonicalize_days(days: frozenset) -> str:
+    """Return sorted comma-joined day abbreviations, e.g. frozenset({0,4}) → 'MON,FRI'."""
+    return ','.join(_DAY_ABBREVS[d] for d in sorted(days))
+
+
+# ---------------------------------------------------------------------------
+# Internal I/O
+# ---------------------------------------------------------------------------
+
+def _load() -> dict:
+    return IntroConfig().load()
+
+
+def _save(data: dict) -> None:
+    IntroConfig().save(data)
+
+
+def _file_for_today(entry: dict) -> Path | None:
+    """Return the best file for today from a structured entry dict."""
+    today = date.today().weekday()
+    for sched in entry.get('schedule', []):
+        try:
+            days = parse_days(sched['days'])
+        except (ValueError, KeyError):
+            continue
+        if today in days:
+            p = Path(sched['file'])
+            if p.exists():
+                return p
+
+    default = entry.get('default')
+    if default:
+        p = Path(default['file'])
+        if p.exists():
+            return p
+
+    return None
+
+
+def _delete_entry_files(entry: dict) -> None:
+    """Delete all audio files referenced by an entry."""
+    if default := entry.get('default'):
+        Path(default['file']).unlink(missing_ok=True)
+    for sched in entry.get('schedule', []):
+        Path(sched['file']).unlink(missing_ok=True)
+
+
+def _ensure_entry(guild_cfg: dict, trigger_key: str) -> dict:
+    entry = guild_cfg.get(trigger_key)
+    if entry is None:
+        entry = {}
+        guild_cfg[trigger_key] = entry
+    return entry
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def get_intro_file(guild_id: int, trigger_key: str) -> Path | None:
+    """Return the configured intro file for (guild, trigger) for today, or None."""
+    data = _load()
+    entry = data.get(str(guild_id), {}).get(trigger_key)
+    if entry:
+        return _file_for_today(entry)
+    return None
+
+
+def get_user_intro(guild_id: int, member_id: int) -> Path | None:
+    """Return the best intro for a member joining voice.
+
+    Priority: per-member entry → server-wide 'user' entry.
     """
-    entry = get_user_entry(user_id)
-    if not entry:
-        return None
+    data = _load()
+    guild_cfg = data.get(str(guild_id), {})
+    for key in (f'user_{member_id}', 'user'):
+        entry = guild_cfg.get(key)
+        if entry:
+            p = _file_for_today(entry)
+            if p:
+                return p
+    return None
 
-    if today is None:
-        today = datetime.date.today()
 
-    date_str = today.strftime('%Y-%m-%d')
-    day_key = _DAYS[today.weekday()]
+def list_entries(guild_id: int) -> dict:
+    """Return all trigger entries for a guild (dict keyed by trigger key)."""
+    data = _load()
+    return {k: v for k, v in data.get(str(guild_id), {}).items()}
 
-    filename: Optional[str] = None
 
-    overrides = entry.get('overrides', {})
-    if date_str in overrides:
-        filename = overrides[date_str]
-    elif day_key in entry.get('schedule', {}):
-        filename = entry['schedule'][day_key]
+def set_default_entry(
+    guild_id: int,
+    trigger_key: str,
+    file_path: str,
+    source: str,
+    member_name: str | None = None,
+) -> None:
+    """Set the default intro for a trigger, preserving any existing schedule."""
+    data = _load()
+    guild_cfg = data.setdefault(str(guild_id), {})
+    entry = _ensure_entry(guild_cfg, trigger_key)
+    entry['default'] = {'file': file_path, 'source': source}
+    if member_name is not None:
+        entry['member_name'] = member_name
+    _save(data)
+
+
+def set_schedule_entry(
+    guild_id: int, trigger_key: str, days_str: str, file_path: str, source: str
+) -> str:
+    """Add or replace a day-specific override. Returns the canonical days string."""
+    days = parse_days(days_str)
+    canon = canonicalize_days(days)
+
+    data = _load()
+    guild_cfg = data.setdefault(str(guild_id), {})
+    entry = _ensure_entry(guild_cfg, trigger_key)
+    schedule = entry.setdefault('schedule', [])
+
+    for i, item in enumerate(schedule):
+        if item.get('days') == canon:
+            Path(item['file']).unlink(missing_ok=True)
+            schedule[i] = {'days': canon, 'file': file_path, 'source': source}
+            break
     else:
-        filename = entry.get('default')
+        schedule.append({'days': canon, 'file': file_path, 'source': source})
 
-    if not filename:
-        return None
-
-    path = user_dir(user_id) / filename
-    return path if path.exists() else None
+    _save(data)
+    return canon
 
 
-def get_user_intro(user_id: int) -> Optional[Path]:
-    """Convenience wrapper using today's date."""
-    return get_intro_file(user_id)
+def remove_schedule_entry(guild_id: int, trigger_key: str, days_str: str) -> bool:
+    """Remove a day-specific override. Returns True if found and removed."""
+    days = parse_days(days_str)
+    canon = canonicalize_days(days)
+
+    data = _load()
+    guild_cfg = data.get(str(guild_id), {})
+    entry = guild_cfg.get(trigger_key, {})
+    schedule = entry.get('schedule', [])
+
+    new_schedule = []
+    removed = False
+    for item in schedule:
+        if item.get('days') == canon:
+            Path(item['file']).unlink(missing_ok=True)
+            removed = True
+        else:
+            new_schedule.append(item)
+
+    if not removed:
+        return False
+
+    entry['schedule'] = new_schedule
+    guild_cfg[trigger_key] = entry
+    _save(data)
+    return True
 
 
-def get_auto_join(user_id: int) -> bool:
-    return bool(get_user_entry(user_id).get('auto_join', False))
+def clear_trigger(guild_id: int, trigger_key: str) -> dict | None:
+    """Remove a trigger entry entirely (deletes audio files). Returns removed entry or None."""
+    data = _load()
+    entry = data.get(str(guild_id), {}).pop(trigger_key, None)
+    if entry is not None:
+        _delete_entry_files(entry)
+        _save(data)
+    return entry
 
 
-def set_auto_join(user_id: int, value: bool) -> None:
-    entry = get_user_entry(user_id)
-    entry['auto_join'] = value
-    _save_user_entry(user_id, entry)
-
-
-def list_entries() -> dict[str, dict]:
-    """Return all user entries from the config."""
-    return IntroConfig().all()
+def rename_entry(guild_id: int, trigger_key: str, name: str) -> bool:
+    """Update the source label of a trigger's default entry. Returns True if updated."""
+    data = _load()
+    entry = data.get(str(guild_id), {}).get(trigger_key)
+    if not entry or 'default' not in entry:
+        return False
+    entry['default']['source'] = name
+    _save(data)
+    return True
