@@ -90,15 +90,8 @@ class VoiceStreamer:
         track = state.queue.popleft()
         state.current_track = track
 
-        # Download remote tracks before playback.
-        # Streamable tracks (e.g. Suno CDN URLs) skip downloading — FFmpeg streams them directly.
-        # Local files (intros, TTS, soundboard) also skip this.
-        needs_download = (
-            track.url.startswith('http')
-            and not track.streamable
-            and not (track.file_path and track.file_path.exists())
-        )
-        if needs_download:
+        # Download remote tracks before playback; local files (intros, TTS, soundboard) skip this.
+        if track.url.startswith('http') and not (track.file_path and track.file_path.exists()):
             try:
                 await Downloader.download(track)
             except Exception as exc:

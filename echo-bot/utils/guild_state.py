@@ -18,7 +18,6 @@ class Track:
     requester: discord.Member | None = None
     source_id: str | None = None  # yt-dlp video ID used for cache lookup
     cleanup_path: Path | None = None  # deleted after playback (used by TTS temp files)
-    streamable: bool = False  # True when url is a direct audio URL (skip yt-dlp download)
 
 
 @dataclass

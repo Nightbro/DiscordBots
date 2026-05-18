@@ -1,12 +1,21 @@
 import asyncio
 import logging
 import re
+import ssl
+import urllib.request
 from pathlib import Path
 
+import certifi
 import yt_dlp
 
 from utils.config import DOWNLOADS_DIR
 from utils.guild_state import Track
+
+_SSL_CTX = ssl.create_default_context(cafile=certifi.where())
+
+_SUNO_UUID_RE = re.compile(
+    r'/(?:song|s)/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'
+)
 
 log = logging.getLogger(__name__)
 
@@ -55,6 +64,9 @@ class Downloader:
                 track.file_path = cached
                 return cached
 
+        if Downloader.is_suno_url(track.url):
+            return await Downloader._download_suno(track)
+
         loop = asyncio.get_event_loop()
         path = await loop.run_in_executor(None, Downloader._ydl_download, track.url)
         track.file_path = path
@@ -71,24 +83,41 @@ class Downloader:
         # Playlists: take first entry
         if 'entries' in info:
             info = info['entries'][0]
-
-        # Suno CDN URLs are direct audio files — stream them instead of re-downloading.
-        if Downloader.is_suno_url(url):
-            direct_url = info.get('url', url)
-            return Track(
-                title=info.get('title', url),
-                url=direct_url,
-                duration=info.get('duration'),
-                source_id=info.get('id'),
-                streamable=True,
-            )
-
         return Track(
             title=info.get('title', url),
             url=info.get('webpage_url') or info.get('url', url),
             duration=info.get('duration'),
             source_id=info.get('id'),
         )
+
+    @staticmethod
+    async def _download_suno(track: Track) -> Path:
+        """Download a Suno track by fetching the CDN MP3 directly via urllib."""
+        uuid = track.source_id
+        if not uuid:
+            m = _SUNO_UUID_RE.search(track.url)
+            if m:
+                uuid = m.group(1)
+        if not uuid:
+            raise ValueError(f'Could not extract Suno UUID from: {track.url}')
+
+        cached = DOWNLOADS_DIR / f'{uuid}.mp3'
+        if cached.exists():
+            track.file_path = cached
+            return cached
+
+        cdn_url = f'https://cdn1.suno.ai/{uuid}.mp3'
+        log.info('Downloading Suno track %s from CDN', uuid)
+        req = urllib.request.Request(cdn_url, headers={'User-Agent': 'Mozilla/5.0'})
+
+        def _fetch() -> None:
+            with urllib.request.urlopen(req, timeout=60, context=_SSL_CTX) as resp:
+                cached.write_bytes(resp.read())
+
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, _fetch)
+        track.file_path = cached
+        return cached
 
     @staticmethod
     async def _resolve_search(query: str) -> Track:
