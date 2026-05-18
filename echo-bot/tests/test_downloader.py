@@ -61,47 +61,53 @@ async def test_resolve_suno_url_goes_to_resolve_url():
     mock.assert_awaited_once()
 
 
-async def test_resolve_url_suno_uses_direct_cdn_and_sets_streamable():
-    """For Suno URLs, _resolve_url should use info['url'] (CDN) and set streamable=True."""
-    fake_info = {
-        'title': 'My Suno Song',
-        'url': 'https://cdn1.suno.ai/uuid.mp3',
-        'webpage_url': 'https://suno.com/song/uuid',
-        'duration': 180,
-        'id': 'uuid',
-    }
-    mock_ydl = MagicMock()
-    mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
-    mock_ydl.__exit__ = MagicMock(return_value=False)
-    mock_ydl.extract_info = MagicMock(return_value=fake_info)
+async def test_download_suno_fetches_from_cdn(tmp_path):
+    """_download_suno downloads from cdn1.suno.ai and saves the file."""
+    uuid = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+    track = Track(title='Suno Song', url=f'https://suno.com/song/{uuid}', source_id=uuid)
+    fake_mp3 = b'fake-mp3-data'
 
-    with patch('utils.downloader.yt_dlp.YoutubeDL', return_value=mock_ydl):
-        track = await Downloader._resolve_url('https://suno.com/song/uuid')
+    mock_resp = MagicMock()
+    mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+    mock_resp.__exit__ = MagicMock(return_value=False)
+    mock_resp.read.return_value = fake_mp3
 
-    assert track.url == 'https://cdn1.suno.ai/uuid.mp3'
-    assert track.streamable is True
-    assert track.title == 'My Suno Song'
+    with patch('utils.downloader.DOWNLOADS_DIR', tmp_path), \
+         patch('utils.downloader.urllib.request.urlopen', return_value=mock_resp):
+        result = await Downloader._download_suno(track)
+
+    assert result == tmp_path / f'{uuid}.mp3'
+    assert result.read_bytes() == fake_mp3
+    assert track.file_path == result
 
 
-async def test_resolve_url_non_suno_uses_webpage_url():
-    """For non-Suno URLs, _resolve_url should prefer webpage_url and leave streamable=False."""
-    fake_info = {
-        'title': 'YouTube Song',
-        'url': 'https://r4---cdn.youtube.com/videoplayback?id=abc',
-        'webpage_url': 'https://www.youtube.com/watch?v=abc',
-        'duration': 240,
-        'id': 'abc',
-    }
-    mock_ydl = MagicMock()
-    mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
-    mock_ydl.__exit__ = MagicMock(return_value=False)
-    mock_ydl.extract_info = MagicMock(return_value=fake_info)
+async def test_download_suno_uses_cache(tmp_path):
+    """_download_suno returns cached file without hitting the network."""
+    uuid = 'aaaaaaaa-bbbb-cccc-dddd-ffffffffffff'
+    cached = tmp_path / f'{uuid}.mp3'
+    cached.write_bytes(b'cached')
+    track = Track(title='Suno', url=f'https://suno.com/song/{uuid}', source_id=uuid)
 
-    with patch('utils.downloader.yt_dlp.YoutubeDL', return_value=mock_ydl):
-        track = await Downloader._resolve_url('https://www.youtube.com/watch?v=abc')
+    with patch('utils.downloader.DOWNLOADS_DIR', tmp_path), \
+         patch('utils.downloader.urllib.request.urlopen') as mock_open:
+        result = await Downloader._download_suno(track)
 
-    assert track.url == 'https://www.youtube.com/watch?v=abc'
-    assert track.streamable is False
+    mock_open.assert_not_called()
+    assert result == cached
+
+
+async def test_download_routes_suno_to_download_suno():
+    """download() calls _download_suno for Suno URLs instead of yt-dlp."""
+    uuid = 'aaaaaaaa-bbbb-cccc-dddd-000000000000'
+    # No source_id so the generic cache check in download() is skipped
+    track = Track(title='Suno', url=f'https://suno.com/song/{uuid}')
+    fake_path = Path('/fake/uuid.mp3')
+    with patch.object(Downloader, '_download_suno', new=AsyncMock(return_value=fake_path)) as mock_suno, \
+         patch.object(Downloader, '_ydl_download') as mock_ydl:
+        result = await Downloader.download(track)
+    mock_suno.assert_awaited_once()
+    mock_ydl.assert_not_called()
+    assert result == fake_path
 
 
 # ---------------------------------------------------------------------------
