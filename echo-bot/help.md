@@ -46,22 +46,25 @@ All commands work with `!` prefix and as `/` slash commands.
 
 ## Intros
 
-Per-user intro sounds that play when you join a voice channel.
+Per-trigger intro sounds for bot join, any-user join, and per-member join events.
 Supported formats: `.mp3` `.ogg` `.wav` `.flac` `.m4a` `.opus` `.aac`
+
+**Trigger:** `bot` · `user` · `@mention`
 
 | Command | Description |
 |---|---|
-| `!intro set` | Set your default intro sound (attach audio file) |
-| `!intro schedule <days>` | Set an intro for specific days — e.g. `mon,fri` or `monday,friday` |
-| `!intro override <YYYY-MM-DD>` | Set a one-off intro for a specific date |
-| `!intro unschedule <days>` | Remove scheduled days |
-| `!intro clear` | Remove all your intro settings |
-| `!intro show` | Show your current intro config |
-| `!intro list` | List all intro configs on this server |
-| `!intro trigger` | Play your intro sound right now |
-| `!intro autojoin <true\|false>` | Toggle whether the bot auto-joins your channel |
+| `!intro set <trigger>` | Set the default intro for a trigger (attach audio or provide URL) |
+| `!intro schedule <trigger> <days>` | Set a day-specific intro — e.g. `MON-FRI`, `WEEKDAY`, `SAT,SUN` |
+| `!intro unschedule <trigger> <days>` | Remove a day-specific override |
+| `!intro clear <trigger>` | Remove all intros for a trigger |
+| `!intro rename <trigger> <name>` | Set a human-readable label for a trigger's default |
+| `!intro list` | List all configured triggers for this server |
+| `!intro show` | Show bot/user overview and global flags |
+| `!intro trigger <trigger>` | Manually play an intro right now |
+| `!intro autojoin on\|off` | Toggle bot auto-join when the first user enters a channel |
 
-**Priority:** date override → weekday schedule → default
+**Days:** `MON` `TUE` ... `SAT,SUN` `MON-FRI` `WEEKDAY` `WEEKEND` `*`
+**Priority (schedule):** matching day override → default
 
 ---
 

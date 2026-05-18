@@ -50,18 +50,20 @@ help:
   intros:
     title: "👋 Intros"
     body: |
-      `{prefix}intro set` — set your default intro (attach audio)
-      `{prefix}intro schedule <days>` — set intro for specific days (e.g. `mon,fri`)
-      `{prefix}intro override <YYYY-MM-DD>` — set a one-off date intro
-      `{prefix}intro unschedule <days>` — remove scheduled days
-      `{prefix}intro clear` — remove all your intro settings
-      `{prefix}intro show` — show your current intro config
-      `{prefix}intro list` — list all intro configs on this server
-      `{prefix}intro trigger` — play your intro now
-      `{prefix}intro autojoin <true|false>` — toggle bot auto-join
+      **Trigger:** `bot` · `user` · `@mention`
 
+      `{prefix}intro set <trigger>` — set default intro (attach audio or provide URL)
+      `{prefix}intro schedule <trigger> <days>` — day-specific override (e.g. `MON-FRI`, `WEEKDAY`)
+      `{prefix}intro unschedule <trigger> <days>` — remove a day-specific override
+      `{prefix}intro clear <trigger>` — remove all intros for a trigger
+      `{prefix}intro rename <trigger> <name>` — set a human-readable label
+      `{prefix}intro list` — list all configured triggers for this server
+      `{prefix}intro show` — show bot/user overview and flags
+      `{prefix}intro trigger <trigger>` — manually play an intro
+      `{prefix}intro autojoin on|off` — toggle bot auto-join on first user
+
+      **Days:** `MON` `SAT,SUN` `MON-FRI` `WEEKDAY` `WEEKEND`
       Supported audio: `.mp3 .ogg .wav .flac .m4a .opus .aac`
-      Priority: date override → weekday schedule → default
 
   soundboard:
     title: "🔊 Soundboard"
