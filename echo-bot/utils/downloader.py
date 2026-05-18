@@ -71,6 +71,18 @@ class Downloader:
         # Playlists: take first entry
         if 'entries' in info:
             info = info['entries'][0]
+
+        # Suno CDN URLs are direct audio files — stream them instead of re-downloading.
+        if Downloader.is_suno_url(url):
+            direct_url = info.get('url', url)
+            return Track(
+                title=info.get('title', url),
+                url=direct_url,
+                duration=info.get('duration'),
+                source_id=info.get('id'),
+                streamable=True,
+            )
+
         return Track(
             title=info.get('title', url),
             url=info.get('webpage_url') or info.get('url', url),
