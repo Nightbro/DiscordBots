@@ -1,7 +1,9 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from cogs.help import HelpCog, _SECTIONS, _PAGE_KEYS, _HelpView, _build_embed
+from cogs.help import HelpCog, _PAGE_KEYS, _HelpView, _build_embed
+
+_SECTION_KEYS = [k for k in _PAGE_KEYS if k != '__overview__']
 
 
 # ---------------------------------------------------------------------------
@@ -9,23 +11,23 @@ from cogs.help import HelpCog, _SECTIONS, _PAGE_KEYS, _HelpView, _build_embed
 # ---------------------------------------------------------------------------
 
 def test_overview_embed_title():
-    embed = _build_embed('__overview__', 1, 6)
+    embed = _build_embed('__overview__', 1, len(_PAGE_KEYS), guild_id=0)
     assert 'Echo' in embed.title or 'Help' in embed.title
 
 
 def test_section_embed_title():
-    embed = _build_embed('music', 2, 6)
-    assert 'Music' in embed.title
+    embed = _build_embed('music', 2, len(_PAGE_KEYS), guild_id=0)
+    assert 'Music' in embed.title or 'music' in embed.title
 
 
 def test_embed_footer_has_page_number():
-    embed = _build_embed('__overview__', 1, 6)
-    assert '1/6' in embed.footer.text
+    embed = _build_embed('__overview__', 1, len(_PAGE_KEYS), guild_id=0)
+    assert f'1/{len(_PAGE_KEYS)}' in embed.footer.text
 
 
 def test_all_sections_have_embeds():
     for key in _PAGE_KEYS:
-        embed = _build_embed(key, 1, len(_PAGE_KEYS))
+        embed = _build_embed(key, 1, len(_PAGE_KEYS), guild_id=0)
         assert embed.title
         assert embed.description
 
@@ -35,24 +37,24 @@ def test_all_sections_have_embeds():
 # ---------------------------------------------------------------------------
 
 def test_view_starts_at_given_index():
-    view = _HelpView(start_index=2)
+    view = _HelpView(start_index=2, guild_id=0)
     embed = view.build_embed()
     assert embed  # just ensure it builds without error
 
 
 def test_view_prev_disabled_at_start():
-    view = _HelpView(start_index=0)
+    view = _HelpView(start_index=0, guild_id=0)
     assert view.prev_button.disabled is True
     assert view.next_button.disabled is False
 
 
 def test_view_next_disabled_at_end():
-    view = _HelpView(start_index=len(_PAGE_KEYS) - 1)
+    view = _HelpView(start_index=len(_PAGE_KEYS) - 1, guild_id=0)
     assert view.next_button.disabled is True
 
 
 def test_view_both_enabled_in_middle():
-    view = _HelpView(start_index=2)
+    view = _HelpView(start_index=2, guild_id=0)
     assert view.prev_button.disabled is False
     assert view.next_button.disabled is False
 
@@ -77,7 +79,7 @@ async def test_help_cmd_music_section(mock_bot, ctx):
     cog = _cog(mock_bot)
     await cog.help_cmd.callback(cog, ctx, section='music')
     embed = ctx.send.call_args.kwargs.get('embed') or ctx.send.call_args.args[0]
-    assert 'Music' in embed.title
+    assert 'Music' in embed.title or 'music' in embed.title.lower()
 
 
 async def test_help_cmd_unknown_section_falls_back_to_overview(mock_bot, ctx):
@@ -95,7 +97,7 @@ async def test_help_cmd_sends_view(mock_bot, ctx):
     assert isinstance(call_kwargs['view'], _HelpView)
 
 
-@pytest.mark.parametrize('section', list(_SECTIONS.keys()))
+@pytest.mark.parametrize('section', _SECTION_KEYS)
 async def test_help_cmd_all_valid_sections(mock_bot, ctx, section):
     cog = _cog(mock_bot)
     await cog.help_cmd.callback(cog, ctx, section=section)

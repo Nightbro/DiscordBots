@@ -1,6 +1,8 @@
 import discord
 from discord.ext import commands
 
+from utils.i18n import t
+
 
 class ListenerCog(commands.Cog, name='Listener'):
     """Voice receive placeholder — future STT integration point."""
@@ -10,7 +12,8 @@ class ListenerCog(commands.Cog, name='Listener'):
 
     @commands.hybrid_command(name='listen', description='Voice listening (not yet implemented)')
     async def listen(self, ctx: commands.Context) -> None:
-        await ctx.send('Voice listening is not yet implemented.')
+        guild_id = ctx.guild.id if ctx.guild else 0
+        await ctx.send(t('listener.not_implemented', guild_id))
 
 
 async def setup(bot: commands.Bot) -> None:

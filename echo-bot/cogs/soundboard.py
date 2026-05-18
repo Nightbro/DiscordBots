@@ -111,7 +111,7 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
     async def sb(self, ctx: commands.Context) -> None:
         """Soundboard management."""
         gid = ctx.guild.id
-        await ctx.send(embed=MessageWriter.info('Soundboard commands', t('soundboard.hint', gid)))
+        await ctx.send(embed=MessageWriter.info(t('soundboard.commands_title', gid), t('soundboard.hint', gid)))
 
     @sb.command(name='add')
     async def sb_add(self, ctx: commands.Context, name: str, emoji: str = '') -> None:
@@ -184,7 +184,7 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         """Post a reaction panel — react to play sounds."""
         sounds = get_sounds()
         embed = MessageWriter.soundboard_panel(sounds, guild_id=ctx.guild.id)
-        embed.set_footer(text='React to play a sound')
+        embed.set_footer(text=t('soundboard.panel_footer', ctx.guild.id))
         msg = await ctx.send(embed=embed)
 
         self._panel_messages[msg.id] = ctx.guild.id

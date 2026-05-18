@@ -62,6 +62,7 @@ message:
   soundboard_empty: "No sounds added yet. Use `!sb add <name>` with an attachment."
 
 intro:
+  commands_title: "Intro commands"
   hint: "`set` · `schedule` · `override` · `unschedule` · `clear` · `list` · `show` · `trigger` · `autojoin`"
   days_label: "mon · tue · wed · thu · fri · sat · sun"
   invalid_days: "Invalid days."
@@ -87,6 +88,8 @@ intro:
   autojoin_disabled: "Auto-join disabled."
 
 soundboard:
+  commands_title: "Soundboard commands"
+  panel_footer: "React to play a sound"
   hint: "`add <name>` · `remove <name>` · `play <name>` · `list` · `panel`"
   add_duplicate: "Sound **{name}** already exists."
   add_duplicate_hint: "Use `!sb remove {name}` first."
@@ -97,6 +100,7 @@ soundboard:
   play_not_found: "Sound **{name}** not found or file missing."
 
 tts:
+  commands_title: "TTS"
   hint: "`!say <text>` · `!tts voice <name>` · `!tts voices [locale]` · `!tts rate <+N%>` · `!tts stop` · `!tts show`"
   synthesizing: "⏳ Synthesizing…"
   speaking: "Speaking."
@@ -116,6 +120,18 @@ tts:
   stopped: "TTS stopped."
   show_title: "TTS settings"
   show_desc: "Voice: `{voice}`\nRate: `{rate}`"
+
+dev:
+  reload_success: "✅ Reloaded `{ext}`"
+  reload_failed: "❌ Failed to reload `{ext}`:\n```\n{exc}\n```"
+  restarting: "♻️ Restarting…"
+  sync_guild: "✅ Synced {count} commands to guild `{guild_id}`"
+  sync_global: "✅ Synced {count} global commands (may take up to 1 hour to propagate)"
+  status: "**{user}** — online\nVoice connections: {voice}\nGuilds: {guilds}\nCogs: {cogs}"
+  cogs_header: "**Loaded extensions:**"
+
+listener:
+  not_implemented: "Voice listening is not yet implemented."
 
 settings:
   hint: "`set <key> <true|false>` · `reset <key>` · `locale <code>` · `show`"

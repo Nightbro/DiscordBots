@@ -59,6 +59,7 @@ message:
   soundboard_empty: "Nema zvukova. Dodaj ih pomoću `!sb add <ime>` sa prilogom."
 
 intro:
+  commands_title: "Intro komande"
   hint: "`set` · `schedule` · `override` · `unschedule` · `clear` · `list` · `show` · `trigger` · `autojoin`"
   days_label: "pon · uto · sre · čet · pet · sub · ned"
   invalid_days: "Nevažeći dani."
@@ -84,6 +85,8 @@ intro:
   autojoin_disabled: "Automatsko pridruživanje isključeno."
 
 soundboard:
+  commands_title: "Komande table sa zvukovima"
+  panel_footer: "Reaguj da pustiš zvuk"
   hint: "`add <ime>` · `remove <ime>` · `play <ime>` · `list` · `panel`"
   add_duplicate: "Zvuk **{name}** već postoji."
   add_duplicate_hint: "Prvo koristi `!sb remove {name}`."
@@ -94,6 +97,7 @@ soundboard:
   play_not_found: "Zvuk **{name}** nije pronađen ili fajl nedostaje."
 
 tts:
+  commands_title: "TTS"
   hint: "`!say <tekst>` · `!tts voice <ime>` · `!tts voices [lokacija]` · `!tts rate <+N%>` · `!tts stop` · `!tts show`"
   synthesizing: "⏳ Sintetizujem…"
   speaking: "Govorim."
@@ -113,6 +117,18 @@ tts:
   stopped: "TTS zaustavljen."
   show_title: "TTS podešavanja"
   show_desc: "Glas: `{voice}`\nBrzina: `{rate}`"
+
+dev:
+  reload_success: "✅ Ponovo učitano `{ext}`"
+  reload_failed: "❌ Greška pri ponovnom učitavanju `{ext}`:\n```\n{exc}\n```"
+  restarting: "♻️ Restartujem…"
+  sync_guild: "✅ Sinhronizovano {count} komandi na server `{guild_id}`"
+  sync_global: "✅ Sinhronizovano {count} globalnih komandi (može potrajati do sat vremena)"
+  status: "**{user}** — online\nGlasoovne konekcije: {voice}\nServeri: {guilds}\nKogovi: {cogs}"
+  cogs_header: "**Učitana proširenja:**"
+
+listener:
+  not_implemented: "Glasovno slušanje još nije implementirano."
 
 settings:
   hint: "`set <ključ> <true|false>` · `reset <ključ>` · `locale <kod>` · `show`"

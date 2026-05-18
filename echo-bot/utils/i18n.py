@@ -8,6 +8,10 @@ Usage:
 Keys use dot notation and map to the nested structure in locales/<code>.yaml.
 If a key is missing in the guild's locale, falls back to 'en'.
 If missing in 'en' too, returns the key itself and logs a warning.
+
+Two file layers per locale (both merged into one dict):
+  locales/<code>.yaml         — short UI strings (errors, confirmations, labels)
+  locales/banners/<code>.yaml — help/banner section content (longer, easier to find)
 """
 
 from __future__ import annotations
@@ -21,20 +25,36 @@ import yaml
 log = logging.getLogger(__name__)
 
 _LOCALES_DIR = Path(__file__).parent.parent / 'locales'
+_BANNERS_DIR = _LOCALES_DIR / 'banners'
 _DEFAULT_LOCALE = 'en'
 
 # Loaded locale data, keyed by locale code
 _cache: dict[str, dict] = {}
 
 
+def _deep_merge(base: dict, overlay: dict) -> dict:
+    """Recursively merge overlay into base, returning a new dict."""
+    result = dict(base)
+    for key, value in overlay.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 def _load(locale: str) -> dict:
     if locale not in _cache:
+        data: dict = {}
         path = _LOCALES_DIR / f'{locale}.yaml'
-        if not path.exists():
-            _cache[locale] = {}
-        else:
+        if path.exists():
             with open(path, encoding='utf-8') as f:
-                _cache[locale] = yaml.safe_load(f) or {}
+                data = yaml.safe_load(f) or {}
+        banners_path = _BANNERS_DIR / f'{locale}.yaml'
+        if banners_path.exists():
+            with open(banners_path, encoding='utf-8') as f:
+                data = _deep_merge(data, yaml.safe_load(f) or {})
+        _cache[locale] = data
     return _cache[locale]
 
 
@@ -68,12 +88,12 @@ def t(msg_key: str, guild_id: int = 0, **kwargs: Any) -> str:
         try:
             text = text.format(**kwargs)
         except KeyError as exc:
-            log.warning('Missing format arg %s for i18n key %s', exc, key)
+            log.warning('Missing format arg %s for i18n key %s', exc, msg_key)
     return text
 
 
 def supported_locales() -> list[str]:
-    """Return locale codes for which a YAML file exists."""
+    """Return locale codes for which a root YAML file exists."""
     return sorted(p.stem for p in _LOCALES_DIR.glob('*.yaml'))
 
 

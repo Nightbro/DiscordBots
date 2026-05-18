@@ -1,0 +1,104 @@
+# Echo Bot — English banner / help content
+# Kept separate from locales/en.yaml (short UI strings) for easier editing.
+# {prefix} → command prefix, {bot} → bot name, {page}/{total} → pagination.
+
+help:
+  prev: "◀ Prev"
+  next: "Next ▶"
+  footer: "{bot} • Page {page}/{total}"
+
+  overview:
+    title: "{bot} Help"
+    body: |
+      Use `{prefix}help <section>` or the buttons below to browse.
+
+      `music` — playback controls
+      `queue` — queue & playlists
+      `intros` — per-user join sounds
+      `soundboard` — reaction soundboard
+      `tts` — text-to-speech
+      `settings` — per-server settings *(admins)*
+
+      All commands also work as slash commands — type `/` to browse.
+
+  music:
+    title: "🎵 Music — Playback"
+    body: |
+      `{prefix}play <url|search>` (`{prefix}p`) — add a track to the queue
+      `{prefix}skip` (`{prefix}s`) — skip the current track
+      `{prefix}pause` — pause playback
+      `{prefix}resume` — resume playback
+      `{prefix}stop` — stop and clear the queue
+      `{prefix}nowplaying` (`{prefix}np`) — show current track
+      `{prefix}join` — join your voice channel
+      `{prefix}leave` (`{prefix}dc`) — leave the voice channel
+
+  queue:
+    title: "📋 Music — Queue & Playlists"
+    body: |
+      `{prefix}queue [page]` (`{prefix}q`) — show the queue
+      `{prefix}clear` — clear the queue (keeps current track)
+      `{prefix}remove <#>` (`{prefix}rm`) — remove a track by position
+      `{prefix}shuffle` — shuffle the queue
+
+      `{prefix}playlist save <name>` — save queue as playlist
+      `{prefix}playlist load <name>` — load a playlist
+      `{prefix}playlist list` — list saved playlists
+      `{prefix}playlist delete <name>` — delete a playlist
+      `{prefix}playlist show <name>` — show playlist contents
+
+  intros:
+    title: "👋 Intros"
+    body: |
+      `{prefix}intro set` — set your default intro (attach audio)
+      `{prefix}intro schedule <days>` — set intro for specific days (e.g. `mon,fri`)
+      `{prefix}intro override <YYYY-MM-DD>` — set a one-off date intro
+      `{prefix}intro unschedule <days>` — remove scheduled days
+      `{prefix}intro clear` — remove all your intro settings
+      `{prefix}intro show` — show your current intro config
+      `{prefix}intro list` — list all intro configs on this server
+      `{prefix}intro trigger` — play your intro now
+      `{prefix}intro autojoin <true|false>` — toggle bot auto-join
+
+      Supported audio: `.mp3 .ogg .wav .flac .m4a .opus .aac`
+      Priority: date override → weekday schedule → default
+
+  soundboard:
+    title: "🔊 Soundboard"
+    body: |
+      `{prefix}sb add <name> [emoji]` — add a sound (attach audio)
+      `{prefix}sb remove <name>` — remove a sound and its file
+      `{prefix}sb play <name>` — play a sound in your channel
+      `{prefix}sb list` — list all sounds
+      `{prefix}sb panel` — post a reaction panel (react to play)
+
+      Alias: `{prefix}soundboard`
+
+  tts:
+    title: "🗣️ TTS"
+    body: |
+      `{prefix}say <text>` — speak text in your voice channel
+      `{prefix}tts voice <name>` — set the TTS voice for this server
+      `{prefix}tts voices [locale]` — list available voices (e.g. `en`, `sr`)
+      `{prefix}tts rate <+N%|-N%>` — set speech rate (e.g. `+10%`, `-20%`)
+      `{prefix}tts stop` — stop TTS currently speaking
+      `{prefix}tts show` — show current voice and rate
+
+  settings:
+    title: "⚙️ Settings (admins only)"
+    body: |
+      `{prefix}settings` — show current per-server settings
+      `{prefix}settings set <key> <true|false>` — override a toggle setting
+      `{prefix}settings reset <key>` — revert to the global default
+      `{prefix}settings locale <code>` — set display language (e.g. `en`, `sr`)
+      `{prefix}settings voice_language <code>` — set TTS voice language
+
+      **Toggle keys:**
+      `auto_join` — join when the first person enters a channel
+      `auto_leave` — leave when the last person exits
+      `notify_write` — send text embeds for command responses
+      `notify_say` — speak responses via TTS when bot is in voice
+      `notify_song_text` — show track card embed when a song is loaded
+      `notify_song_voice` — speak track title when a song is loaded
+      `notify_say_text` — send embed after `{prefix}say` completes
+      `notify_say_voice` — speak "Speaking." confirmation after `{prefix}say`

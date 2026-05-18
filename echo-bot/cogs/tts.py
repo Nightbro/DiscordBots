@@ -81,7 +81,7 @@ class TTSCog(commands.Cog, name='TTS'):
     async def tts(self, ctx: commands.Context) -> None:
         """TTS settings and controls."""
         gid = ctx.guild.id
-        await ctx.send(embed=MessageWriter.info('TTS', t('tts.hint', gid)))
+        await ctx.send(embed=MessageWriter.info(t('tts.commands_title', gid), t('tts.hint', gid)))
 
     @tts.command(name='voice')
     async def tts_voice(self, ctx: commands.Context, *, name: str) -> None:
