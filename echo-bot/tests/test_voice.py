@@ -142,6 +142,24 @@ async def test_play_next_plays_from_queue(mock_bot, guild_state, sample_track):
     assert len(guild_state.queue) == 0
 
 
+async def test_play_next_skips_download_for_streamable_track(mock_bot, guild_state):
+    """Streamable tracks (e.g. Suno CDN URLs) must not be passed to Downloader.download."""
+    vc = _vc()
+    guild_state.voice_client = vc
+    suno_track = Track(
+        title='Suno Song',
+        url='https://cdn1.suno.ai/uuid.mp3',
+        streamable=True,
+    )
+    guild_state.queue.append(suno_track)
+    s = _streamer(mock_bot)
+    with patch('utils.voice.Downloader') as MockDL:
+        with patch('utils.voice._make_source', return_value=MagicMock()):
+            await s.play_next()
+    MockDL.download.assert_not_called()
+    vc.play.assert_called_once()
+
+
 # ---------------------------------------------------------------------------
 # skip / stop / pause / resume
 # ---------------------------------------------------------------------------

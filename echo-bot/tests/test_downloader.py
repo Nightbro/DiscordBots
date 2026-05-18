@@ -61,6 +61,49 @@ async def test_resolve_suno_url_goes_to_resolve_url():
     mock.assert_awaited_once()
 
 
+async def test_resolve_url_suno_uses_direct_cdn_and_sets_streamable():
+    """For Suno URLs, _resolve_url should use info['url'] (CDN) and set streamable=True."""
+    fake_info = {
+        'title': 'My Suno Song',
+        'url': 'https://cdn1.suno.ai/uuid.mp3',
+        'webpage_url': 'https://suno.com/song/uuid',
+        'duration': 180,
+        'id': 'uuid',
+    }
+    mock_ydl = MagicMock()
+    mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
+    mock_ydl.__exit__ = MagicMock(return_value=False)
+    mock_ydl.extract_info = MagicMock(return_value=fake_info)
+
+    with patch('utils.downloader.yt_dlp.YoutubeDL', return_value=mock_ydl):
+        track = await Downloader._resolve_url('https://suno.com/song/uuid')
+
+    assert track.url == 'https://cdn1.suno.ai/uuid.mp3'
+    assert track.streamable is True
+    assert track.title == 'My Suno Song'
+
+
+async def test_resolve_url_non_suno_uses_webpage_url():
+    """For non-Suno URLs, _resolve_url should prefer webpage_url and leave streamable=False."""
+    fake_info = {
+        'title': 'YouTube Song',
+        'url': 'https://r4---cdn.youtube.com/videoplayback?id=abc',
+        'webpage_url': 'https://www.youtube.com/watch?v=abc',
+        'duration': 240,
+        'id': 'abc',
+    }
+    mock_ydl = MagicMock()
+    mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
+    mock_ydl.__exit__ = MagicMock(return_value=False)
+    mock_ydl.extract_info = MagicMock(return_value=fake_info)
+
+    with patch('utils.downloader.yt_dlp.YoutubeDL', return_value=mock_ydl):
+        track = await Downloader._resolve_url('https://www.youtube.com/watch?v=abc')
+
+    assert track.url == 'https://www.youtube.com/watch?v=abc'
+    assert track.streamable is False
+
+
 # ---------------------------------------------------------------------------
 # download — caching
 # ---------------------------------------------------------------------------
