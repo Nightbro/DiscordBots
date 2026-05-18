@@ -96,6 +96,34 @@ async def test_download_suno_uses_cache(tmp_path):
     assert result == cached
 
 
+async def test_download_suno_strips_share_hash_from_source_id(tmp_path):
+    """source_id with ?sh= query: uuid is cleaned, CDN URL includes hash properly."""
+    uuid = 'aaaaaaaa-bbbb-cccc-dddd-111111111111'
+    source_id_with_hash = f'{uuid}?sh=abc123XYZ'
+    track = Track(title='Suno', url=f'https://suno.com/song/{uuid}', source_id=source_id_with_hash)
+    fake_mp3 = b'fake-mp3'
+
+    mock_resp = MagicMock()
+    mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+    mock_resp.__exit__ = MagicMock(return_value=False)
+    mock_resp.read.return_value = fake_mp3
+
+    captured_url = []
+
+    def fake_urlopen(req, **_):
+        captured_url.append(req.full_url)
+        return mock_resp
+
+    with patch('utils.downloader.DOWNLOADS_DIR', tmp_path), \
+         patch('utils.downloader.urllib.request.urlopen', side_effect=fake_urlopen):
+        result = await Downloader._download_suno(track)
+
+    # File must use clean UUID (no ? in filename)
+    assert result == tmp_path / f'{uuid}.mp3'
+    # CDN URL must have .mp3 before the query string
+    assert captured_url[0] == f'https://cdn1.suno.ai/{uuid}.mp3?sh=abc123XYZ'
+
+
 async def test_download_routes_suno_to_download_suno():
     """download() calls _download_suno for Suno URLs instead of yt-dlp."""
     uuid = 'aaaaaaaa-bbbb-cccc-dddd-000000000000'

@@ -59,7 +59,9 @@ class Downloader:
             return track.file_path
 
         if track.source_id:
-            cached = DOWNLOADS_DIR / f'{track.source_id}.mp3'
+            # Strip any query params yt-dlp appends to the ID (e.g. ?sh=XXXXX)
+            clean_id = track.source_id.split('?')[0]
+            cached = DOWNLOADS_DIR / f'{clean_id}.mp3'
             if cached.exists():
                 track.file_path = cached
                 return cached
@@ -93,13 +95,18 @@ class Downloader:
     @staticmethod
     async def _download_suno(track: Track) -> Path:
         """Download a Suno track by fetching the CDN MP3 directly via urllib."""
-        uuid = track.source_id
-        if not uuid:
+        uuid_raw = track.source_id
+        if not uuid_raw:
             m = _SUNO_UUID_RE.search(track.url)
             if m:
-                uuid = m.group(1)
-        if not uuid:
+                uuid_raw = m.group(1)
+        if not uuid_raw:
             raise ValueError(f'Could not extract Suno UUID from: {track.url}')
+
+        # yt-dlp may return source_id as "uuid?sh=XXXXX" — split to get clean uuid
+        # and preserve the share hash as a proper query param in the CDN URL
+        uuid, _, share_qs = uuid_raw.partition('?')
+        uuid = uuid.strip()
 
         cached = DOWNLOADS_DIR / f'{uuid}.mp3'
         if cached.exists():
@@ -107,6 +114,8 @@ class Downloader:
             return cached
 
         cdn_url = f'https://cdn1.suno.ai/{uuid}.mp3'
+        if share_qs:
+            cdn_url = f'{cdn_url}?{share_qs}'
         log.info('Downloading Suno track %s from CDN', uuid)
         req = urllib.request.Request(cdn_url, headers={'User-Agent': 'Mozilla/5.0'})
 
