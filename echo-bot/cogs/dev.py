@@ -5,6 +5,8 @@ import sys
 import discord
 from discord.ext import commands
 
+from utils.i18n import t
+
 log = logging.getLogger(__name__)
 
 # Modules reloaded before a cog reload so updated utils code takes effect
@@ -29,7 +31,6 @@ class DevCog(commands.Cog, name='Dev'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    # All commands in this cog are owner-only
     async def cog_check(self, ctx: commands.Context) -> bool:
         return await self.bot.is_owner(ctx.author)
 
@@ -41,15 +42,15 @@ class DevCog(commands.Cog, name='Dev'):
                 importlib.reload(sys.modules[mod])
         try:
             await self.bot.reload_extension(ext)
-            await ctx.send(f'✅ Reloaded `{ext}`')
+            await ctx.send(t('dev.reload_success', ext=ext))
             log.info('Reloaded extension: %s (requested by %s)', ext, ctx.author)
         except Exception as exc:
-            await ctx.send(f'❌ Failed to reload `{ext}`:\n```\n{exc}\n```')
+            await ctx.send(t('dev.reload_failed', ext=ext, exc=exc))
             log.error('Failed to reload %s: %s', ext, exc)
 
     @commands.command(name='restart', hidden=True)
     async def restart_bot(self, ctx: commands.Context) -> None:
-        await ctx.send('♻️ Restarting...')
+        await ctx.send(t('dev.restarting'))
         log.info('Restart requested by %s', ctx.author)
         await self.bot.close()
 
@@ -59,29 +60,26 @@ class DevCog(commands.Cog, name='Dev'):
             guild = discord.Object(id=guild_id)
             self.bot.tree.copy_global_to(guild=guild)
             synced = await self.bot.tree.sync(guild=guild)
-            await ctx.send(f'✅ Synced {len(synced)} commands to guild `{guild_id}`')
+            await ctx.send(t('dev.sync_guild', count=len(synced), guild_id=guild_id))
         else:
             synced = await self.bot.tree.sync()
-            await ctx.send(
-                f'✅ Synced {len(synced)} global commands '
-                f'(may take up to 1 hour to propagate)'
-            )
+            await ctx.send(t('dev.sync_global', count=len(synced)))
         log.info('Slash tree synced by %s', ctx.author)
 
     @commands.command(name='status', hidden=True)
     async def status(self, ctx: commands.Context) -> None:
-        lines = [
-            f'**{self.bot.user}** — online',
-            f'Voice connections: {len(self.bot.voice_clients)}',
-            f'Guilds: {len(self.bot.guilds)}',
-            f'Cogs: {", ".join(self.bot.cogs)}',
-        ]
-        await ctx.send('\n'.join(lines))
+        await ctx.send(t(
+            'dev.status',
+            user=self.bot.user,
+            voice=len(self.bot.voice_clients),
+            guilds=len(self.bot.guilds),
+            cogs=', '.join(self.bot.cogs),
+        ))
 
     @commands.command(name='cogs', hidden=True)
     async def list_cogs(self, ctx: commands.Context) -> None:
         loaded = list(self.bot.extensions)
-        await ctx.send('**Loaded extensions:**\n' + '\n'.join(f'• `{c}`' for c in loaded))
+        await ctx.send(t('dev.cogs_header') + '\n' + '\n'.join(f'• `{c}`' for c in loaded))
 
 
 async def setup(bot: commands.Bot) -> None:

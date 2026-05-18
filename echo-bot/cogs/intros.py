@@ -111,7 +111,7 @@ class IntrosCog(commands.Cog, name='Intros'):
     async def intro(self, ctx: commands.Context) -> None:
         """Intro sound management."""
         gid = ctx.guild.id
-        await ctx.send(embed=MessageWriter.info('Intro commands', t('intro.hint', gid)))
+        await ctx.send(embed=MessageWriter.info(t('intro.commands_title', gid), t('intro.hint', gid)))
 
     @intro.command(name='set')
     async def intro_set(self, ctx: commands.Context) -> None:
