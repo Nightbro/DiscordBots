@@ -68,3 +68,17 @@ def get_sound_path(name: str) -> Optional[Path]:
 
 def sound_exists(name: str) -> bool:
     return get_sound(name) is not None
+
+
+def set_short(name: str, short: str) -> bool:
+    """Update the short trigger for an existing sound. Returns False if sound not found."""
+    meta = get_sound(name)
+    if meta is None:
+        return False
+    updated = dict(meta)
+    if short:
+        updated['short'] = short
+    else:
+        updated.pop('short', None)
+    SoundboardConfig().set(name, updated)
+    return True

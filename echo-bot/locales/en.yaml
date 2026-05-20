@@ -97,14 +97,18 @@ intro:
 soundboard:
   commands_title: "Soundboard commands"
   panel_footer: "React to play a sound"
-  hint: "`add <name>` · `remove <name>` · `play <name>` · `list` · `panel`"
+  hint: "`add <name>` · `remove <name>` · `play <name>` · `short <name> <short>` · `list` · `panel`"
   add_duplicate: "Sound **{name}** already exists."
   add_duplicate_hint: "Use `!sb remove {name}` first."
   add_title: "Added sound **{name}**"
   add_desc: "Emoji: {emoji}  File: `{filename}`"
+  add_parse_error: "Include an emoji to separate the name from the short trigger. Format: `name 💥 [short]`"
+  add_no_name: "Sound name cannot be empty — put the name before the emoji."
   remove_not_found: "Sound **{name}** not found."
   remove_done: "Removed sound **{name}**."
   play_not_found: "Sound **{name}** not found or file missing."
+  short_done: "Short trigger for **{name}** set to `!{short}`."
+  short_usage: "Format: `!sb short <name> <new_short>` — multi-word names need no quotes, just put the short last."
 
 tts:
   commands_title: "TTS"

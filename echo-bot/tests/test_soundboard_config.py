@@ -9,6 +9,7 @@ from utils.soundboard_config import (
     get_sound_path,
     get_sounds,
     remove_sound,
+    set_short,
     sound_exists,
 )
 
@@ -143,3 +144,30 @@ def test_find_sound_by_short_case_insensitive(mock_cfg):
 def test_find_sound_returns_none_when_not_found(mock_cfg):
     add_sound('boom', 'boom.mp3', '💥')
     assert find_sound('missing') is None
+
+
+# ---------------------------------------------------------------------------
+# set_short
+# ---------------------------------------------------------------------------
+
+def test_set_short_updates_existing(mock_cfg):
+    add_sound('boom', 'boom.mp3', '💥', short='b')
+    result = set_short('boom', 'bm')
+    assert result is True
+    assert get_sound('boom')['short'] == 'bm'
+
+
+def test_set_short_adds_when_missing(mock_cfg):
+    add_sound('boom', 'boom.mp3', '💥')
+    set_short('boom', 'b')
+    assert get_sound('boom')['short'] == 'b'
+
+
+def test_set_short_empty_removes_short(mock_cfg):
+    add_sound('boom', 'boom.mp3', '💥', short='b')
+    set_short('boom', '')
+    assert 'short' not in get_sound('boom')
+
+
+def test_set_short_returns_false_when_sound_missing(mock_cfg):
+    assert set_short('nonexistent', 'x') is False

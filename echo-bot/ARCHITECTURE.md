@@ -339,17 +339,22 @@ Bot-join intro fires via `on_voice_state_update` when `member.id == bot.user.id`
 
 | Command | Aliases | Description |
 |---|---|---|
-| `!soundboard add <name>` | `!sb add` | Add sound (attachment) |
+| `!soundboard add <name> 💥 [short]` | `!sb add` | Add sound (attachment). Emoji delimits name from optional short. |
 | `!soundboard remove <name>` | `!sb remove` | Remove sound |
 | `!soundboard play <name>` | `!sb play` | Play sound immediately |
+| `!soundboard short <name> <short>` | `!sb short` | Change short trigger for a sound |
 | `!soundboard list` | `!sb list` | Show all sounds |
 | `!soundboard panel` | `!sb panel` | Open interactive reaction panel |
 
 Panel uses `ReactionHandler.panel()`. Plays via `VoiceStreamer.interrupt()`.
 
-**Quick trigger:** An `on_message` listener intercepts `!<word>` messages where the word matches a soundboard name or short trigger (case-insensitive) and is not already a registered bot command. This lets users type `!boom` or a short alias like `!b` directly without the `sb play` subcommand. Registered commands always take priority.
+**`sb add` parsing:** `_parse_add_text(text)` uses `_EMOJI_RE` to find the first emoji; everything before it is the name, everything after is the short. If short is omitted, it defaults to `name.replace(' ', '').lower()`.
 
-Schema: `{"boom": {"emoji": "💥", "file": "boom.mp3", "short": "b"}}` — `short` is optional.
+**`sb short` parsing:** `rsplit(maxsplit=1)` — last word is the new short, the rest is the sound name. No quotes needed for multi-word names.
+
+**Quick trigger:** An `on_message` listener intercepts `!<word>` messages where the word matches a soundboard name or short trigger (case-insensitive) and is not already a registered bot command. Registered commands always take priority.
+
+Schema: `{"explosion effect": {"emoji": "💥", "file": "explosion effect.mp3", "short": "ex"}}` — `short` is always present (auto-generated if not supplied).
 
 ### `cogs/tts.py` — TTSCog
 

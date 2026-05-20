@@ -94,14 +94,18 @@ intro:
 soundboard:
   commands_title: "Komande table sa zvukovima"
   panel_footer: "Reaguj da pustiš zvuk"
-  hint: "`add <ime>` · `remove <ime>` · `play <ime>` · `list` · `panel`"
+  hint: "`add <ime>` · `remove <ime>` · `play <ime>` · `short <ime> <kratko>` · `list` · `panel`"
   add_duplicate: "Zvuk **{name}** već postoji."
   add_duplicate_hint: "Prvo koristi `!sb remove {name}`."
   add_title: "Dodat zvuk **{name}**"
   add_desc: "Emoji: {emoji}  Fajl: `{filename}`"
+  add_parse_error: "Dodaj emoji da odvojiš ime od kratkog okidača. Format: `ime 💥 [kratko]`"
+  add_no_name: "Ime zvuka ne može biti prazno — unesi ime pre emojija."
   remove_not_found: "Zvuk **{name}** nije pronađen."
   remove_done: "Zvuk **{name}** je uklonjen."
   play_not_found: "Zvuk **{name}** nije pronađen ili fajl nedostaje."
+  short_done: "Kratki okidač za **{name}** je postavljen na `!{short}`."
+  short_usage: "Format: `!sb short <ime> <novi_kratki>` — višerečna imena ne trebaju navodnike, kratki okidač ide na kraj."
 
 tts:
   commands_title: "TTS"
