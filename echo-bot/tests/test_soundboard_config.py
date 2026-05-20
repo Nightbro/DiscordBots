@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from utils.soundboard_config import (
     add_sound,
+    find_sound,
     get_sound,
     get_sound_path,
     get_sounds,
@@ -41,6 +42,18 @@ def test_add_and_get_sound(mock_cfg):
     add_sound('boom', 'boom.mp3', '💥')
     meta = get_sound('boom')
     assert meta == {'emoji': '💥', 'file': 'boom.mp3'}
+
+
+def test_add_sound_with_short(mock_cfg):
+    add_sound('explosion', 'explosion.mp3', '💥', short='ex')
+    meta = get_sound('explosion')
+    assert meta == {'emoji': '💥', 'file': 'explosion.mp3', 'short': 'ex'}
+
+
+def test_add_sound_empty_short_omitted(mock_cfg):
+    add_sound('boom', 'boom.mp3', '💥', short='')
+    meta = get_sound('boom')
+    assert 'short' not in meta
 
 
 def test_add_sound_default_emoji(mock_cfg):
@@ -92,3 +105,41 @@ def test_get_sound_path_returns_none_when_file_missing(mock_cfg, tmp_path):
 def test_get_sound_path_returns_none_when_not_configured(mock_cfg):
     path = get_sound_path('nonexistent')
     assert path is None
+
+
+# ---------------------------------------------------------------------------
+# find_sound
+# ---------------------------------------------------------------------------
+
+def test_find_sound_by_name(mock_cfg):
+    add_sound('boom', 'boom.mp3', '💥')
+    result = find_sound('boom')
+    assert result is not None
+    name, meta = result
+    assert name == 'boom'
+
+
+def test_find_sound_by_name_case_insensitive(mock_cfg):
+    add_sound('boom', 'boom.mp3', '💥')
+    result = find_sound('BOOM')
+    assert result is not None
+    assert result[0] == 'boom'
+
+
+def test_find_sound_by_short(mock_cfg):
+    add_sound('explosion', 'explosion.mp3', '💥', short='ex')
+    result = find_sound('ex')
+    assert result is not None
+    assert result[0] == 'explosion'
+
+
+def test_find_sound_by_short_case_insensitive(mock_cfg):
+    add_sound('explosion', 'explosion.mp3', '💥', short='ex')
+    result = find_sound('EX')
+    assert result is not None
+    assert result[0] == 'explosion'
+
+
+def test_find_sound_returns_none_when_not_found(mock_cfg):
+    add_sound('boom', 'boom.mp3', '💥')
+    assert find_sound('missing') is None

@@ -32,9 +32,24 @@ def get_sound(name: str) -> Optional[dict]:
     return SoundboardConfig().get(name)
 
 
-def add_sound(name: str, filename: str, emoji: str = _DEFAULT_EMOJI) -> None:
+def add_sound(name: str, filename: str, emoji: str = _DEFAULT_EMOJI, short: str = '') -> None:
     cfg = SoundboardConfig()
-    cfg.set(name, {'emoji': emoji, 'file': filename})
+    entry: dict = {'emoji': emoji, 'file': filename}
+    if short:
+        entry['short'] = short
+    cfg.set(name, entry)
+
+
+def find_sound(trigger: str) -> tuple[str, dict] | None:
+    """Case-insensitive lookup by full name OR short trigger. Returns (name, meta) or None."""
+    needle = trigger.lower()
+    for name, meta in SoundboardConfig().all().items():
+        if name.lower() == needle:
+            return name, meta
+        s = meta.get('short', '')
+        if s and s.lower() == needle:
+            return name, meta
+    return None
 
 
 def remove_sound(name: str) -> bool:

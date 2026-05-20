@@ -72,7 +72,7 @@ Supported formats: `.mp3` `.ogg` `.wav` `.flac` `.m4a` `.opus` `.aac`
 
 | Command | Description |
 |---|---|
-| `!sb add <name> [emoji]` | Add a sound (attach audio file). Auto-assigns an emoji if omitted. |
+| `!sb add <name> [emoji] [short]` | Add a sound (attach audio file). Auto-assigns an emoji if omitted. Optional short trigger alias. |
 | `!sb remove <name>` | Remove a sound and delete its file |
 | `!sb play <name>` | Play a sound in your voice channel |
 | `!sb list` | List all sounds with their emojis |
@@ -80,7 +80,9 @@ Supported formats: `.mp3` `.ogg` `.wav` `.flac` `.m4a` `.opus` `.aac`
 
 Alias: `!soundboard`
 
-**Quick trigger:** Type `!<soundname>` directly (e.g. `!boom`) to play a sound without any subcommand. Case-insensitive. Only triggers for names that exist in the soundboard — unknown names are ignored.
+> Names or short triggers with spaces must be wrapped in quotes: `!sb add "my sound"` · `!sb add explosion 💥 "ex"`
+
+**Quick trigger:** Type `!<name>` or `!<short>` directly (e.g. `!boom` or `!b`) to play a sound without any subcommand. Case-insensitive. Only triggers for names/shorts that exist in the soundboard — unknown names are silently ignored.
 
 ---
 
