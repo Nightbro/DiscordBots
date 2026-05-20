@@ -341,11 +341,13 @@ Bot-join intro fires via `on_voice_state_update` when `member.id == bot.user.id`
 |---|---|---|
 | `!soundboard add <name>` | `!sb add` | Add sound (attachment) |
 | `!soundboard remove <name>` | `!sb remove` | Remove sound |
-| `!soundboard trigger <name>` | `!sb trigger` | Play sound immediately |
+| `!soundboard play <name>` | `!sb play` | Play sound immediately |
 | `!soundboard list` | `!sb list` | Show all sounds |
 | `!soundboard panel` | `!sb panel` | Open interactive reaction panel |
 
 Panel uses `ReactionHandler.panel()`. Plays via `VoiceStreamer.interrupt()`.
+
+**Quick trigger:** An `on_message` listener intercepts `!<word>` messages where the word matches a soundboard name (case-insensitive) and is not already a registered bot command. This lets users type `!boom` directly without the `sb play` subcommand. Registered commands always take priority.
 
 ### `cogs/tts.py` — TTSCog
 

@@ -202,3 +202,102 @@ async def test_reaction_plays_sound(mock_bot):
                 await cog.on_raw_reaction_add(payload)
 
     mock_streamer.interrupt.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# on_message — quick trigger (!soundname)
+# ---------------------------------------------------------------------------
+
+def _make_message(content: str, *, bot_author: bool = False, guild=True, in_voice: bool = True):
+    msg = MagicMock(spec=discord.Message)
+    msg.content = content
+    msg.guild = MagicMock() if guild else None
+    if guild:
+        msg.guild.id = 111
+    author = MagicMock(spec=discord.Member)
+    author.bot = bot_author
+    if in_voice:
+        author.voice = MagicMock()
+        author.voice.channel = MagicMock()
+    else:
+        author.voice = None
+    msg.author = author
+    msg.channel = AsyncMock()
+    return msg
+
+
+async def test_quick_trigger_ignored_for_bot(mock_bot):
+    cog = _cog(mock_bot)
+    msg = _make_message('!boom', bot_author=True)
+    with patch('cogs.soundboard.get_sounds', return_value={'boom': {'emoji': '💥', 'file': 'boom.mp3'}}):
+        await cog.on_message(msg)
+    msg.channel.send.assert_not_called()
+
+
+async def test_quick_trigger_ignored_for_dm(mock_bot):
+    cog = _cog(mock_bot)
+    msg = _make_message('!boom', guild=False)
+    with patch('cogs.soundboard.get_sounds', return_value={'boom': {'emoji': '💥', 'file': 'boom.mp3'}}):
+        await cog.on_message(msg)
+    msg.channel.send.assert_not_called()
+
+
+async def test_quick_trigger_ignored_for_registered_command(mock_bot):
+    cog = _cog(mock_bot)
+    msg = _make_message('!sb')
+    mock_bot.get_command = MagicMock(return_value=MagicMock())
+    with patch('cogs.soundboard.get_sounds', return_value={'sb': {'emoji': '🔊', 'file': 'sb.mp3'}}):
+        await cog.on_message(msg)
+    msg.channel.send.assert_not_called()
+
+
+async def test_quick_trigger_ignored_for_unknown_sound(mock_bot):
+    cog = _cog(mock_bot)
+    msg = _make_message('!notasound')
+    mock_bot.get_command = MagicMock(return_value=None)
+    with patch('cogs.soundboard.get_sounds', return_value={'boom': {'emoji': '💥', 'file': 'boom.mp3'}}):
+        await cog.on_message(msg)
+    msg.channel.send.assert_not_called()
+
+
+async def test_quick_trigger_no_voice_sends_error(mock_bot):
+    cog = _cog(mock_bot)
+    msg = _make_message('!boom', in_voice=False)
+    mock_bot.get_command = MagicMock(return_value=None)
+    with patch('cogs.soundboard.get_sounds', return_value={'boom': {'emoji': '💥', 'file': 'boom.mp3'}}):
+        await cog.on_message(msg)
+    msg.channel.send.assert_awaited_once()
+    embed = msg.channel.send.call_args.kwargs.get('embed') or msg.channel.send.call_args.args[0]
+    assert '❌' in embed.title
+
+
+async def test_quick_trigger_plays_sound(mock_bot, tmp_path):
+    cog = _cog(mock_bot)
+    msg = _make_message('!boom')
+    mock_bot.get_command = MagicMock(return_value=None)
+    sounds = {'boom': {'emoji': '💥', 'file': 'boom.mp3'}}
+    f = tmp_path / 'boom.mp3'
+    f.write_bytes(b'')
+    with patch('cogs.soundboard.get_sounds', return_value=sounds):
+        with patch('cogs.soundboard.VoiceStreamer') as MockStreamer:
+            mock_streamer = AsyncMock()
+            MockStreamer.return_value = mock_streamer
+            with patch('cogs.soundboard.get_sound_path', return_value=f):
+                await cog.on_message(msg)
+    mock_streamer.interrupt.assert_awaited_once()
+
+
+async def test_quick_trigger_case_insensitive(mock_bot, tmp_path):
+    cog = _cog(mock_bot)
+    msg = _make_message('!BOOM')
+    mock_bot.get_command = MagicMock(return_value=None)
+    sounds = {'boom': {'emoji': '💥', 'file': 'boom.mp3'}}
+    f = tmp_path / 'boom.mp3'
+    f.write_bytes(b'')
+    with patch('cogs.soundboard.get_sounds', return_value=sounds):
+        with patch('cogs.soundboard.VoiceStreamer') as MockStreamer:
+            mock_streamer = AsyncMock()
+            MockStreamer.return_value = mock_streamer
+            with patch('cogs.soundboard.get_sound_path', return_value=f):
+                await cog.on_message(msg)
+    mock_streamer.interrupt.assert_awaited_once()
