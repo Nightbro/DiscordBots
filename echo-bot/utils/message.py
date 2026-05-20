@@ -76,7 +76,11 @@ class MessageWriter:
         e = _embed()
         e.title = t('message.soundboard_title', guild_id)
         if sounds:
-            lines = [f'{meta["emoji"]} **{name}**' for name, meta in sounds.items()]
+            lines = []
+            for name, meta in sounds.items():
+                short = meta.get('short', '')
+                short_part = f'  `!{short}`' if short else ''
+                lines.append(f'{meta["emoji"]} **{name}**{short_part}')
             e.description = '\n'.join(lines)
         else:
             e.description = t('message.soundboard_empty', guild_id)

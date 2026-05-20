@@ -347,7 +347,9 @@ Bot-join intro fires via `on_voice_state_update` when `member.id == bot.user.id`
 
 Panel uses `ReactionHandler.panel()`. Plays via `VoiceStreamer.interrupt()`.
 
-**Quick trigger:** An `on_message` listener intercepts `!<word>` messages where the word matches a soundboard name (case-insensitive) and is not already a registered bot command. This lets users type `!boom` directly without the `sb play` subcommand. Registered commands always take priority.
+**Quick trigger:** An `on_message` listener intercepts `!<word>` messages where the word matches a soundboard name or short trigger (case-insensitive) and is not already a registered bot command. This lets users type `!boom` or a short alias like `!b` directly without the `sb play` subcommand. Registered commands always take priority.
+
+Schema: `{"boom": {"emoji": "💥", "file": "boom.mp3", "short": "b"}}` — `short` is optional.
 
 ### `cogs/tts.py` — TTSCog
 

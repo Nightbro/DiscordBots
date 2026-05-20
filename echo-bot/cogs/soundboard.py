@@ -13,6 +13,7 @@ from utils.message import MessageWriter
 from utils.notifier import Notifier
 from utils.soundboard_config import (
     add_sound,
+    find_sound,
     get_sound,
     get_sound_path,
     get_sounds,
@@ -73,13 +74,11 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         if self.bot.get_command(name):
             return
 
-        # Case-insensitive lookup: find a sound whose stored name matches
-        sounds = get_sounds()
-        matched_name: str | None = next(
-            (k for k in sounds if k.lower() == name), None
-        )
-        if matched_name is None:
+        # Case-insensitive lookup by full name OR short trigger
+        result = find_sound(name)
+        if result is None:
             return
+        matched_name, _ = result
 
         gid = message.guild.id
         member = message.author
@@ -157,7 +156,7 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         await ctx.send(embed=MessageWriter.info(t('soundboard.commands_title', gid), t('soundboard.hint', gid)))
 
     @sb.command(name='add')
-    async def sb_add(self, ctx: commands.Context, name: str, emoji: str = '') -> None:
+    async def sb_add(self, ctx: commands.Context, name: str, emoji: str = '', short: str = '') -> None:
         """Add a sound to the soundboard (attach an audio file)."""
         gid = ctx.guild.id
         notifier = self._notifier(ctx)
@@ -177,12 +176,12 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
             return
 
         assigned_emoji = emoji.strip() if emoji.strip() else _pick_emoji(get_sounds())
-        add_sound(name, filename, assigned_emoji)
-        await notifier.success(
-            ctx,
-            t('soundboard.add_title', gid, name=name),
-            t('soundboard.add_desc', gid, emoji=assigned_emoji, filename=filename),
-        )
+        assigned_short = short.strip()
+        add_sound(name, filename, assigned_emoji, assigned_short)
+        desc = t('soundboard.add_desc', gid, emoji=assigned_emoji, filename=filename)
+        if assigned_short:
+            desc += f'\nShort trigger: `!{assigned_short}`'
+        await notifier.success(ctx, t('soundboard.add_title', gid, name=name), desc)
 
     @sb.command(name='remove')
     async def sb_remove(self, ctx: commands.Context, name: str) -> None:
