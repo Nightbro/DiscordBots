@@ -80,6 +80,8 @@ Supported formats: `.mp3` `.ogg` `.wav` `.flac` `.m4a` `.opus` `.aac`
 
 Alias: `!soundboard`
 
+**Quick trigger:** Type `!<soundname>` directly (e.g. `!boom`) to play a sound without any subcommand. Case-insensitive. Only triggers for names that exist in the soundboard — unknown names are ignored.
+
 ---
 
 ## TTS

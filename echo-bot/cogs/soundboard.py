@@ -6,7 +6,7 @@ import discord
 from discord.ext import commands
 
 from utils.audio import AudioFileManager
-from utils.config import SOUNDBOARD_DIR
+from utils.config import PREFIX, SOUNDBOARD_DIR
 from utils.guild_state import Track
 from utils.i18n import t
 from utils.message import MessageWriter
@@ -54,6 +54,49 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
     # -----------------------------------------------------------------------
     # Events
     # -----------------------------------------------------------------------
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message) -> None:
+        if message.author.bot:
+            return
+        if message.guild is None:
+            return
+        if not message.content.startswith(PREFIX):
+            return
+
+        rest = message.content[len(PREFIX):].strip()
+        if not rest:
+            return
+        name = rest.split()[0].lower()
+
+        # Don't intercept registered commands
+        if self.bot.get_command(name):
+            return
+
+        # Case-insensitive lookup: find a sound whose stored name matches
+        sounds = get_sounds()
+        matched_name: str | None = next(
+            (k for k in sounds if k.lower() == name), None
+        )
+        if matched_name is None:
+            return
+
+        gid = message.guild.id
+        member = message.author
+
+        if not isinstance(member, discord.Member) or member.voice is None:
+            await message.channel.send(
+                embed=MessageWriter.error(t('common.error_no_voice', gid))
+            )
+            return
+
+        streamer = VoiceStreamer(self.bot, gid)
+        await streamer.join(member.voice.channel)
+        path = get_sound_path(matched_name)
+        if path is None:
+            return
+        track = Track(title=f'SFX: {matched_name}', url=str(path), file_path=path)
+        await streamer.interrupt(track)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
