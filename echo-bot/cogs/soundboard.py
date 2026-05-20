@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import discord
@@ -18,20 +19,32 @@ from utils.soundboard_config import (
     get_sound_path,
     get_sounds,
     remove_sound,
+    set_short,
     sound_exists,
 )
 from utils.voice import VoiceStreamer
 
-# Emoji pool used when auto-assigning an emoji to a new sound
-_EMOJI_POOL = ['🔊', '💥', '📯', '🎺', '🎸', '🥁', '🎷', '🎻', '🔔', '🎹']
+# Matches Unicode emoji (main planes + misc symbols) and Discord custom emoji
+_EMOJI_RE = re.compile(
+    '(?:<a?:[^:]+:\\d+>'
+    '|[\U0001F000-\U0001FFFF]'
+    '|[⌀-⯿]'
+    ')'
+)
 
 
-def _pick_emoji(sounds: dict) -> str:
-    used = {m['emoji'] for m in sounds.values()}
-    for e in _EMOJI_POOL:
-        if e not in used:
-            return e
-    return '🔊'
+def _parse_add_text(text: str) -> tuple[str, str, str] | None:
+    """
+    Parse 'name emoji [short]' from raw add text.
+    Returns (name, emoji, short) — short may be empty — or None if no emoji found.
+    """
+    m = _EMOJI_RE.search(text)
+    if m is None:
+        return None
+    name = text[:m.start()].strip()
+    emoji = m.group()
+    short = text[m.end():].strip()
+    return name, emoji, short
 
 
 class SoundboardCog(commands.Cog, name='Soundboard'):
@@ -156,10 +169,21 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         await ctx.send(embed=MessageWriter.info(t('soundboard.commands_title', gid), t('soundboard.hint', gid)))
 
     @sb.command(name='add')
-    async def sb_add(self, ctx: commands.Context, name: str, emoji: str = '', short: str = '') -> None:
-        """Add a sound to the soundboard (attach an audio file)."""
+    async def sb_add(self, ctx: commands.Context, *, text: str) -> None:
+        """Add a sound: attach audio and type  name 💥 [short]"""
         gid = ctx.guild.id
         notifier = self._notifier(ctx)
+
+        parsed = _parse_add_text(text)
+        if parsed is None:
+            await notifier.error(ctx, t('soundboard.add_parse_error', gid))
+            return
+        name, emoji, short_raw = parsed
+
+        if not name:
+            await notifier.error(ctx, t('soundboard.add_no_name', gid))
+            return
+
         if sound_exists(name):
             await notifier.error(
                 ctx,
@@ -168,20 +192,36 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
             )
             return
 
-        dest_dir = SOUNDBOARD_DIR
         ext = _ext_from_ctx(ctx)
         filename = f'{name}{ext}'
-        path = await AudioFileManager.receive_attachment(ctx, dest_dir, filename)
+        path = await AudioFileManager.receive_attachment(ctx, SOUNDBOARD_DIR, filename)
         if path is None:
             return
 
-        assigned_emoji = emoji.strip() if emoji.strip() else _pick_emoji(get_sounds())
-        assigned_short = short.strip()
-        add_sound(name, filename, assigned_emoji, assigned_short)
-        desc = t('soundboard.add_desc', gid, emoji=assigned_emoji, filename=filename)
-        if assigned_short:
-            desc += f'\nShort trigger: `!{assigned_short}`'
+        assigned_short = short_raw if short_raw else name.replace(' ', '').lower()
+        add_sound(name, filename, emoji, assigned_short)
+        desc = t('soundboard.add_desc', gid, emoji=emoji, filename=filename)
+        desc += f'\nShort trigger: `!{assigned_short}`'
         await notifier.success(ctx, t('soundboard.add_title', gid, name=name), desc)
+
+    @sb.command(name='short')
+    async def sb_short(self, ctx: commands.Context, *, text: str) -> None:
+        """Change the short trigger for a sound: name new_short"""
+        gid = ctx.guild.id
+        notifier = self._notifier(ctx)
+
+        parts = text.strip().rsplit(maxsplit=1)
+        if len(parts) < 2:
+            await notifier.error(ctx, t('soundboard.short_usage', gid))
+            return
+        name, new_short = parts[0], parts[1]
+
+        if not sound_exists(name):
+            await notifier.error(ctx, t('soundboard.remove_not_found', gid, name=name))
+            return
+
+        set_short(name, new_short)
+        await notifier.success(ctx, t('soundboard.short_done', gid, name=name, short=new_short))
 
     @sb.command(name='remove')
     async def sb_remove(self, ctx: commands.Context, name: str) -> None:

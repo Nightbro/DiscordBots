@@ -4,26 +4,34 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 
-from cogs.soundboard import SoundboardCog, _pick_emoji
-from utils.soundboard_config import find_sound
+from cogs.soundboard import SoundboardCog, _EMOJI_RE, _parse_add_text
 
 
 # ---------------------------------------------------------------------------
-# _pick_emoji
+# _parse_add_text
 # ---------------------------------------------------------------------------
 
-def test_pick_emoji_avoids_used():
-    sounds = {'a': {'emoji': '🔊'}, 'b': {'emoji': '💥'}}
-    emoji = _pick_emoji(sounds)
-    assert emoji not in ('🔊', '💥')
+BOOM = '\U0001f4a5'
+BELL = '\U0001f514'
 
 
-def test_pick_emoji_empty_pool_fallback():
-    # All pool emojis used — should fall back to '🔊'
-    from cogs.soundboard import _EMOJI_POOL
-    sounds = {str(i): {'emoji': e} for i, e in enumerate(_EMOJI_POOL)}
-    emoji = _pick_emoji(sounds)
-    assert emoji == '🔊'
+def test_parse_add_text_name_emoji_short():
+    result = _parse_add_text(f'explosion effect {BOOM} ex')
+    assert result == ('explosion effect', BOOM, 'ex')
+
+
+def test_parse_add_text_name_emoji_no_short():
+    result = _parse_add_text(f'boom {BOOM}')
+    assert result == ('boom', BOOM, '')
+
+
+def test_parse_add_text_no_emoji_returns_none():
+    assert _parse_add_text('no emoji here') is None
+
+
+def test_parse_add_text_empty_name():
+    result = _parse_add_text(f'{BOOM} short')
+    assert result == ('', BOOM, 'short')
 
 
 # ---------------------------------------------------------------------------
@@ -59,48 +67,60 @@ async def test_sb_list_with_sounds(mock_bot, ctx):
 # sb_add
 # ---------------------------------------------------------------------------
 
-async def test_sb_add_duplicate_sends_error(mock_bot, ctx):
+async def test_sb_add_no_emoji_sends_error(mock_bot, ctx):
     cog = _cog(mock_bot)
-    with patch('cogs.soundboard.sound_exists', return_value=True):
-        await cog.sb_add.callback(cog, ctx, name='boom')
+    await cog.sb_add.callback(cog, ctx, text='boom no emoji here')
     embed = ctx.send.call_args.kwargs.get('embed') or ctx.send.call_args.args[0]
     assert '❌' in embed.title
 
 
-async def test_sb_add_success(mock_bot, ctx, tmp_path):
+async def test_sb_add_empty_name_sends_error(mock_bot, ctx):
+    cog = _cog(mock_bot)
+    await cog.sb_add.callback(cog, ctx, text=f'{BOOM} short')
+    embed = ctx.send.call_args.kwargs.get('embed') or ctx.send.call_args.args[0]
+    assert '❌' in embed.title
+
+
+async def test_sb_add_duplicate_sends_error(mock_bot, ctx):
+    cog = _cog(mock_bot)
+    with patch('cogs.soundboard.sound_exists', return_value=True):
+        await cog.sb_add.callback(cog, ctx, text=f'boom {BOOM}')
+    embed = ctx.send.call_args.kwargs.get('embed') or ctx.send.call_args.args[0]
+    assert '❌' in embed.title
+
+
+async def test_sb_add_success_auto_short(mock_bot, ctx, tmp_path):
     ctx.message = MagicMock()
     att = MagicMock()
-    att.filename = 'boom.mp3'
+    att.filename = 'explosion effect.mp3'
     att.save = AsyncMock()
     ctx.message.attachments = [att]
 
     cog = _cog(mock_bot)
     with patch('cogs.soundboard.sound_exists', return_value=False):
-        with patch('cogs.soundboard.get_sounds', return_value={}):
-            with patch('cogs.soundboard.add_sound') as mock_add:
-                with patch('cogs.soundboard.SOUNDBOARD_DIR', tmp_path):
-                    await cog.sb_add.callback(cog, ctx, name='boom', emoji='', short='')
-    mock_add.assert_called_once()
+        with patch('cogs.soundboard.add_sound') as mock_add:
+            with patch('cogs.soundboard.SOUNDBOARD_DIR', tmp_path):
+                await cog.sb_add.callback(cog, ctx, text=f'explosion effect {BOOM}')
+    mock_add.assert_called_once_with('explosion effect', 'explosion effect.mp3', BOOM, 'explosioneffect')
     embed = ctx.send.call_args.kwargs.get('embed') or ctx.send.call_args.args[0]
     assert '✅' in embed.title
+    assert '!explosioneffect' in embed.description
 
 
-async def test_sb_add_with_short(mock_bot, ctx, tmp_path):
+async def test_sb_add_success_explicit_short(mock_bot, ctx, tmp_path):
     ctx.message = MagicMock()
     att = MagicMock()
-    att.filename = 'explosion.mp3'
+    att.filename = 'explosion effect.mp3'
     att.save = AsyncMock()
     ctx.message.attachments = [att]
 
     cog = _cog(mock_bot)
     with patch('cogs.soundboard.sound_exists', return_value=False):
-        with patch('cogs.soundboard.get_sounds', return_value={}):
-            with patch('cogs.soundboard.add_sound') as mock_add:
-                with patch('cogs.soundboard.SOUNDBOARD_DIR', tmp_path):
-                    await cog.sb_add.callback(cog, ctx, name='explosion', emoji='💥', short='ex')
-    mock_add.assert_called_once_with('explosion', 'explosion.mp3', '💥', 'ex')
+        with patch('cogs.soundboard.add_sound') as mock_add:
+            with patch('cogs.soundboard.SOUNDBOARD_DIR', tmp_path):
+                await cog.sb_add.callback(cog, ctx, text=f'explosion effect {BOOM} ex')
+    mock_add.assert_called_once_with('explosion effect', 'explosion effect.mp3', BOOM, 'ex')
     embed = ctx.send.call_args.kwargs.get('embed') or ctx.send.call_args.args[0]
-    assert '✅' in embed.title
     assert '!ex' in embed.description
 
 
@@ -125,6 +145,35 @@ async def test_sb_remove_success(mock_bot, ctx, tmp_path):
             with patch('cogs.soundboard.SOUNDBOARD_DIR', tmp_path):
                 await cog.sb_remove.callback(cog, ctx, name='boom')
     assert not f.exists()
+    embed = ctx.send.call_args.kwargs.get('embed') or ctx.send.call_args.args[0]
+    assert '✅' in embed.title
+
+
+# ---------------------------------------------------------------------------
+# sb_short
+# ---------------------------------------------------------------------------
+
+async def test_sb_short_missing_short_arg_sends_error(mock_bot, ctx):
+    cog = _cog(mock_bot)
+    await cog.sb_short.callback(cog, ctx, text='boom')
+    embed = ctx.send.call_args.kwargs.get('embed') or ctx.send.call_args.args[0]
+    assert '❌' in embed.title
+
+
+async def test_sb_short_sound_not_found(mock_bot, ctx):
+    cog = _cog(mock_bot)
+    with patch('cogs.soundboard.sound_exists', return_value=False):
+        await cog.sb_short.callback(cog, ctx, text='missing ex')
+    embed = ctx.send.call_args.kwargs.get('embed') or ctx.send.call_args.args[0]
+    assert '❌' in embed.title
+
+
+async def test_sb_short_success(mock_bot, ctx):
+    cog = _cog(mock_bot)
+    with patch('cogs.soundboard.sound_exists', return_value=True):
+        with patch('cogs.soundboard.set_short') as mock_set:
+            await cog.sb_short.callback(cog, ctx, text='explosion effect ex')
+    mock_set.assert_called_once_with('explosion effect', 'ex')
     embed = ctx.send.call_args.kwargs.get('embed') or ctx.send.call_args.args[0]
     assert '✅' in embed.title
 

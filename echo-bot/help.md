@@ -72,17 +72,22 @@ Supported formats: `.mp3` `.ogg` `.wav` `.flac` `.m4a` `.opus` `.aac`
 
 | Command | Description |
 |---|---|
-| `!sb add <name> [emoji] [short]` | Add a sound (attach audio file). Auto-assigns an emoji if omitted. Optional short trigger alias. |
+| `!sb add <name> 💥 [short]` | Add a sound (attach audio file). Emoji separates name from optional short. Auto-short is name with spaces removed. |
 | `!sb remove <name>` | Remove a sound and delete its file |
 | `!sb play <name>` | Play a sound in your voice channel |
+| `!sb short <name> <short>` | Change the short trigger for an existing sound |
 | `!sb list` | List all sounds with their emojis |
 | `!sb panel` | Post a reaction panel — react to play sounds |
 
 Alias: `!soundboard`
 
-> Names or short triggers with spaces must be wrapped in quotes: `!sb add "my sound"` · `!sb add explosion 💥 "ex"`
+> **`sb add`** — emoji is required and acts as a delimiter: everything before it is the name, everything after is the short. No quotes needed for multi-word names.
+> Examples: `!sb add explosion effect 💥` → auto-short `explosioneffect` · `!sb add explosion effect 💥 ex` → short `ex`
+>
+> **`sb short`** — put the new short last, everything before it is the name. No quotes needed.
+> Example: `!sb short explosion effect ex` → sets short to `ex`
 
-**Quick trigger:** Type `!<name>` or `!<short>` directly (e.g. `!boom` or `!b`) to play a sound without any subcommand. Case-insensitive. Only triggers for names/shorts that exist in the soundboard — unknown names are silently ignored.
+**Quick trigger:** Type `!<name>` or `!<short>` directly (e.g. `!explosioneffect` or `!ex`) to play a sound. Case-insensitive. Unknown names are silently ignored.
 
 ---
 
