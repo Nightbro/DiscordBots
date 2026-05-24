@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from collections import deque
 
 import discord
@@ -11,11 +12,9 @@ from utils.guild_state import GuildState, Track
 
 log = logging.getLogger(__name__)
 
-_FFMPEG_STREAM_OPTS = {
-    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-    'options': '-vn',
-}
-_FFMPEG_FILE_OPTS = {'options': '-vn'}
+# FFmpeg option fragments
+_FFMPEG_RECONNECT = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
+_FFMPEG_AUDIO = '-vn'
 
 
 class VoiceStreamer:
@@ -71,6 +70,8 @@ class VoiceStreamer:
         state.queue.clear()
         state.current_track = None
         state.interrupted_track = None
+        state.track_play_start = None
+        state.track_position_secs = 0.0
 
     async def play(self, track: Track) -> None:
         """Enqueue a track and start playback if idle."""
@@ -86,6 +87,8 @@ class VoiceStreamer:
         state = self._state
         if not state.queue or not state.voice_client:
             state.current_track = None
+            state.track_play_start = None
+            state.track_position_secs = 0.0
             return
         track = state.queue.popleft()
         state.current_track = track
@@ -100,23 +103,36 @@ class VoiceStreamer:
                 asyncio.run_coroutine_threadsafe(self.play_next(), self._bot.loop)
                 return
 
+        # Build source using seek_to, then reset it (consumed on use).
         source = _make_source(track)
+        state.track_position_secs = track.seek_to
+        track.seek_to = 0.0
 
         def after(error: Exception | None) -> None:
             if error:
                 log.error('Playback error in guild %s: %s', self._guild_id, error)
             asyncio.run_coroutine_threadsafe(self.play_next(), self._bot.loop)
 
+        state.track_play_start = time.monotonic()
         state.voice_client.play(source, after=after)
 
     async def interrupt(self, track: Track) -> None:
-        """Play track immediately, pausing current playback. Resumes after interrupt finishes."""
+        """Play track immediately, pausing current playback. Resumes from exact position after."""
         state = self._state
         if not state.voice_client or not state.voice_client.is_connected():
             return
 
         was_playing = state.voice_client.is_playing()
-        interrupted = state.current_track if was_playing else None
+        was_paused = state.voice_client.is_paused()
+        interrupted = state.current_track if (was_playing or was_paused) else None
+
+        if interrupted:
+            # Stamp the exact playback position so play_next() can seek back to it.
+            pos = state.track_position_secs
+            if was_playing and state.track_play_start is not None:
+                pos += time.monotonic() - state.track_play_start
+            interrupted.seek_to = pos
+            state.track_play_start = None
 
         if was_playing:
             state.voice_client.pause()
@@ -129,13 +145,11 @@ class VoiceStreamer:
             if track.cleanup_path:
                 track.cleanup_path.unlink(missing_ok=True)
             if interrupted:
-                # Re-queue at front so it restarts after the interrupt
                 state.queue.appendleft(interrupted)
             asyncio.run_coroutine_threadsafe(self.play_next(), self._bot.loop)
 
-        # stop() triggers the original after-callback, which schedules play_next.
-        # But play_next guards on is_playing(), and by the time the event loop
-        # processes it, our new play() call below will have started — so it exits early.
+        # stop() triggers the original after-callback → play_next(), but by the time
+        # it runs on the event loop our new play() call will have started, so it exits early.
         state.voice_client.stop()
         state.voice_client.play(source, after=after)
 
@@ -153,35 +167,44 @@ class VoiceStreamer:
         state = self._state
         state.queue.clear()
         state.interrupted_track = None
+        state.track_play_start = None
+        state.track_position_secs = 0.0
         if state.voice_client:
             state.voice_client.stop()
         state.current_track = None
 
     async def pause(self) -> None:
+        """Pause playback, accumulating elapsed time so position is preserved for interrupt."""
         vc = self.voice_client
         if vc and vc.is_playing():
             vc.pause()
+            state = self._state
+            if state.track_play_start is not None:
+                state.track_position_secs += time.monotonic() - state.track_play_start
+                state.track_play_start = None
 
     async def resume(self) -> None:
+        """Resume playback, restarting the elapsed-time clock."""
         vc = self.voice_client
         if vc and vc.is_paused():
             vc.resume()
+            self._state.track_play_start = time.monotonic()
 
     async def replay(self) -> Track | None:
-        """Restart the current track (or the last played track) from the beginning.
+        """Restart the current track (or last played track) from the beginning.
 
-        Re-queues the track at the front, then stops current playback so the
-        after-callback fires and play_next() picks it up immediately.
+        Re-queues the track at the front with seek_to reset to 0, then stops
+        current playback so the after-callback fires and play_next() picks it up.
         Returns the track being replayed, or None if there is nothing to replay.
         """
         state = self._state
         track = state.current_track or state.last_track
         if not track or not state.voice_client:
             return None
+        track.seek_to = 0.0  # explicit: always restart from the very beginning
         state.queue.appendleft(track)
         if self.is_playing or self.is_paused:
-            # stop() triggers the registered after-callback → play_next()
-            state.voice_client.stop()
+            state.voice_client.stop()  # triggers after-callback → play_next()
         else:
             await self.play_next()
         return track
@@ -207,6 +230,14 @@ class VoiceStreamer:
 # ------------------------------------------------------------------
 
 def _make_source(track: Track) -> discord.FFmpegPCMAudio:
+    """Build an FFmpegPCMAudio source, seeking to track.seek_to if non-zero."""
+    seek = f'-ss {track.seek_to:.3f}' if track.seek_to else None
     if track.file_path and track.file_path.exists():
-        return discord.FFmpegPCMAudio(str(track.file_path), **_FFMPEG_FILE_OPTS)
-    return discord.FFmpegPCMAudio(track.url, **_FFMPEG_STREAM_OPTS)
+        return discord.FFmpegPCMAudio(
+            str(track.file_path),
+            before_options=seek,
+            options=_FFMPEG_AUDIO,
+        )
+    # Stream: combine optional seek with reconnect flags
+    before = f'{seek} {_FFMPEG_RECONNECT}' if seek else _FFMPEG_RECONNECT
+    return discord.FFmpegPCMAudio(track.url, before_options=before, options=_FFMPEG_AUDIO)

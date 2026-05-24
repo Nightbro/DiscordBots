@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 
+import time
+
 from utils.guild_state import GuildState, Track
 from utils.voice import VoiceStreamer, _make_source
 
@@ -189,6 +191,17 @@ async def test_pause_noop_when_not_playing(mock_bot, guild_state):
     vc.pause.assert_not_called()
 
 
+async def test_pause_accumulates_track_position(mock_bot, guild_state):
+    vc = _vc(playing=True)
+    guild_state.voice_client = vc
+    guild_state.track_play_start = time.monotonic() - 30.0  # pretend 30 s elapsed
+    guild_state.track_position_secs = 10.0                  # 10 s already accumulated
+    s = _streamer(mock_bot)
+    await s.pause()
+    assert guild_state.track_position_secs >= 39.9  # ≈ 10 + 30
+    assert guild_state.track_play_start is None
+
+
 async def test_resume_calls_vc_resume(mock_bot, guild_state):
     vc = _vc(paused=True)
     guild_state.voice_client = vc
@@ -203,6 +216,17 @@ async def test_resume_noop_when_not_paused(mock_bot, guild_state):
     s = _streamer(mock_bot)
     await s.resume()
     vc.resume.assert_not_called()
+
+
+async def test_resume_resets_track_play_start(mock_bot, guild_state):
+    vc = _vc(paused=True)
+    guild_state.voice_client = vc
+    guild_state.track_play_start = None
+    s = _streamer(mock_bot)
+    before = time.monotonic()
+    await s.resume()
+    assert guild_state.track_play_start is not None
+    assert guild_state.track_play_start >= before
 
 
 # ---------------------------------------------------------------------------
@@ -253,6 +277,16 @@ async def test_replay_requeues_track_at_front(mock_bot, guild_state, sample_trac
     assert guild_state.queue[1] == other
 
 
+async def test_replay_resets_seek_to(mock_bot, guild_state, sample_track):
+    sample_track.seek_to = 90.0  # had been interrupted mid-track
+    vc = _vc(playing=True)
+    guild_state.voice_client = vc
+    guild_state.current_track = sample_track
+    s = _streamer(mock_bot)
+    await s.replay()
+    assert sample_track.seek_to == 0.0  # must restart from the beginning
+
+
 async def test_replay_uses_last_track_when_idle(mock_bot, guild_state, sample_track):
     vc = _vc(playing=False, paused=False)
     guild_state.voice_client = vc
@@ -277,6 +311,57 @@ async def test_play_next_sets_last_track(mock_bot, guild_state, sample_track):
 # ---------------------------------------------------------------------------
 # interrupt
 # ---------------------------------------------------------------------------
+
+async def test_play_next_records_timing(mock_bot, guild_state, sample_track):
+    vc = _vc()
+    guild_state.voice_client = vc
+    guild_state.queue.append(sample_track)
+    s = _streamer(mock_bot)
+    before = time.monotonic()
+    with patch('utils.voice._make_source', return_value=MagicMock()):
+        await s.play_next()
+    assert guild_state.track_play_start is not None
+    assert guild_state.track_play_start >= before
+    assert guild_state.track_position_secs == 0.0  # fresh track, no seek
+
+
+async def test_play_next_consumes_seek_to(mock_bot, guild_state, sample_track):
+    sample_track.seek_to = 30.0
+    vc = _vc()
+    guild_state.voice_client = vc
+    guild_state.queue.append(sample_track)
+    s = _streamer(mock_bot)
+    with patch('utils.voice._make_source', return_value=MagicMock()):
+        await s.play_next()
+    assert sample_track.seek_to == 0.0           # consumed
+    assert guild_state.track_position_secs == 30.0  # recorded
+
+
+async def test_interrupt_stamps_seek_to_on_playing_track(mock_bot, guild_state, sample_track):
+    vc = _vc(playing=True)
+    guild_state.voice_client = vc
+    guild_state.current_track = sample_track
+    guild_state.track_play_start = time.monotonic() - 60.0  # 60 s into track
+    guild_state.track_position_secs = 0.0
+    s = _streamer(mock_bot)
+    interrupt_track = Track(title='SFX', url='u')
+    with patch('utils.voice._make_source', return_value=MagicMock()):
+        await s.interrupt(interrupt_track)
+    assert sample_track.seek_to >= 59.9  # ≈ 60 s
+
+
+async def test_interrupt_stamps_seek_to_on_paused_track(mock_bot, guild_state, sample_track):
+    vc = _vc(playing=False, paused=True)
+    guild_state.voice_client = vc
+    guild_state.current_track = sample_track
+    guild_state.track_position_secs = 45.0   # paused after 45 s
+    guild_state.track_play_start = None       # cleared when paused
+    s = _streamer(mock_bot)
+    interrupt_track = Track(title='SFX', url='u')
+    with patch('utils.voice._make_source', return_value=MagicMock()):
+        await s.interrupt(interrupt_track)
+    assert sample_track.seek_to == 45.0
+
 
 async def test_interrupt_plays_new_source(mock_bot, guild_state, sample_track):
     vc = _vc(playing=True)
@@ -344,7 +429,7 @@ def test_make_source_uses_file_when_exists(tmp_path, sample_track):
         _make_source(sample_track)
         args = mock_ffmpeg.call_args
         assert str(audio_file) == args.args[0]
-        assert 'before_options' not in args.kwargs  # file opts, not stream opts
+        assert args.kwargs.get('before_options') is None  # no seek, no reconnect for local files
 
 
 def test_make_source_uses_url_when_no_file(sample_track):
@@ -353,4 +438,25 @@ def test_make_source_uses_url_when_no_file(sample_track):
         _make_source(sample_track)
         args = mock_ffmpeg.call_args
         assert sample_track.url == args.args[0]
-        assert 'before_options' in args.kwargs  # stream reconnect opts
+        assert 'reconnect' in args.kwargs.get('before_options', '')  # stream reconnect opts
+
+
+def test_make_source_seek_prepended_for_local_file(tmp_path, sample_track):
+    audio_file = tmp_path / 'test.mp3'
+    audio_file.write_bytes(b'')
+    sample_track.file_path = audio_file
+    sample_track.seek_to = 45.5
+    with patch('utils.voice.discord.FFmpegPCMAudio') as mock_ffmpeg:
+        _make_source(sample_track)
+        before = mock_ffmpeg.call_args.kwargs.get('before_options', '')
+        assert '-ss 45.500' in before
+
+
+def test_make_source_seek_prepended_for_stream(sample_track):
+    sample_track.file_path = None
+    sample_track.seek_to = 120.0
+    with patch('utils.voice.discord.FFmpegPCMAudio') as mock_ffmpeg:
+        _make_source(sample_track)
+        before = mock_ffmpeg.call_args.kwargs.get('before_options', '')
+        assert '-ss 120.000' in before
+        assert 'reconnect' in before

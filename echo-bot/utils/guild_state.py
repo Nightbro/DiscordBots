@@ -18,6 +18,7 @@ class Track:
     requester: discord.Member | None = None
     source_id: str | None = None  # yt-dlp video ID used for cache lookup
     cleanup_path: Path | None = None  # deleted after playback (used by TTS temp files)
+    seek_to: float = 0.0            # seconds offset passed as -ss to FFmpeg on (re-)start
 
 
 @dataclass
@@ -30,3 +31,6 @@ class GuildState:
     tts_queue: deque[str] = field(default_factory=deque)
     tts_voice: str = field(default_factory=lambda: TTS_DEFAULT_VOICE)
     soundboard_panel_message: discord.Message | None = None
+    # Playback-position tracking (used to resume from exact position after interrupt)
+    track_play_start: float | None = None  # time.monotonic() when this play session began
+    track_position_secs: float = 0.0       # absolute track position (s) at track_play_start
