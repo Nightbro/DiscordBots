@@ -73,6 +73,46 @@ async def test_join_moves_when_already_connected(mock_bot, guild_state, voice_ch
     vc.move_to.assert_awaited_once_with(voice_channel)
 
 
+async def test_join_skips_move_when_already_in_target_channel(mock_bot, guild_state, voice_channel):
+    vc = _vc()
+    vc.channel.id = voice_channel.id  # same channel — no move needed
+    guild_state.voice_client = vc
+    s = _streamer(mock_bot)
+    await s.join(voice_channel)
+    vc.move_to.assert_not_awaited()
+    voice_channel.connect.assert_not_called()
+
+
+async def test_join_resyncs_stale_state_from_guild(mock_bot, guild_state, voice_channel):
+    """State vc is None/stale but guild.voice_client is live — resync, no fresh connect."""
+    existing_vc = _vc()
+    voice_channel.guild.voice_client = existing_vc  # discord.py knows about this one
+    guild_state.voice_client = None                  # our state is stale
+    voice_channel.connect = AsyncMock()
+
+    s = _streamer(mock_bot)
+    await s.join(voice_channel)
+
+    voice_channel.connect.assert_not_awaited()       # must NOT call connect()
+    assert guild_state.voice_client is existing_vc   # state synced
+    existing_vc.move_to.assert_awaited_once_with(voice_channel)  # moved to channel
+
+
+async def test_join_recovers_from_already_connected_race(mock_bot, guild_state, voice_channel):
+    """connect() raises 'Already connected' — recover by resyncing from guild state."""
+    existing_vc = _vc()
+    voice_channel.connect = AsyncMock(
+        side_effect=discord.ClientException('Already connected to a voice channel.')
+    )
+    voice_channel.guild.voice_client = existing_vc
+    guild_state.voice_client = None
+
+    s = _streamer(mock_bot)
+    await s.join(voice_channel)
+
+    assert guild_state.voice_client is existing_vc  # recovered
+
+
 # ---------------------------------------------------------------------------
 # leave
 # ---------------------------------------------------------------------------

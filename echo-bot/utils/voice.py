@@ -56,11 +56,35 @@ class VoiceStreamer:
 
     async def join(self, channel: discord.VoiceChannel) -> None:
         state = self._state
+
+        # Our tracked vc may be stale (e.g. after a 4006 reconnect or a race between
+        # two concurrent on_voice_state_update handlers).  Always reconcile against
+        # discord.py's authoritative guild-level voice client first.
+        if not (state.voice_client and state.voice_client.is_connected()):
+            state.voice_client = channel.guild.voice_client  # may still be None
+
         if state.voice_client and state.voice_client.is_connected():
-            await state.voice_client.move_to(channel)
-        else:
+            # Already connected — just move to the target channel if needed.
+            if state.voice_client.channel.id != channel.id:
+                await state.voice_client.move_to(channel)
+            return
+
+        # No live connection — connect fresh.
+        try:
             vc = await channel.connect()
             state.voice_client = vc
+        except discord.ClientException as exc:
+            if 'Already connected' in str(exc):
+                # Extremely narrow race: another task connected between our check
+                # and the connect() call.  Re-sync and treat as already joined.
+                log.warning('join: race on connect() — resyncing from guild state')
+                existing = channel.guild.voice_client
+                if existing:
+                    state.voice_client = existing
+                else:
+                    raise
+            else:
+                raise
 
     async def leave(self) -> None:
         state = self._state

@@ -28,6 +28,10 @@ def voice_channel() -> MagicMock:
     ch = MagicMock(spec=discord.VoiceChannel)
     ch.id = 111111111
     ch.name = 'General'
+    # Give the channel a proper guild mock so join() can read guild.voice_client.
+    guild = MagicMock(spec=discord.Guild)
+    guild.voice_client = None  # no existing connection by default
+    ch.guild = guild
     return ch
 
 
