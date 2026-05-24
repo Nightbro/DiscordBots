@@ -20,6 +20,10 @@ music:
     skipped: "Skipped **{title}**"
     nothing: "Nothing is playing."
 
+  replay:
+    replaying: "🔁 Replaying **{title}**"
+    nothing: "Nothing to replay."
+
   queue:
     now_playing: "{emoji} **Now playing:** {title}{dur}"
     cleared: "Queue cleared."

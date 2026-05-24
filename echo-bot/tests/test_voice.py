@@ -206,6 +206,75 @@ async def test_resume_noop_when_not_paused(mock_bot, guild_state):
 
 
 # ---------------------------------------------------------------------------
+# replay
+# ---------------------------------------------------------------------------
+
+async def test_replay_returns_none_when_no_track(mock_bot, guild_state):
+    guild_state.voice_client = _vc()
+    s = _streamer(mock_bot)
+    assert await s.replay() is None
+
+
+async def test_replay_returns_none_when_no_voice_client(mock_bot, guild_state, sample_track):
+    guild_state.current_track = sample_track
+    s = _streamer(mock_bot)
+    assert await s.replay() is None
+
+
+async def test_replay_stops_vc_when_playing(mock_bot, guild_state, sample_track):
+    vc = _vc(playing=True)
+    guild_state.voice_client = vc
+    guild_state.current_track = sample_track
+    s = _streamer(mock_bot)
+    result = await s.replay()
+    vc.stop.assert_called_once()
+    assert result == sample_track
+
+
+async def test_replay_stops_vc_when_paused(mock_bot, guild_state, sample_track):
+    vc = _vc(paused=True)
+    guild_state.voice_client = vc
+    guild_state.current_track = sample_track
+    s = _streamer(mock_bot)
+    result = await s.replay()
+    vc.stop.assert_called_once()
+    assert result == sample_track
+
+
+async def test_replay_requeues_track_at_front(mock_bot, guild_state, sample_track):
+    other = Track(title='Other', url='u2')
+    vc = _vc(playing=True)
+    guild_state.voice_client = vc
+    guild_state.current_track = sample_track
+    guild_state.queue.append(other)
+    s = _streamer(mock_bot)
+    await s.replay()
+    assert guild_state.queue[0] == sample_track
+    assert guild_state.queue[1] == other
+
+
+async def test_replay_uses_last_track_when_idle(mock_bot, guild_state, sample_track):
+    vc = _vc(playing=False, paused=False)
+    guild_state.voice_client = vc
+    guild_state.last_track = sample_track
+    s = _streamer(mock_bot)
+    with patch('utils.voice._make_source', return_value=MagicMock()):
+        result = await s.replay()
+    assert result == sample_track
+    vc.play.assert_called_once()
+
+
+async def test_play_next_sets_last_track(mock_bot, guild_state, sample_track):
+    vc = _vc()
+    guild_state.voice_client = vc
+    guild_state.queue.append(sample_track)
+    s = _streamer(mock_bot)
+    with patch('utils.voice._make_source', return_value=MagicMock()):
+        await s.play_next()
+    assert guild_state.last_track == sample_track
+
+
+# ---------------------------------------------------------------------------
 # interrupt
 # ---------------------------------------------------------------------------
 

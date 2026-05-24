@@ -18,6 +18,10 @@ music:
     skipped: "Preskočeno **{title}**"
     nothing: "Ništa ne svira."
 
+  replay:
+    replaying: "🔁 Ponovo puštam **{title}**"
+    nothing: "Nema šta da se ponovi."
+
   queue:
     now_playing: "{emoji} **Sada svira:** {title}{dur}"
     cleared: "Red je obrisan."

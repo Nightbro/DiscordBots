@@ -127,6 +127,32 @@ async def test_skip_sends_error_when_nothing_playing(mock_bot, ctx, guild_state)
 
 
 # ---------------------------------------------------------------------------
+# replay
+# ---------------------------------------------------------------------------
+
+async def test_replay_success(mock_bot, ctx, guild_state, sample_track):
+    cog = _cog(mock_bot)
+    with patch('cogs.music.VoiceStreamer') as MockStreamer:
+        mock_streamer = AsyncMock()
+        mock_streamer.replay = AsyncMock(return_value=sample_track)
+        MockStreamer.return_value = mock_streamer
+        await cog.replay.callback(cog, ctx)
+    embed = ctx.send.call_args.kwargs.get('embed') or ctx.send.call_args.args[0]
+    assert '✅' in embed.title
+
+
+async def test_replay_nothing_to_replay(mock_bot, ctx, guild_state):
+    cog = _cog(mock_bot)
+    with patch('cogs.music.VoiceStreamer') as MockStreamer:
+        mock_streamer = AsyncMock()
+        mock_streamer.replay = AsyncMock(return_value=None)
+        MockStreamer.return_value = mock_streamer
+        await cog.replay.callback(cog, ctx)
+    embed = ctx.send.call_args.kwargs.get('embed') or ctx.send.call_args.args[0]
+    assert '❌' in embed.title
+
+
+# ---------------------------------------------------------------------------
 # queue
 # ---------------------------------------------------------------------------
 

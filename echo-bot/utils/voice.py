@@ -89,6 +89,7 @@ class VoiceStreamer:
             return
         track = state.queue.popleft()
         state.current_track = track
+        state.last_track = track
 
         # Download remote tracks before playback; local files (intros, TTS, soundboard) skip this.
         if track.url.startswith('http') and not (track.file_path and track.file_path.exists()):
@@ -165,6 +166,25 @@ class VoiceStreamer:
         vc = self.voice_client
         if vc and vc.is_paused():
             vc.resume()
+
+    async def replay(self) -> Track | None:
+        """Restart the current track (or the last played track) from the beginning.
+
+        Re-queues the track at the front, then stops current playback so the
+        after-callback fires and play_next() picks it up immediately.
+        Returns the track being replayed, or None if there is nothing to replay.
+        """
+        state = self._state
+        track = state.current_track or state.last_track
+        if not track or not state.voice_client:
+            return None
+        state.queue.appendleft(track)
+        if self.is_playing or self.is_paused:
+            # stop() triggers the registered after-callback → play_next()
+            state.voice_client.stop()
+        else:
+            await self.play_next()
+        return track
 
     # ------------------------------------------------------------------
     # Auto-leave

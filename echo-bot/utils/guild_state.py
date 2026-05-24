@@ -25,6 +25,7 @@ class GuildState:
     queue: deque[Track] = field(default_factory=deque)
     voice_client: discord.VoiceClient | None = None
     current_track: Track | None = None
+    last_track: Track | None = None          # most recent track that started playing
     interrupted_track: Track | None = None
     tts_queue: deque[str] = field(default_factory=deque)
     tts_voice: str = field(default_factory=lambda: TTS_DEFAULT_VOICE)

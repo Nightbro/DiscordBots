@@ -22,6 +22,7 @@ All commands work with `!` prefix and as `/` slash commands.
 | `!pause` | — | Pause playback |
 | `!resume` | `!unpause` | Resume playback |
 | `!stop` | — | Stop playback and clear the queue |
+| `!replay` | `!rp` | Restart the current track from the beginning |
 | `!nowplaying` | `!np` | Show the currently playing track |
 | `!join` | — | Join your voice channel |
 | `!leave` | `!disconnect`, `!dc` | Leave the voice channel and clear all state |

@@ -130,6 +130,17 @@ class MusicCog(commands.Cog, name='Music'):
         await self._streamer(ctx).stop()
         await self._notifier(ctx).success(ctx, t('music.stopped', ctx.guild.id))
 
+    @commands.hybrid_command(name='replay', aliases=['rp'])
+    async def replay(self, ctx: commands.Context) -> None:
+        """Restart the current track from the beginning."""
+        gid = ctx.guild.id
+        notifier = self._notifier(ctx)
+        track = await self._streamer(ctx).replay()
+        if track:
+            await notifier.success(ctx, t('music.replay.replaying', gid, title=track.title))
+        else:
+            await notifier.error(ctx, t('music.replay.nothing', gid))
+
     @commands.hybrid_command(name='nowplaying', aliases=['np'])
     async def now_playing(self, ctx: commands.Context) -> None:
         """Show the currently playing track."""
