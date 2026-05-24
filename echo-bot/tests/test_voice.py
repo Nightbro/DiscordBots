@@ -433,6 +433,27 @@ async def test_interrupt_noop_when_no_client(mock_bot, guild_state):
     await s.interrupt(Track(title='SFX', url='u'))  # should not raise
 
 
+async def test_interrupt_resyncs_stale_state_from_guild(mock_bot, guild_state):
+    """interrupt() resyncs from guild.voice_client when state is stale (join() race window).
+
+    Reproduces the bot-intro-not-playing bug: on_voice_state_update fires for the bot's own
+    join while channel.connect() is still awaited, so state.voice_client is None even though
+    discord.py's guild already has the live VoiceClient.
+    """
+    vc = _vc()
+    guild = MagicMock(spec=discord.Guild)
+    guild.voice_client = vc
+    mock_bot.get_guild = MagicMock(return_value=guild)
+    guild_state.voice_client = None  # stale — join() hasn't set it yet
+
+    s = _streamer(mock_bot)
+    with patch('utils.voice._make_source', return_value=MagicMock()):
+        await s.interrupt(Track(title='Intro: bot', url='u'))
+
+    assert guild_state.voice_client is vc  # state was resynced
+    vc.play.assert_called_once()           # intro actually played
+
+
 # ---------------------------------------------------------------------------
 # auto_leave_if_empty
 # ---------------------------------------------------------------------------

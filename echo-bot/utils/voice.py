@@ -143,6 +143,13 @@ class VoiceStreamer:
     async def interrupt(self, track: Track) -> None:
         """Play track immediately, pausing current playback. Resumes from exact position after."""
         state = self._state
+        # Resync from discord.py's guild-level vc if our state is stale — this handles
+        # the race where interrupt() is called during join() before state.voice_client is set
+        # (e.g. bot's own on_voice_state_update fires while channel.connect() is still awaited).
+        if not (state.voice_client and state.voice_client.is_connected()):
+            guild = self._bot.get_guild(self._guild_id)
+            if guild and guild.voice_client and guild.voice_client.is_connected():
+                state.voice_client = guild.voice_client
         if not state.voice_client or not state.voice_client.is_connected():
             return
 
