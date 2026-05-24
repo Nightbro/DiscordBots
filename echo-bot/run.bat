@@ -101,6 +101,9 @@ echo.
 :run_bot
 echo ============================================
 echo  Bot is starting...
+echo  Console commands (type + Enter while running):
+echo    q            - quit immediately
+echo    maintenance  - announce shutdown, then quit
 echo ============================================
 echo.
 python bot.py

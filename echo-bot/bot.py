@@ -10,8 +10,10 @@ def _patched_ssl_context(purpose=ssl.Purpose.SERVER_AUTH, *, cafile=None, capath
 ssl.create_default_context = _patched_ssl_context
 
 import os
+import sys
 import asyncio
 import logging
+import threading
 from logging.handlers import RotatingFileHandler
 
 import discord
@@ -137,7 +139,74 @@ async def on_voice_state_update(
 
 @bot.event
 async def on_message(message: discord.Message):
+    # Track the last channel where a human wrote, for maintenance announcements.
+    if message.guild and not message.author.bot:
+        get_guild_state(message.guild.id).last_text_channel_id = message.channel.id
     await bot.process_commands(message)
+
+
+# --- Console commands ---
+
+_MAINTENANCE_MSG = 'The bot is shutting down for maintenance.'
+
+
+async def maintenance_shutdown() -> None:
+    """Announce shutdown to all connected guilds, then close the bot."""
+    from utils.shutdown import announce_maintenance
+    log.info('Maintenance shutdown: announcing to all guilds...')
+    await announce_maintenance(bot, _guild_states, _MAINTENANCE_MSG)
+    log.info('Maintenance shutdown: closing.')
+    await bot.close()
+
+
+async def stdin_reader() -> None:
+    """Read operator commands from stdin while the bot is running.
+
+    Runs a daemon thread for the blocking readline so the event loop stays free
+    and asyncio.run() can exit cleanly even if stdin is still waiting for input.
+
+    Commands
+    --------
+    q / quit      Shut the bot down immediately.
+    maintenance   Announce shutdown to all guilds (text + TTS), then close.
+    """
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+    def _read() -> None:
+        while True:
+            try:
+                line = sys.stdin.readline()
+            except Exception:
+                line = ''
+            # Hand the line off to the event loop thread-safely.
+            asyncio.run_coroutine_threadsafe(
+                queue.put(line.strip().lower() if line else None),
+                loop,
+            )
+            if not line:  # EOF — stop the thread
+                break
+
+    threading.Thread(target=_read, daemon=True, name='stdin-reader').start()
+    log.info('Console ready  |  q → quit   maintenance → announce & shut down')
+
+    while True:
+        try:
+            cmd = await queue.get()
+        except asyncio.CancelledError:
+            break
+        if cmd is None:  # EOF
+            break
+        if cmd in ('q', 'quit'):
+            log.info('Quit command received.')
+            await bot.close()
+            return
+        if cmd == 'maintenance':
+            log.info('Maintenance command received.')
+            await maintenance_shutdown()
+            return
+        if cmd:
+            log.info("Unknown command %r  —  available: 'q'  'maintenance'", cmd)
 
 
 # --- Run ---
@@ -152,7 +221,11 @@ async def main():
         for cog in _COGS:
             await bot.load_extension(cog)
             log.info('Loaded cog: %s', cog)
-        await bot.start(token)
+        reader = asyncio.create_task(stdin_reader(), name='stdin-reader')
+        try:
+            await bot.start(token)
+        finally:
+            reader.cancel()  # no-op if already done; cancels if blocked on queue.get()
 
 
 asyncio.run(main())

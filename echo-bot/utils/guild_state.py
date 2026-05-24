@@ -34,3 +34,5 @@ class GuildState:
     # Playback-position tracking (used to resume from exact position after interrupt)
     track_play_start: float | None = None  # time.monotonic() when this play session began
     track_position_secs: float = 0.0       # absolute track position (s) at track_play_start
+    # Last text channel that received a non-bot message (used for maintenance announcements)
+    last_text_channel_id: int | None = None

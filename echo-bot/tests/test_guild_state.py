@@ -15,6 +15,9 @@ def test_guild_state_defaults():
     assert isinstance(state.tts_queue, deque)
     assert state.tts_voice == TTS_DEFAULT_VOICE
     assert state.soundboard_panel_message is None
+    assert state.last_text_channel_id is None
+    assert state.track_play_start is None
+    assert state.track_position_secs == 0.0
 
 
 def test_guild_states_are_independent():
