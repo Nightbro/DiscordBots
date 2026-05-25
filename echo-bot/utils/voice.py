@@ -151,6 +151,10 @@ class VoiceStreamer:
             if guild and guild.voice_client and guild.voice_client.is_connected():
                 state.voice_client = guild.voice_client
         if not state.voice_client or not state.voice_client.is_connected():
+            log.warning(
+                'interrupt(%s): no connected voice client after resync — dropping track "%s"',
+                self._guild_id, track.title,
+            )
             return
 
         was_playing = state.voice_client.is_playing()

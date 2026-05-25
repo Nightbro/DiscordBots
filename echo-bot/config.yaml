@@ -16,7 +16,7 @@ audio:
   auto_leave: true   # leave when the last person exits the bot's channel
 
 intros:
-  on_bot_join: false   # play the user's intro when the bot joins their channel
+  on_bot_join: true    # play the bot's intro when it joins a voice channel
   on_user_join: true   # play a user's intro when they join a voice channel
 
 tts:

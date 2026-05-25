@@ -120,7 +120,9 @@ class IntrosCog(commands.Cog, name='Intros'):
         """Play a trigger's intro in the current voice channel (interrupt)."""
         path = get_intro_file(guild_id, trigger_key)
         if not path:
+            log.debug('_play_intro(%s, %r): no file configured — skipping', guild_id, trigger_key)
             return
+        log.debug('_play_intro(%s, %r): playing %s', guild_id, trigger_key, path)
         streamer = VoiceStreamer(self.bot, guild_id)
         track = Track(title=f'Intro: {trigger_key}', url=str(path), file_path=path)
         await streamer.interrupt(track)

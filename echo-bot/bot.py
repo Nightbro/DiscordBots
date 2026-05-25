@@ -38,11 +38,21 @@ _file_handler = RotatingFileHandler(
 _file_handler.setLevel(logging.DEBUG)
 _file_handler.setFormatter(_fmt)
 
+# Dedicated errors-only log — WARNING and above, all loggers including discord.*
+_error_handler = RotatingFileHandler(
+    LOGS_DIR / 'errors.log',
+    maxBytes=2 * 1024 * 1024,
+    backupCount=5,
+    encoding='utf-8',
+)
+_error_handler.setLevel(logging.WARNING)
+_error_handler.setFormatter(_fmt)
+
 _console_handler = logging.StreamHandler()
 _console_handler.setLevel(logging.INFO)
 _console_handler.setFormatter(_fmt)
 
-logging.basicConfig(level=logging.DEBUG, handlers=[_file_handler, _console_handler])
+logging.basicConfig(level=logging.DEBUG, handlers=[_file_handler, _error_handler, _console_handler])
 logging.getLogger('discord').setLevel(logging.WARNING)
 logging.getLogger('discord.http').setLevel(logging.WARNING)
 
