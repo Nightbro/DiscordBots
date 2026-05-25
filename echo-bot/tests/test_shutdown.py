@@ -42,6 +42,7 @@ async def test_sends_embed_to_last_text_channel():
     guild = _guild(1, channel=channel)
     state = GuildState()
     state.last_text_channel_id = 42
+    state.voice_client = _vc(connected=True)  # bot must be in voice
 
     with patch('utils.shutdown._play_tts', new=AsyncMock()):
         await announce_maintenance(_bot(guild), {1: state}, 'Down for maintenance.')
@@ -52,12 +53,44 @@ async def test_sends_embed_to_last_text_channel():
     assert 'Down for maintenance.' in embed.description
 
 
+async def test_skips_all_when_not_in_voice():
+    """Guild with no voice connection receives neither embed nor TTS."""
+    channel = AsyncMock()
+    guild = _guild(1, channel=channel)
+    state = GuildState()
+    state.last_text_channel_id = 42
+    state.voice_client = None  # not in voice
+
+    with patch('utils.shutdown._play_tts', new=AsyncMock()) as mock_tts:
+        await announce_maintenance(_bot(guild), {1: state}, 'msg')
+
+    channel.send.assert_not_awaited()
+    mock_tts.assert_not_awaited()
+
+
+async def test_skips_all_when_vc_disconnected():
+    """Guild whose vc reports is_connected=False is also skipped."""
+    channel = AsyncMock()
+    guild = _guild(1, channel=channel)
+    state = GuildState()
+    state.last_text_channel_id = 42
+    state.voice_client = _vc(connected=False)
+
+    with patch('utils.shutdown._play_tts', new=AsyncMock()) as mock_tts:
+        await announce_maintenance(_bot(guild), {1: state}, 'msg')
+
+    channel.send.assert_not_awaited()
+    mock_tts.assert_not_awaited()
+
+
 async def test_skips_text_when_no_channel_id():
     guild = _guild(1)
     state = GuildState()
     state.last_text_channel_id = None
+    state.voice_client = _vc(connected=True)  # bot must be in voice
 
-    await announce_maintenance(_bot(guild), {1: state}, 'msg')
+    with patch('utils.shutdown._play_tts', new=AsyncMock()):
+        await announce_maintenance(_bot(guild), {1: state}, 'msg')
 
     guild.get_channel.assert_not_called()
 
@@ -66,9 +99,11 @@ async def test_skips_text_when_channel_not_found():
     guild = _guild(1, channel=None)  # get_channel returns None
     state = GuildState()
     state.last_text_channel_id = 999
+    state.voice_client = _vc(connected=True)  # bot must be in voice
 
-    # Should not raise
-    await announce_maintenance(_bot(guild), {1: state}, 'msg')
+    with patch('utils.shutdown._play_tts', new=AsyncMock()):
+        # Should not raise
+        await announce_maintenance(_bot(guild), {1: state}, 'msg')
 
 
 async def test_skips_guild_with_no_state():
@@ -122,19 +157,22 @@ async def test_skips_tts_when_vc_not_connected():
 # Multiple guilds
 # ---------------------------------------------------------------------------
 
-async def test_announces_to_all_guilds():
+async def test_announces_only_to_guilds_in_voice():
+    """Guilds with an active voice connection get the banner; others are skipped."""
     ch1, ch2 = AsyncMock(), AsyncMock()
     guild1 = _guild(1, channel=ch1)
     guild2 = _guild(2, channel=ch2)
     state1, state2 = GuildState(), GuildState()
     state1.last_text_channel_id = 11
+    state1.voice_client = _vc(connected=True)   # in voice → should announce
     state2.last_text_channel_id = 22
+    state2.voice_client = None                  # not in voice → skip
 
     with patch('utils.shutdown._play_tts', new=AsyncMock()):
         await announce_maintenance(_bot(guild1, guild2), {1: state1, 2: state2}, 'msg')
 
     ch1.send.assert_awaited_once()
-    ch2.send.assert_awaited_once()
+    ch2.send.assert_not_awaited()
 
 
 async def test_continues_after_channel_send_error():
@@ -145,7 +183,9 @@ async def test_continues_after_channel_send_error():
     guild2 = _guild(2, channel=ch2)
     state1, state2 = GuildState(), GuildState()
     state1.last_text_channel_id = 11
+    state1.voice_client = _vc(connected=True)
     state2.last_text_channel_id = 22
+    state2.voice_client = _vc(connected=True)
 
     with patch('utils.shutdown._play_tts', new=AsyncMock()):
         await announce_maintenance(_bot(guild1, guild2), {1: state1, 2: state2}, 'msg')

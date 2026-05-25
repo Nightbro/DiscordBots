@@ -34,15 +34,21 @@ async def announce_maintenance(
     guild_states: dict[int, GuildState],
     text: str = DEFAULT_MAINTENANCE_MSG,
 ) -> None:
-    """Announce a maintenance shutdown to every guild the bot is in.
+    """Announce a maintenance shutdown to guilds where the bot is in voice.
 
-    For each guild:
+    Only guilds where the bot currently has an active voice connection receive
+    an announcement. For each such guild:
       - Sends an info embed to the last known text channel (if any)
-      - Plays TTS in the voice channel (if connected), using the guild's tts_voice
+      - Plays TTS in the voice channel, using the guild's tts_voice
     """
     for guild in bot.guilds:
         state = guild_states.get(guild.id)
         if state is None:
+            continue
+
+        # Skip guilds where the bot is not currently in voice.
+        vc = state.voice_client
+        if not (vc and vc.is_connected()):
             continue
 
         # ── text announcement ────────────────────────────────────────────
@@ -60,15 +66,13 @@ async def announce_maintenance(
                     )
 
         # ── voice announcement ───────────────────────────────────────────
-        vc = state.voice_client
-        if vc and vc.is_connected():
-            try:
-                await _play_tts(vc, text, state.tts_voice)
-            except Exception as exc:
-                log.warning(
-                    'Maintenance TTS failed for guild %s: %s',
-                    guild.id, exc,
-                )
+        try:
+            await _play_tts(vc, text, state.tts_voice)
+        except Exception as exc:
+            log.warning(
+                'Maintenance TTS failed for guild %s: %s',
+                guild.id, exc,
+            )
 
 
 async def _play_tts(vc: discord.VoiceClient, text: str, voice: str) -> None:
