@@ -184,6 +184,39 @@ async def test_play_next_plays_from_queue(mock_bot, guild_state, sample_track):
     assert len(guild_state.queue) == 0
 
 
+async def test_play_next_sends_error_embed_to_channel_on_download_failure(mock_bot, guild_state):
+    http_track = Track(title='I. (1)', url='https://cdn1.suno.ai/fake.mp3')
+    guild_state.queue.append(http_track)
+    guild_state.voice_client = _vc()
+    guild_state.last_text_channel_id = 999
+
+    channel = MagicMock()
+    channel.send = AsyncMock()
+    mock_bot.get_channel = MagicMock(return_value=channel)
+
+    with patch('utils.voice.Downloader.download', side_effect=Exception('HTTP Error 403: Forbidden')):
+        with patch('asyncio.run_coroutine_threadsafe'):
+            await _streamer(mock_bot).play_next()
+
+    channel.send.assert_awaited_once()
+    embed = channel.send.call_args.kwargs['embed']
+    assert 'I. (1)' in embed.description
+    assert '403' in embed.description
+
+
+async def test_play_next_download_error_skips_channel_send_when_no_channel_id(mock_bot, guild_state):
+    http_track = Track(title='Song', url='https://cdn1.suno.ai/fake.mp3')
+    guild_state.queue.append(http_track)
+    guild_state.voice_client = _vc()
+    guild_state.last_text_channel_id = None
+
+    with patch('utils.voice.Downloader.download', side_effect=Exception('HTTP Error 403: Forbidden')):
+        with patch('asyncio.run_coroutine_threadsafe'):
+            await _streamer(mock_bot).play_next()
+
+    mock_bot.get_channel.assert_not_called()
+
+
 
 # ---------------------------------------------------------------------------
 # skip / stop / pause / resume

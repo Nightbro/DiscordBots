@@ -9,6 +9,7 @@ from discord.ext import commands
 from utils.config import MAX_QUEUE
 from utils.downloader import Downloader
 from utils.guild_state import GuildState, Track
+from utils.message import MessageWriter
 
 log = logging.getLogger(__name__)
 
@@ -124,6 +125,7 @@ class VoiceStreamer:
                 await Downloader.download(track)
             except Exception as exc:
                 log.error('Failed to download "%s": %s — skipping', track.title, exc)
+                await self._send_error_to_channel(track.title, exc)
                 asyncio.run_coroutine_threadsafe(self.play_next(), self._bot.loop)
                 return
 
@@ -243,6 +245,25 @@ class VoiceStreamer:
         else:
             await self.play_next()
         return track
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    async def _send_error_to_channel(self, track_title: str, exc: Exception) -> None:
+        state = self._state
+        if not state.last_text_channel_id:
+            return
+        channel = self._bot.get_channel(state.last_text_channel_id)
+        if channel is None:
+            return
+        try:
+            await channel.send(embed=MessageWriter.error(
+                f'Download failed — skipping',
+                f'**{track_title}**\n{exc}',
+            ))
+        except Exception as send_exc:
+            log.warning('Could not send download error to channel: %s', send_exc)
 
     # ------------------------------------------------------------------
     # Auto-leave
