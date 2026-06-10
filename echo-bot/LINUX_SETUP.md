@@ -36,6 +36,15 @@ sudo systemctl start echo-bot
 
 `enable` makes it start automatically on every boot. `start` runs it now.
 
+### UI alternative (Raspberry Pi Desktop)
+
+You still need to copy the service file once via terminal (Pi Desktop has no GUI for installing systemd units), but you can manage it afterwards with **Tools → Task Manager** → **Services** tab in the taskbar (or open it via the menu: *Preferences → Task Manager*, "Services" tab):
+- Find `echo-bot` in the list
+- Right-click → Start / Stop / Restart
+- There's a checkbox to enable/disable it on boot
+
+This is the GUI equivalent of `systemctl start/stop/restart/enable echo-bot`.
+
 ## 3. Logs
 
 Each time the bot starts, it writes fresh log files into `data/logs/`:
@@ -54,6 +63,10 @@ To read a specific log file:
 ls data/logs/
 tail -f data/logs/echo_<timestamp>.log
 ```
+
+### UI alternative
+
+Open the **File Manager**, navigate to `~/DiscordBots/echo-bot/data/logs/`, and double-click any `.log` file to open it in the **Text Editor**. Sort by "Modified" date to find the latest run's log.
 
 ## 4. Restarting the bot
 
@@ -75,6 +88,10 @@ systemctl status echo-bot
 
 ### After internet outages
 The bot crashes if Discord's gateway is unreachable. With `Restart=on-failure` and `RestartSec=5` (already set in `echo-bot.service`), systemd retries **forever, every 5 seconds**, with no restart cap — once your internet comes back, it reconnects on its own. No manual action needed.
+
+### UI alternative
+
+Open **Task Manager** (taskbar → *Preferences → Task Manager*) → **Services** tab → right-click `echo-bot` → **Restart** / **Stop** / **Start**. Same effect as the `systemctl` commands above, including checking its current status (running/stopped) at a glance.
 
 ## 5. Updating the bot
 
