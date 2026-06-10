@@ -14,23 +14,32 @@ import sys
 import asyncio
 import logging
 import threading
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
 import discord
 from discord.ext import commands
 
 from utils.config import BOT_NAME, PREFIX, LOGS_DIR, DOWNLOADS_DIR
+from utils.cleanup import purge_old_files
 from utils.guild_config import get_auto_join, get_auto_leave
 from utils.guild_state import GuildState
 from utils.voice import VoiceStreamer
 
+# --- Cleanup: drop logs and downloads older than a week, every startup ---
+purge_old_files(LOGS_DIR, max_age_days=7)
+purge_old_files(DOWNLOADS_DIR, max_age_days=7)
+
 # --- Logging ---
+# A fresh log file per process start (named with the start timestamp) so each
+# run can be inspected independently; old ones are pruned above.
 _fmt = logging.Formatter(
     fmt='%(asctime)s [%(levelname)-8s] %(name)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
 )
+_run_stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 _file_handler = RotatingFileHandler(
-    LOGS_DIR / f'{BOT_NAME.lower()}.log',
+    LOGS_DIR / f'{BOT_NAME.lower()}_{_run_stamp}.log',
     maxBytes=5 * 1024 * 1024,
     backupCount=3,
     encoding='utf-8',
@@ -40,7 +49,7 @@ _file_handler.setFormatter(_fmt)
 
 # Dedicated errors-only log — WARNING and above, all loggers including discord.*
 _error_handler = RotatingFileHandler(
-    LOGS_DIR / 'errors.log',
+    LOGS_DIR / f'errors_{_run_stamp}.log',
     maxBytes=2 * 1024 * 1024,
     backupCount=5,
     encoding='utf-8',
@@ -48,11 +57,7 @@ _error_handler = RotatingFileHandler(
 _error_handler.setLevel(logging.WARNING)
 _error_handler.setFormatter(_fmt)
 
-_console_handler = logging.StreamHandler()
-_console_handler.setLevel(logging.INFO)
-_console_handler.setFormatter(_fmt)
-
-logging.basicConfig(level=logging.DEBUG, handlers=[_file_handler, _error_handler, _console_handler])
+logging.basicConfig(level=logging.DEBUG, handlers=[_file_handler, _error_handler])
 logging.getLogger('discord').setLevel(logging.WARNING)
 logging.getLogger('discord.http').setLevel(logging.WARNING)
 

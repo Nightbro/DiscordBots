@@ -410,7 +410,8 @@ Slash command tree must be re-synced after reloading cogs that add or remove sla
 ## Entry Point (`bot.py`)
 
 - Loads `config.yaml` and `.env` before anything else
-- Sets up rotating file logger (`data/logs/echo.log`, 5 MB max, 3 backups) + console handler
+- Purges files older than 7 days from `data/logs/` and `data/downloads/` (`utils/cleanup.purge_old_files`)
+- Sets up per-run rotating file loggers (`data/logs/echo_<timestamp>.log` and `errors_<timestamp>.log`, 5 MB / 2 MB max, 3/5 backups) — no console handler; all output goes to files
 - Creates `commands.Bot` with `command_prefix=PREFIX`, `intents`, `help_command=None`
 - Attaches `get_guild_state(guild_id) -> GuildState` helper to bot instance
 - Loads all cogs in order: `music`, `intros`, `soundboard`, `tts`, `listener`, `dev`
