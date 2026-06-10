@@ -100,5 +100,10 @@ cd ~/DiscordBots/echo-bot
 git pull
 source venv/bin/activate
 pip install -r requirements.txt
-sudo systemctl restart echo-bot
 ```
+
+`pip install -r requirements.txt` is only strictly needed if `requirements.txt` changed, but it's harmless to run every time.
+
+Then restart the bot:
+- **Running via systemd:** `sudo systemctl restart echo-bot`
+- **Running manually via `./run.sh`:** stop it (`Ctrl+C` or type `q`) and run `./run.sh` again
