@@ -93,7 +93,7 @@ The bot crashes if Discord's gateway is unreachable. With `Restart=on-failure` a
 
 Open **Task Manager** (taskbar → *Preferences → Task Manager*) → **Services** tab → right-click `echo-bot` → **Restart** / **Stop** / **Start**. Same effect as the `systemctl` commands above, including checking its current status (running/stopped) at a glance.
 
-## 5. Updating the bot
+## 5. Updating the bot manually
 
 ```bash
 cd ~/DiscordBots/echo-bot
@@ -107,3 +107,60 @@ pip install -r requirements.txt
 Then restart the bot:
 - **Running via systemd:** `sudo systemctl restart echo-bot`
 - **Running manually via `./run.sh`:** stop it (`Ctrl+C` or type `q`) and run `./run.sh` again
+
+## 6. Auto-update on git push (cron poller)
+
+`auto_update.sh` polls GitHub every few minutes and automatically pulls, reinstalls deps, and restarts the bot when new commits are found.
+
+### First-time setup
+
+Make it executable:
+```bash
+chmod +x ~/DiscordBots/echo-bot/auto_update.sh
+```
+
+Allow the script to restart the bot without a password prompt (required for cron, which has no sudo session):
+```bash
+sudo visudo
+```
+Add this line at the bottom (replace `pi` with your username if different):
+```
+pi ALL=(ALL) NOPASSWD: /bin/systemctl restart echo-bot
+```
+Save and exit (`Ctrl+X` then `Y` in nano).
+
+### Set up the cron job
+
+```bash
+crontab -e
+```
+Add this line to poll every 5 minutes:
+```
+*/5 * * * * /home/pi/DiscordBots/echo-bot/auto_update.sh >> /home/pi/DiscordBots/echo-bot/data/logs/auto_update.log 2>&1
+```
+Replace `/home/pi` with your actual home path if different.
+
+Save and exit. The cron job starts immediately — no reboot needed.
+
+### How it works
+
+- Every 5 minutes cron runs `auto_update.sh`
+- It does a `git fetch` and compares local vs remote commit hashes
+- If they match → exits silently (nothing logged)
+- If they differ → pulls, reinstalls deps, restarts the bot, and logs the update with a timestamp
+
+### Check the auto-update log
+
+```bash
+tail -f ~/DiscordBots/echo-bot/data/logs/auto_update.log
+```
+
+### Updating yt-dlp only (no code change)
+
+YouTube breaks yt-dlp frequently. To update just that library without waiting for a push:
+```bash
+cd ~/DiscordBots/echo-bot
+source venv/bin/activate
+pip install -U yt-dlp
+sudo systemctl restart echo-bot
+```
