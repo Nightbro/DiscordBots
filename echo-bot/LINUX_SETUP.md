@@ -110,95 +110,31 @@ Then restart the bot:
 
 ## 6. Auto-deploy on git push (GitHub Actions self-hosted runner)
 
-Every push to `main` that touches `echo-bot/` triggers a GitHub Actions workflow that runs directly on the Pi — no polling delay, no cron, no public IP needed. The runner connects outbound to GitHub.
+Every push to `main` that touches `echo-bot/` triggers the workflow in `.github/workflows/deploy.yml`. It pulls the latest code, runs pip install, and restarts the bot — automatically.
 
----
+### One-time setup on the Pi
 
-### Step 1 — Install the runner on the Pi
-
-Open a terminal on the Pi and run these commands exactly:
-
-```bash
-mkdir ~/actions-runner && cd ~/actions-runner
-curl -o actions-runner-linux-arm64-2.336.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.336.0/actions-runner-linux-arm64-2.336.0.tar.gz
-echo "58b758e420b87093fbd4bfddd368074960053e2f1388f01848c82624b90f27d1  actions-runner-linux-arm64-2.336.0.tar.gz" | shasum -a 256 -c
-tar xzf ./actions-runner-linux-arm64-2.336.0.tar.gz
-```
-
----
-
-### Step 2 — Configure the runner
-
-Get a fresh registration token from GitHub:
-**Repo → Settings → Actions → Runners → New self-hosted runner → Linux / ARM64**
-(The token shown there expires in ~1 hour — use it immediately.)
-
-Then run:
-```bash
-./config.sh --url https://github.com/Nightbro/DiscordBots --token <YOUR_TOKEN_FROM_GITHUB>
-```
-
-When prompted:
-- **Runner group:** press Enter (default)
-- **Runner name:** type `pi` or any name you like
-- **Labels:** press Enter (default — keeps the `self-hosted` label the workflow uses)
-- **Work folder:** press Enter (default)
-
----
-
-### Step 3 — Install the runner as a service (survives reboots)
-
-```bash
-cd ~/actions-runner
-sudo ./svc.sh install
-sudo ./svc.sh start
-```
-
-Check it's running:
-```bash
-sudo ./svc.sh status
-```
-
----
-
-### Step 4 — Allow the runner to restart the bot without a password
-
-The deploy workflow runs `sudo systemctl restart echo-bot`. Without this, it hangs waiting for a password that never comes.
-
+Allow the runner to restart the bot without a password prompt:
 ```bash
 sudo visudo
 ```
-
-Add this line at the very bottom (replace `pi` with your username if different):
+Add at the very bottom (replace `pi` with your username if different):
 ```
 pi ALL=(ALL) NOPASSWD: /bin/systemctl restart echo-bot
 ```
+Save and exit (`Ctrl+X` then `Y` in nano).
 
-Save and exit (`Ctrl+X` then `Y` if using nano).
-
----
-
-### That's it — you're live
-
-From now on, every push to `main` that touches `echo-bot/` automatically:
-1. Pulls the latest code
-2. Runs `pip install -r requirements.txt` and upgrades `yt-dlp`
-3. Restarts the bot
+That's all — the workflow is already in the repo and will trigger on the next push.
 
 ### Watching a deployment
 
-Go to **GitHub repo → Actions tab** → click the latest run to see live logs per step.
+**GitHub repo → Actions tab** → click the latest run to see live logs per step.
 
 ### Runner management
 
 ```bash
-# Check runner status
 sudo ~/actions-runner/svc.sh status
-
-# Stop the runner
 sudo ~/actions-runner/svc.sh stop
-
-# Start the runner
 sudo ~/actions-runner/svc.sh start
 ```
 
