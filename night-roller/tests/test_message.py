@@ -106,3 +106,45 @@ def test_roll_card_collapses_title_for_many_groups():
     embed = MessageWriter.roll_card(result, 'TestUser')
     assert len(embed.title) <= 256
     assert 'dice groups' in embed.title
+
+
+# ---------------------------------------------------------------------------
+# Markdown must render, so a breakdown with markup cannot sit in a code span
+# ---------------------------------------------------------------------------
+
+def _wod(faces, target=6, subtract_ones=True):
+    class _Fixed(random.Random):
+        def __init__(self):
+            super().__init__()
+            self._faces = list(faces)
+
+        def randint(self, a, b):
+            return self._faces.pop(0)
+
+    return roll(f'{len(faces)}d10', target=target, subtract_ones=subtract_ones, rng=_Fixed())
+
+
+def test_hit_breakdown_is_not_wrapped_in_backticks():
+    """Discord renders nothing inside `code`, so bold hits would show as **8**."""
+    embed = MessageWriter.roll_card(_wod([8, 1, 9, 2, 8]), 'TestUser')
+    assert '`[' not in embed.description
+    assert '**8**' in embed.description
+
+
+def test_dropped_dice_breakdown_is_not_wrapped_in_backticks():
+    result = roll('2d20', keep='high', rng=random.Random(2))
+    embed = MessageWriter.roll_card(result, 'TestUser')
+    assert '~~' in embed.description
+    assert '`[' not in embed.description
+
+
+def test_plain_sum_breakdown_keeps_its_code_span():
+    result = roll('2d6+3', rng=random.Random(1))
+    embed = MessageWriter.roll_card(result, 'TestUser')
+    assert '`' in embed.description
+
+
+def test_compact_breakdown_keeps_its_code_span():
+    result = roll('300d20', rng=random.Random(5))
+    embed = MessageWriter.roll_card(result, 'TestUser')
+    assert '`300d20(' in embed.description

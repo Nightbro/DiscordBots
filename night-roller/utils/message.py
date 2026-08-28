@@ -29,6 +29,18 @@ def _embed(color: int = COLOR) -> discord.Embed:
     return e
 
 
+def _format_breakdown(detail: str) -> str:
+    """Wrap the breakdown in a code span — but only when it carries no markup.
+
+    Discord renders nothing inside a code span, so a breakdown containing bold
+    hits, underlined 1s, or struck-through dropped dice has to go out as plain
+    text or the readers see literal ** and ~~.
+    """
+    if any(marker in detail for marker in ('**', '__', '~~')):
+        return detail
+    return f'`{detail}`'
+
+
 def _success_style(result: RollResult) -> tuple[str, int, str]:
     """Emoji, color and flavour line for a success-counted roll."""
     if result.outcome == 'botch':
@@ -162,7 +174,7 @@ class MessageWriter:
                 if len(detail) > _MAX_BREAKDOWN:
                     detail = ''
             if detail:
-                lines.append(f'`{detail}`')
+                lines.append(_format_breakdown(detail))
         if reason:
             lines.append(f'*{reason}*')
         e.description = '\n'.join(lines)
