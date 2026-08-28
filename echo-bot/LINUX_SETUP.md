@@ -114,7 +114,35 @@ Every push to `main` that touches `echo-bot/` triggers the workflow in `.github/
 
 ### One-time setup on the Pi
 
-Allow the runner to restart the bot without a password prompt:
+**1. Create a separate folder for this repo's runner**
+
+Each repo needs its own runner folder. Do not reuse an existing one.
+```bash
+mkdir ~/actions-runner-discordbots && cd ~/actions-runner-discordbots
+```
+
+**2. Extract the runner** (reuse the tarball you already have):
+```bash
+tar xzf ~/actions-runner/actions-runner-linux-arm64-2.336.0.tar.gz -C ~/actions-runner-discordbots
+```
+
+**3. Get a registration token**
+
+Go to **GitHub repo → Settings → Actions → Runners → New self-hosted runner → Linux / ARM64**. Copy the token — it expires in ~1 hour.
+
+**4. Configure the runner for this repo:**
+```bash
+./config.sh --url https://github.com/Nightbro/DiscordBots --token <YOUR_TOKEN_FROM_GITHUB>
+```
+When prompted, press Enter for all defaults.
+
+**5. Install as a service so it survives reboots:**
+```bash
+sudo ./svc.sh install
+sudo ./svc.sh start
+```
+
+**6. Allow the runner to restart the bot without a password prompt:**
 ```bash
 sudo visudo
 ```
@@ -124,7 +152,7 @@ pi ALL=(ALL) NOPASSWD: /bin/systemctl restart echo-bot
 ```
 Save and exit (`Ctrl+X` then `Y` in nano).
 
-That's all — the workflow is already in the repo and will trigger on the next push.
+That's all — the workflow is already in the repo and triggers on the next push.
 
 ### Watching a deployment
 
@@ -133,9 +161,9 @@ That's all — the workflow is already in the repo and will trigger on the next 
 ### Runner management
 
 ```bash
-sudo ~/actions-runner/svc.sh status
-sudo ~/actions-runner/svc.sh stop
-sudo ~/actions-runner/svc.sh start
+sudo ~/actions-runner-discordbots/svc.sh status
+sudo ~/actions-runner-discordbots/svc.sh stop
+sudo ~/actions-runner-discordbots/svc.sh start
 ```
 
 ### Updating yt-dlp only (no code change needed)
