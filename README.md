@@ -1,15 +1,20 @@
 # Discord Bots
 
-A collection of Discord music bots.
+A collection of Discord bots.
+
+![Deploy to Pi](https://github.com/Nightbro/DiscordBots/actions/workflows/deploy.yml/badge.svg)
 
 ---
 
 ## Bots
 
-### 🎵 suno-bot
+### 🔊 echo-bot *(active)*
+Full-featured audio bot: music playback, soundboard, per-user intro sounds, and TTS. Runs on Raspberry Pi with auto-deploy via GitHub Actions. See [`echo-bot/LINUX_SETUP.md`](echo-bot/LINUX_SETUP.md) for setup.
+
+### 🎵 suno-bot *(legacy)*
 Plays **Suno AI songs** and **YouTube** audio in voice channels. Downloads tracks locally before playing for glitch-free audio. Includes a persistent playlist library.
 
-### 📺 youtube-bot
+### 📺 youtube-bot *(legacy)*
 Lightweight bot for playing **YouTube** audio via URL or search.
 
 ---
