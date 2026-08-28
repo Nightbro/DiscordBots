@@ -69,9 +69,9 @@ bot:
 
 dice:
   default_expression: "d20"   # what a bare !roll rolls
-  max_dice: 100               # most dice in one group
-  max_sides: 1000             # largest die
-  max_groups: 10              # most groups in one expression
+  max_dice: 500               # most dice in one group
+  max_sides: 10000            # largest die
+  max_groups: 25              # most groups in one expression
   show_rolls: true            # list individual die results in the embed
 ```
 
@@ -123,7 +123,9 @@ class RollResult:
     expression, groups, modifier, total, keep
     is_single_d20 -> bool              # crit/fumble applies?
     natural -> int | None              # raw face of a single die
+    notation() -> str                  # "2d6 - 1d4", signed
     breakdown() -> str                 # "[4, 6] + 3", dropped dice struck through
+    compact_breakdown() -> str         # "2d6(10) + 3", for rolls too big to list
 
 def parse(expression) -> (list[DiceGroup], int)     # validates, does not roll
 def roll(expression, *, keep=None, rng=None) -> RollResult
@@ -132,6 +134,7 @@ def roll(expression, *, keep=None, rng=None) -> RollResult
 - `keep='high'` / `keep='low'` keeps the single best/worst die of the **first** group and drops the rest — this is how advantage and disadvantage are implemented.
 - `rng` accepts a seeded `random.Random` so tests are deterministic.
 - Parsing is strict: terms after the first must be joined by `+` or `-` (so `1d6d4` is rejected), and every limit from `config.yaml` is enforced in `parse()`.
+- **Die sizes are open-ended.** Any `d<sides>` from d2 up to `max_sides` works — `d3`, `d7`, `d37` are as valid as `d20`. The config values are abuse guards, not an allow-list, and any number of groups up to `max_groups` can be chained with `+`/`-`.
 
 ### `utils/message.py` — MessageWriter
 
@@ -146,6 +149,8 @@ class MessageWriter:
 ```
 
 `roll_card` swaps emoji and color for natural 20 (💥, green) and natural 1 (💀, red), labels advantage/disadvantage in the title, and hides the per-die breakdown when `show_rolls: false`.
+
+**Output degradation.** Discord caps an embed title at 256 characters and a description at 4096, and a wall of numbers stops being readable well before that. `roll_card` therefore collapses in two stages: a title notation over `_MAX_TITLE_NOTATION` (120) becomes "N dice groups", and a breakdown over `_MAX_BREAKDOWN` (600, roughly 150 dice) falls back to `compact_breakdown()`, then to nothing at all. The total is always shown. This is what makes raising the `config.yaml` limits safe.
 
 ---
 

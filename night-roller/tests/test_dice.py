@@ -171,3 +171,82 @@ def test_breakdown_marks_dropped_dice():
 def test_breakdown_of_negative_group():
     result = roll('2d6-1d4', rng=random.Random(4))
     assert '- [' in result.breakdown()
+
+
+# ---------------------------------------------------------------------------
+# Arbitrary die types and multi-group expressions
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize('sides', [2, 3, 5, 7, 12, 13, 37, 100, 144, 1000])
+def test_any_die_size_is_allowed(sides):
+    """Dice are not restricted to the standard d4/d6/d8/d10/d12/d20/d100 set."""
+    for _ in range(20):
+        result = roll(f'd{sides}')
+        assert 1 <= result.total <= sides
+
+
+def test_max_sides_die_is_allowed():
+    groups, _ = parse(f'd{MAX_SIDES}')
+    assert groups[0].sides == MAX_SIDES
+
+
+def test_max_dice_in_one_group_is_allowed():
+    result = roll(f'{MAX_DICE}d6')
+    assert len(result.groups[0].rolls) == MAX_DICE
+    assert MAX_DICE <= result.total <= MAX_DICE * 6
+
+
+def test_max_groups_is_allowed():
+    groups, _ = parse('+'.join(['d6'] * MAX_GROUPS))
+    assert len(groups) == MAX_GROUPS
+
+
+def test_many_mixed_groups_roll_correctly():
+    expr = '4d6+2d10+1d4+3d12+2d20+1d100'
+    result = roll(expr, rng=random.Random(11))
+    assert [(g.count, g.sides) for g in result.groups] == [
+        (4, 6), (2, 10), (1, 4), (3, 12), (2, 20), (1, 100)
+    ]
+    assert result.total == sum(g.subtotal for g in result.groups)
+
+
+def test_mixed_groups_with_signs_and_modifier():
+    result = roll('2d6+3d8-1d4+5', rng=random.Random(12))
+    assert result.groups[2].negative is True
+    assert result.modifier == 5
+
+
+def test_nonstandard_dice_can_be_combined():
+    result = roll('2d7+3d13', rng=random.Random(13))
+    assert 5 <= result.total <= 53  # 2..14 plus 3..39
+
+
+# ---------------------------------------------------------------------------
+# Breakdown variants
+# ---------------------------------------------------------------------------
+
+def test_notation_is_signed():
+    assert roll('2d6-1d4').notation() == '2d6 - 1d4'
+
+
+def test_notation_of_single_group():
+    assert roll('3d8').notation() == '3d8'
+
+
+def test_compact_breakdown_uses_subtotals():
+    result = roll('2d6+3d8', rng=random.Random(14))
+    text = result.compact_breakdown()
+    assert '2d6(' in text and '3d8(' in text
+    assert '[' not in text
+
+
+def test_compact_breakdown_keeps_modifier_and_signs():
+    result = roll('2d6-1d4+5', rng=random.Random(15))
+    text = result.compact_breakdown()
+    assert '- 1d4(' in text
+    assert text.endswith('+ 5')
+
+
+def test_compact_breakdown_is_much_shorter_for_big_rolls():
+    result = roll('200d20', rng=random.Random(16))
+    assert len(result.compact_breakdown()) < len(result.breakdown()) / 10

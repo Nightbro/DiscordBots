@@ -10,7 +10,10 @@ bot:
 
 dice:
   default_expression: "d20"   # what a bare !roll rolls
-  max_dice: 100               # most dice allowed in a single group
-  max_sides: 1000             # largest die allowed
-  max_groups: 10              # most dice groups in one expression
+  # Any die size works (d3, d7, d37, ...) — these are only abuse guards, not a
+  # list of allowed dice. Raise them freely; the embed collapses to per-group
+  # subtotals when a roll is too big to print die by die.
+  max_dice: 500               # most dice allowed in a single group
+  max_sides: 10000            # largest die allowed
+  max_groups: 25              # most dice groups in one expression
   show_rolls: true            # list individual die results in the embed

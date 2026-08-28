@@ -69,14 +69,10 @@ class RollResult:
             return self.groups[0].rolls[0]
         return None
 
-    def breakdown(self) -> str:
-        """Human-readable maths, e.g. ``[4, 6] + 3``."""
+    def _join(self, chunks: list[str]) -> str:
+        """Join per-group chunks with their signs, then append the modifier."""
         parts: list[str] = []
-        for i, group in enumerate(self.groups):
-            faces = ', '.join(str(r) for r in group.rolls)
-            if group.dropped:
-                faces += ''.join(f', ~~{d}~~' for d in group.dropped)
-            chunk = f'[{faces}]'
+        for i, (group, chunk) in enumerate(zip(self.groups, chunks)):
             if i == 0:
                 parts.append(f'-{chunk}' if group.negative else chunk)
             else:
@@ -88,6 +84,34 @@ class RollResult:
             else:
                 parts.append(f'{sign} {abs(self.modifier)}')
         return ' '.join(parts) if parts else '0'
+
+    def breakdown(self) -> str:
+        """Every die face, e.g. ``[4, 6] + 3``."""
+        chunks = []
+        for group in self.groups:
+            faces = ', '.join(str(r) for r in group.rolls)
+            if group.dropped:
+                faces += ''.join(f', ~~{d}~~' for d in group.dropped)
+            chunks.append(f'[{faces}]')
+        return self._join(chunks)
+
+    def compact_breakdown(self) -> str:
+        """Per-group subtotals instead of every face, e.g. ``2d6(10) + 3``.
+
+        Used when a roll has too many dice to print individually — Discord
+        caps an embed description at 4096 characters.
+        """
+        return self._join([f'{g.notation}({sum(g.rolls)})' for g in self.groups])
+
+    def notation(self) -> str:
+        """The signed dice notation, e.g. ``2d6 - 1d4``."""
+        parts = []
+        for i, group in enumerate(self.groups):
+            if i == 0:
+                parts.append(f'-{group.notation}' if group.negative else group.notation)
+            else:
+                parts.append(f'{"-" if group.negative else "+"} {group.notation}')
+        return ' '.join(parts)
 
 
 def parse(expression: str) -> tuple[list[DiceGroup], int]:

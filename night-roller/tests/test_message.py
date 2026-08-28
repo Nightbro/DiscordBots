@@ -68,3 +68,41 @@ def test_roll_card_mourns_natural_1():
 def test_roll_card_no_flavour_for_mid_roll():
     embed = MessageWriter.roll_card(_forced_d20(12), 'TestUser')
     assert 'Natural' not in embed.description
+
+
+def test_roll_card_title_uses_signed_notation():
+    result = roll('2d6-1d4', rng=random.Random(2))
+    embed = MessageWriter.roll_card(result, 'TestUser')
+    assert '2d6 - 1d4' in embed.title
+
+
+def test_roll_card_handles_nonstandard_dice():
+    result = roll('3d37', rng=random.Random(3))
+    embed = MessageWriter.roll_card(result, 'TestUser')
+    assert '3d37' in embed.title
+
+
+def test_roll_card_stays_within_discord_limits_for_huge_rolls():
+    result = roll('500d20+500d20', rng=random.Random(4))
+    embed = MessageWriter.roll_card(result, 'TestUser', reason='chaos')
+    assert len(embed.title) <= 256
+    assert len(embed.description) <= 4096
+
+
+def test_roll_card_falls_back_to_compact_breakdown_when_too_long():
+    result = roll('300d20', rng=random.Random(5))
+    embed = MessageWriter.roll_card(result, 'TestUser')
+    assert '300d20(' in embed.description  # subtotal form, not every face
+
+
+def test_roll_card_still_shows_total_for_huge_rolls():
+    result = roll('300d20', rng=random.Random(6))
+    embed = MessageWriter.roll_card(result, 'TestUser')
+    assert str(result.total) in embed.description
+
+
+def test_roll_card_collapses_title_for_many_groups():
+    result = roll('+'.join(['d6'] * 25), rng=random.Random(7))
+    embed = MessageWriter.roll_card(result, 'TestUser')
+    assert len(embed.title) <= 256
+    assert 'dice groups' in embed.title

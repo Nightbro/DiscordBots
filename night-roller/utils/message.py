@@ -8,6 +8,12 @@ from utils.dice import RollResult
 _GREEN = 0x57F287
 _RED = 0xED4245
 
+# Discord's hard limits are 256 for a title and 4096 for a description, but a
+# wall of numbers stops being readable long before that — collapse to summary
+# form at these lengths instead. ~600 chars is roughly 150 individual dice.
+_MAX_TITLE_NOTATION = 120
+_MAX_BREAKDOWN = 600
+
 
 def _embed(color: int = COLOR) -> discord.Embed:
     e = discord.Embed(color=color)
@@ -58,7 +64,9 @@ class MessageWriter:
 
         e = _embed(color)
         label = f'{roller} rolls ' if roller else 'Rolled '
-        notation = ' + '.join(g.notation for g in result.groups) or 'flat'
+        notation = result.notation() or 'flat'
+        if len(notation) > _MAX_TITLE_NOTATION:
+            notation = f'{len(result.groups)} dice groups'
         if result.keep == 'high':
             notation += ' (advantage)'
         elif result.keep == 'low':
@@ -70,7 +78,15 @@ class MessageWriter:
             lines.append(flavour)
         lines.append(f'# {result.total}')
         if SHOW_ROLLS:
-            lines.append(f'`{result.breakdown()}`')
+            detail = result.breakdown()
+            if len(detail) > _MAX_BREAKDOWN:
+                # Too many dice to list — fall back to per-group subtotals,
+                # and drop the breakdown entirely if even that is too long.
+                detail = result.compact_breakdown()
+                if len(detail) > _MAX_BREAKDOWN:
+                    detail = ''
+            if detail:
+                lines.append(f'`{detail}`')
         if reason:
             lines.append(f'*{reason}*')
         e.description = '\n'.join(lines)
