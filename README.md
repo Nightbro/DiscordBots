@@ -48,3 +48,12 @@ OWNER_ID=your_discord_user_id
 ```
 
 Get a token at [discord.com/developers/applications](https://discord.com/developers/applications) → Bot → Reset Token. Each bot needs its own application and token.
+
+---
+
+## Legal
+
+- [Terms of Service](TERMS_OF_SERVICE.md)
+- [Privacy Policy](PRIVACY_POLICY.md)
+
+Both cover Echo and Night Roller. Link them in the Discord Developer Portal under **General Information → Terms of Service URL / Privacy Policy URL** for each application.
