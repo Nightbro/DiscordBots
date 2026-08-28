@@ -108,56 +108,52 @@ Then restart the bot:
 - **Running via systemd:** `sudo systemctl restart echo-bot`
 - **Running manually via `./run.sh`:** stop it (`Ctrl+C` or type `q`) and run `./run.sh` again
 
-## 6. Auto-update on git push (cron poller)
+## 6. Auto-deploy on git push (GitHub Actions self-hosted runner)
 
-`auto_update.sh` polls GitHub every few minutes and automatically pulls, reinstalls deps, and restarts the bot when new commits are found.
-
-### First-time setup
-
-Make it executable:
-```bash
-chmod +x ~/DiscordBots/echo-bot/auto_update.sh
-```
-
-Allow the script to restart the bot without a password prompt (required for cron, which has no sudo session):
-```bash
-sudo visudo
-```
-Add this line at the bottom (replace `pi` with your username if different):
-```
-pi ALL=(ALL) NOPASSWD: /bin/systemctl restart echo-bot
-```
-Save and exit (`Ctrl+X` then `Y` in nano).
-
-### Set up the cron job
-
-```bash
-crontab -e
-```
-Add this line to poll every 5 minutes:
-```
-*/5 * * * * /home/pi/DiscordBots/echo-bot/auto_update.sh >> /home/pi/DiscordBots/echo-bot/data/logs/auto_update.log 2>&1
-```
-Replace `/home/pi` with your actual home path if different.
-
-Save and exit. The cron job starts immediately — no reboot needed.
+Every push to `main` that touches `echo-bot/` triggers a GitHub Actions workflow that runs directly on the Pi — no polling delay, no cron needed.
 
 ### How it works
 
-- Every 5 minutes cron runs `auto_update.sh`
-- It does a `git fetch` and compares local vs remote commit hashes
-- If they match → exits silently (nothing logged)
-- If they differ → pulls, reinstalls deps, restarts the bot, and logs the update with a timestamp
+- GitHub Actions detects the push
+- The Pi runner (connected outbound to GitHub — no port forwarding needed) picks up the job
+- It pulls the latest code, runs `pip install`, and restarts the bot
 
-### Check the auto-update log
+### One-time Pi setup
 
+**1. Register the Pi as a self-hosted runner**
+
+Go to your GitHub repo → **Settings → Actions → Runners → New self-hosted runner** → choose **Linux / ARM64**.
+
+GitHub gives you a set of commands to run on the Pi — copy and run them exactly. It installs the runner agent and registers it with your repo.
+
+**2. Start the runner as a service** (so it survives reboots)
+
+After registration, in the runner directory:
 ```bash
-tail -f ~/DiscordBots/echo-bot/data/logs/auto_update.log
+sudo ./svc.sh install
+sudo ./svc.sh start
 ```
+
+**3. Allow systemctl without a password prompt**
+
+The workflow restarts the bot via `sudo systemctl restart echo-bot`. Add a sudoers entry so it doesn't hang waiting for a password:
+```bash
+sudo visudo
+```
+Add at the bottom (replace `pi` with your username if different):
+```
+pi ALL=(ALL) NOPASSWD: /bin/systemctl restart echo-bot
+```
+
+That's it — the runner is live. Every push to `main` deploys automatically.
+
+### Checking a deployment
+
+Go to your GitHub repo → **Actions** tab → click the latest workflow run to see live logs for each step (pull, pip install, restart).
 
 ### Updating yt-dlp only (no code change)
 
-YouTube breaks yt-dlp frequently. To update just that library without waiting for a push:
+YouTube breaks yt-dlp frequently. To update just that library without a push:
 ```bash
 cd ~/DiscordBots/echo-bot
 source venv/bin/activate

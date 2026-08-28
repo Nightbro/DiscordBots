@@ -1,0 +1,24 @@
+name: Deploy to Raspberry Pi
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'echo-bot/**'
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Pull latest code
+        run: git -C ~/DiscordBots pull origin main
+
+      - name: Install dependencies
+        run: |
+          cd ~/DiscordBots/echo-bot
+          source venv/bin/activate
+          pip install -q -r requirements.txt
+          pip install -q -U yt-dlp
+
+      - name: Restart bot
+        run: sudo systemctl restart echo-bot
