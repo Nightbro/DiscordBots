@@ -9,4 +9,5 @@ venv/
 
 # Runtime data — content ignored, dir structure kept via .gitkeep
 data/logs/*
+data/*.json
 !data/**/.gitkeep

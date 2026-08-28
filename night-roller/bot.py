@@ -56,6 +56,7 @@ bot = commands.Bot(command_prefix=PREFIX, intents=intents, help_command=None)
 
 _COGS = [
     'cogs.roll',
+    'cogs.settings',
     'cogs.help',
     'cogs.invite',
     'cogs.dev',

@@ -29,6 +29,35 @@ def _embed(color: int = COLOR) -> discord.Embed:
     return e
 
 
+def _success_style(result: RollResult) -> tuple[str, int, str]:
+    """Emoji, color and flavour line for a success-counted roll."""
+    if result.outcome == 'botch':
+        return EMOJI_FAIL, _RED, '**Botch!**'
+    if result.outcome == 'failure':
+        return EMOJI_DICE, COLOR, '**Failure**'
+    return EMOJI_CRIT, _GREEN, ''
+
+
+def _success_headline(result: RollResult) -> str:
+    """The big number: net successes, or the word Botch."""
+    net = result.net_hits
+    if net < 0:
+        return f'Botch ({net})'
+    if net == 0:
+        return '0 successes'
+    return f'{net} success' if net == 1 else f'{net} successes'
+
+
+def _success_maths(result: RollResult) -> str:
+    """How the headline was reached, e.g. "4 hits − 1 one"."""
+    hits = f'{result.hits} hit' if result.hits == 1 else f'{result.hits} hits'
+    parts = [f'{hits} at {result.target}+']
+    if result.subtract_ones and result.ones:
+        ones = '1 one' if result.ones == 1 else f'{result.ones} ones'
+        parts.append(f'− {ones}')
+    return ' '.join(parts)
+
+
 class MessageWriter:
     """Every embed the bot sends is built here — cogs never touch discord.Embed."""
 
@@ -57,6 +86,28 @@ class MessageWriter:
         return e
 
     @staticmethod
+    def config_card(settings: dict, prefix: str = '!') -> discord.Embed:
+        """This server's dice settings."""
+        e = _embed()
+        e.title = f'{EMOJI_DICE} Roll settings for this server'
+        system = settings['system']
+        die = settings['die']
+        lines = [
+            f'**System:** `{system}`',
+            f'**Default die:** `d{die}` — `{prefix}roll 5` rolls `5d{die}`',
+        ]
+        if system == 'wod':
+            ones = 'on' if settings['subtract_ones'] else 'off'
+            lines.append(f'**Difficulty:** `{settings["difficulty"]}` — dice at or above this are hits')
+            lines.append(f'**Subtract 1s:** `{ones}`')
+        else:
+            lines.append(f'**Difficulty:** `{settings["difficulty"]}` — used only when you ask for `(n)`')
+        lines.append('')
+        lines.append(f'Change with `{prefix}config system|die|difficulty|ones <value>`')
+        e.description = '\n'.join(lines)
+        return e
+
+    @staticmethod
     def invite() -> discord.Embed:
         """Reply to a "join" DM — how to add the bot to a server."""
         e = _embed()
@@ -78,6 +129,9 @@ class MessageWriter:
             elif natural == 1:
                 emoji, color, flavour = EMOJI_FAIL, _RED, '**Natural 1...**'
 
+        if result.counts_successes:
+            emoji, color, flavour = _success_style(result)
+
         e = _embed(color)
         label = f'{roller} rolls ' if roller else 'Rolled '
         notation = result.notation() or 'flat'
@@ -87,12 +141,18 @@ class MessageWriter:
             notation += ' (advantage)'
         elif result.keep == 'low':
             notation += ' (disadvantage)'
+        if result.counts_successes:
+            notation += f' · difficulty {result.target}'
 
         e.title = f'{emoji} {label}{notation}'
         lines = []
         if flavour:
             lines.append(flavour)
-        lines.append(f'# {result.total}')
+        if result.counts_successes:
+            lines.append(f'# {_success_headline(result)}')
+            lines.append(_success_maths(result))
+        else:
+            lines.append(f'# {result.total}')
         if SHOW_ROLLS:
             detail = result.breakdown()
             if len(detail) > _MAX_BREAKDOWN:

@@ -16,8 +16,12 @@ def test_dice_limits_are_sane():
     assert isinstance(config.SHOW_ROLLS, bool)
 
 
-def test_default_expression_is_a_die():
-    assert re.fullmatch(r'\d*d\d+', config.DEFAULT_EXPRESSION)
+def test_dice_defaults_are_usable():
+    assert config.DEFAULT_SYSTEM in ('standard', 'wod')
+    assert 2 <= config.DEFAULT_DIE <= config.MAX_SIDES
+    assert 1 <= config.DEFAULT_DIFFICULTY <= config.DEFAULT_DIE
+    assert isinstance(config.DEFAULT_SUBTRACT_ONES, bool)
+
 
 
 def test_version_has_base_and_commit():

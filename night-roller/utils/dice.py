@@ -55,6 +55,47 @@ class RollResult:
     modifier: int
     total: int
     keep: str | None = None
+    target: int | None = None       # count dice >= this instead of summing
+    subtract_ones: bool = False     # each 1 cancels a success (WoD botch rule)
+
+    # --- Success counting --------------------------------------------------
+
+    @property
+    def counts_successes(self) -> bool:
+        return self.target is not None
+
+    @property
+    def faces(self) -> list[int]:
+        """Every kept die face across all groups."""
+        return [face for group in self.groups for face in group.rolls]
+
+    @property
+    def hits(self) -> int:
+        """Dice that met or beat the target."""
+        if self.target is None:
+            return 0
+        return sum(1 for face in self.faces if face >= self.target)
+
+    @property
+    def ones(self) -> int:
+        """Dice that came up 1 — only counted when the botch rule is on."""
+        if not self.subtract_ones:
+            return 0
+        return sum(1 for face in self.faces if face == 1)
+
+    @property
+    def net_hits(self) -> int:
+        """Successes after 1s cancel them out. Can go negative — that's a botch."""
+        return self.hits - self.ones
+
+    @property
+    def outcome(self) -> str:
+        """'success' | 'failure' | 'botch' — only meaningful when counting."""
+        if self.net_hits > 0:
+            return 'success'
+        if self.net_hits < 0:
+            return 'botch'
+        return 'failure'
 
     @property
     def is_single_d20(self) -> bool:
@@ -85,11 +126,24 @@ class RollResult:
                 parts.append(f'{sign} {abs(self.modifier)}')
         return ' '.join(parts) if parts else '0'
 
+    def _face(self, face: int) -> str:
+        """Render one die face, marking hits and cancelling 1s when counting."""
+        if not self.counts_successes:
+            return str(face)
+        if face >= self.target:  # type: ignore[operator]
+            return f'**{face}**'
+        if self.subtract_ones and face == 1:
+            return f'__{face}__'
+        return str(face)
+
     def breakdown(self) -> str:
-        """Every die face, e.g. ``[4, 6] + 3``."""
+        """Every die face, e.g. ``[4, 6] + 3``.
+
+        When counting successes, hits are bold and cancelling 1s underlined.
+        """
         chunks = []
         for group in self.groups:
-            faces = ', '.join(str(r) for r in group.rolls)
+            faces = ', '.join(self._face(r) for r in group.rolls)
             if group.dropped:
                 faces += ''.join(f', ~~{d}~~' for d in group.dropped)
             chunks.append(f'[{faces}]')
@@ -169,14 +223,27 @@ def parse(expression: str) -> tuple[list[DiceGroup], int]:
     return groups, modifier
 
 
-def roll(expression: str, *, keep: str | None = None, rng: random.Random | None = None) -> RollResult:
+def roll(
+    expression: str,
+    *,
+    keep: str | None = None,
+    target: int | None = None,
+    subtract_ones: bool = False,
+    rng: random.Random | None = None,
+) -> RollResult:
     """Parse and roll an expression.
 
     keep: ``'high'`` or ``'low'`` keeps the single best/worst die of the first
     group and drops the rest — this is how advantage and disadvantage work.
+
+    target: when given, the result is scored as successes (dice >= target)
+    instead of a sum. ``subtract_ones`` additionally cancels one success per 1
+    rolled — the World of Darkness botch rule.
     """
     if keep not in (None, 'high', 'low'):
         raise DiceError(f'Unknown keep mode: {keep!r}')
+    if target is not None and target < 1:
+        raise DiceError('Difficulty must be at least 1.')
 
     generator = rng or random
     groups, modifier = parse(expression)
@@ -198,4 +265,6 @@ def roll(expression: str, *, keep: str | None = None, rng: random.Random | None 
         modifier=modifier,
         total=total,
         keep=keep,
+        target=target,
+        subtract_ones=subtract_ones,
     )

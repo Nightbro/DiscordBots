@@ -4,6 +4,19 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 
+import utils.config
+
+
+@pytest.fixture(autouse=True)
+def isolated_guild_config(tmp_path, monkeypatch):
+    """Point the guild config store at a temp file for every test.
+
+    GuildConfig reads GUILD_CONFIG_FILE at construction time, so patching the
+    module attribute is enough — no test ever writes to the real data/ dir.
+    """
+    monkeypatch.setattr(utils.config, 'GUILD_CONFIG_FILE', tmp_path / 'guild_config.json')
+    yield
+
 
 @pytest.fixture
 def guild_id() -> int:
@@ -19,6 +32,14 @@ def mock_bot(guild_id: int) -> MagicMock:
     bot.latency = 0.042
     bot.close = AsyncMock()
     return bot
+
+
+@pytest.fixture
+def wod_guild(guild_id: int):
+    """Configure the test guild for World of Darkness."""
+    from utils.guild_config import set_system
+    set_system(guild_id, 'wod')
+    return guild_id
 
 
 @pytest.fixture

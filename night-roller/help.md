@@ -8,8 +8,10 @@ A dice bot for D&D. All commands work with the `!` prefix and as `/` slash comma
 
 | Command | Aliases | Description |
 |---|---|---|
-| `!roll` | `!r` | Roll the default die (`d20`) |
+| `!roll` | `!r` | Roll one of this server's default die |
+| `!roll <n>` | `!r` | Roll a pool of `n` default dice — e.g. `!roll 5` |
 | `!roll <expression>` | `!r` | Roll a dice expression |
+| `!roll <dice> (<n>)` | `!r` | Count how many dice land on `n` or higher |
 | `!roll adv [modifier]` | — | Advantage — rolls two d20 and keeps the highest |
 | `!roll dis [modifier]` | — | Disadvantage — rolls two d20 and keeps the lowest |
 | `!roll <expression> <label>` | — | Anything after the dice is shown as a label on the result |
@@ -53,6 +55,52 @@ These are abuse guards, not a list of allowed dice — raise them in `config.yam
 | Groups per expression | 25 |
 
 Rolls too large to print die by die collapse to per-group subtotals — `300d20(3193)` — so the result always fits in one message.
+
+---
+
+## Counting successes (dice pools)
+
+Put a target number in parentheses and the roll is scored as **hits** instead of a sum: every die at or above the target counts as one success.
+
+| Command | Meaning |
+|---|---|
+| `!roll 5 (6)` | roll 5 default dice, count those showing 6+ |
+| `!roll 6d10 (7)` | roll 6d10, count those showing 7+ |
+| `!roll 5 (5) intimidate` | same, with a label |
+
+Hits are shown in **bold** in the breakdown.
+
+### World of Darkness servers
+
+Run `!config system wod` and the server switches to WoD scoring:
+
+- the default die becomes **d10**
+- a plain `!roll 5` is scored against the server difficulty (default **6**) with no need to type `(6)`
+- **each `1` cancels a success** — underlined in the breakdown
+- more 1s than hits is a **Botch**; hits cancelled down to zero is a plain Failure
+
+```
+!roll 5          ->  5d10 · difficulty 6   3 successes   [8, 3, 9, 10, 2]
+!roll 5 (5)      ->  5d10 · difficulty 5   Failure       [1, 7, 2, 6, 1]
+!roll 2d6+3d8    ->  still a plain sum — explicit dice notation is never rescored
+```
+
+---
+
+## Server settings
+
+Requires the **Manage Server** permission. Settings are per server and persist across restarts.
+
+| Command | Description |
+|---|---|
+| `!config` | Show this server's roll settings |
+| `!config system <standard\|wod>` | Switch scoring system (`wod` also sets the die to d10) |
+| `!config die <sides>` | Default die for pool rolls — `!roll 5` becomes `5d<sides>` |
+| `!config difficulty <n>` | Default success target for WoD rolls |
+| `!config ones <on\|off>` | Whether each `1` cancels a success |
+| `!config reset` | Drop all overrides, back to global defaults |
+
+Alias: `!settings`.
 
 ---
 
