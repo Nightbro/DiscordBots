@@ -1,4 +1,4 @@
-# Echo Bot — Linux / Raspberry Pi Setup  
+# Echo Bot — Linux / Raspberry Pi Setup    
 
 ## 1. First-time setup
 
