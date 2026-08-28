@@ -1,0 +1,23 @@
+name: Deploy Night Roller to Raspberry Pi
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'night-roller/**'
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Pull latest code
+        run: git -C ~/DiscordBots pull origin main
+
+      - name: Install dependencies
+        run: |
+          cd ~/DiscordBots/night-roller
+          source venv/bin/activate
+          pip install -q -r requirements.txt
+
+      - name: Restart bot
+        run: sudo systemctl restart night-roller
