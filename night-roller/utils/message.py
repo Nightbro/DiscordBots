@@ -2,7 +2,15 @@ from __future__ import annotations
 
 import discord
 
-from utils.config import BOT_NAME, COLOR, EMOJI_CRIT, EMOJI_DICE, EMOJI_FAIL, SHOW_ROLLS
+from utils.config import (
+    BOT_NAME,
+    COLOR,
+    EMOJI_CRIT,
+    EMOJI_DICE,
+    EMOJI_FAIL,
+    INVITE_URL,
+    SHOW_ROLLS,
+)
 from utils.dice import RollResult
 
 _GREEN = 0x57F287
@@ -46,6 +54,14 @@ class MessageWriter:
         e.title = f'ℹ️ {title}'
         if description:
             e.description = description
+        return e
+
+    @staticmethod
+    def invite() -> discord.Embed:
+        """Reply to a "join" DM — how to add the bot to a server."""
+        e = _embed()
+        e.title = f'{EMOJI_DICE} Add {BOT_NAME} to your server'
+        e.description = f'To add me to your server use this url:\n\n{INVITE_URL}'
         return e
 
     @staticmethod

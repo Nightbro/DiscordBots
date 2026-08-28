@@ -31,6 +31,7 @@ night-roller/
 │   ├── __init__.py
 │   ├── roll.py              # RollCog: !roll — input splitting, advantage handling
 │   ├── help.py              # HelpCog: !help — single embed, no pagination
+│   ├── invite.py            # InviteCog: DM "join" -> invite URL (on_message listener)
 │   └── dev.py               # DevCog: !version, !ping, owner-only !restart
 │
 ├── utils/
@@ -48,6 +49,7 @@ night-roller/
     ├── test_dice.py         # The bulk of the suite — grammar, limits, keep modes
     ├── test_message.py
     ├── test_roll_cog.py
+    ├── test_invite_cog.py
     └── test_help_cog.py
 ```
 
@@ -65,6 +67,7 @@ bot:
   prefix: "!"
   version: "1.0"
   color: 0x9B59B6
+  invite_url: "https://discord.com/oauth2/authorize?..."   # sent on a "join" DM
   emojis: { dice: "🎲", crit: "💥", fail: "💀" }
 
 dice:
@@ -88,7 +91,7 @@ DEV_GUILD_ID=       # Optional: instant slash-command sync to one test server
 Loads `.env` and `config.yaml` at import time and exposes typed constants:
 
 ```python
-BOT_NAME, PREFIX, COLOR, VERSION
+BOT_NAME, PREFIX, COLOR, VERSION, INVITE_URL
 EMOJI_DICE, EMOJI_CRIT, EMOJI_FAIL
 DEFAULT_EXPRESSION, MAX_DICE, MAX_SIDES, MAX_GROUPS, SHOW_ROLLS
 BASE_DIR, DATA_DIR, LOGS_DIR
@@ -146,6 +149,7 @@ class MessageWriter:
     @staticmethod def error(title, description='') -> discord.Embed
     @staticmethod def info(title, description='') -> discord.Embed
     @staticmethod def roll_card(result, roller='', *, reason='') -> discord.Embed
+    @staticmethod def invite() -> discord.Embed
 ```
 
 `roll_card` swaps emoji and color for natural 20 (💥, green) and natural 1 (💀, red), labels advantage/disadvantage in the title, and hides the per-die breakdown when `show_rolls: false`.
@@ -173,6 +177,16 @@ Two module-level helpers do the input handling and are tested independently of D
 
 `!help` (alias `!h`) — one `MessageWriter.info` embed built from a format string using `PREFIX` and `DEFAULT_EXPRESSION`, so changing the prefix in `config.yaml` updates the help text too.
 
+### `cogs/invite.py` — InviteCog
+
+An `on_message` listener, not a command — it answers a plain `join` DM (no prefix needed) with `MessageWriter.invite()`.
+
+- **DMs only.** It returns immediately when `message.guild is not None`; in a server the bot is obviously already added.
+- `is_invite_request(content)` is a module-level pure function (strip → lowercase → drop a leading prefix → match `join` / `invite` / `add`), so the matching is tested without constructing Discord objects.
+- Cog listeners are additive — this one does not override `bot.on_message`, so command processing is untouched and `!roll` still works inside DMs.
+
+The URL lives in `config.yaml` as `invite_url`; regenerate it in the Developer Portal (OAuth2 → URL Generator) if the requested permissions ever change.
+
 ### `cogs/dev.py` — DevCog
 
 | Command | Description |
@@ -188,7 +202,7 @@ Two module-level helpers do the input handling and are tested independently of D
 - Patches `ssl.create_default_context` to use `certifi` first (Windows cert issues), before any other import
 - Per-run rotating log file at `data/logs/night_roller_<timestamp>.log` (2 MB, 3 backups) plus an INFO console handler
 - Intents: defaults + `message_content` (required for `!` prefix commands). **No voice intent** — this bot never joins voice
-- Loads cogs in order: `roll`, `help`, `dev`
+- Loads cogs in order: `roll`, `help`, `invite`, `dev`
 - On `on_ready`: syncs the slash tree to `DEV_GUILD_ID` if set (instant, vs. up to an hour for a global sync)
 - On `on_command_error`: ignores `CommandNotFound`, reports permission failures, logs everything else with a traceback
 

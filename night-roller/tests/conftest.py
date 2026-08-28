@@ -44,3 +44,26 @@ def seeded_rng() -> random.Random:
 def sent_embed(ctx: MagicMock):
     """The embed from the most recent ctx.send call."""
     return ctx.send.call_args.kwargs.get('embed') or ctx.send.call_args.args[0]
+
+
+@pytest.fixture
+def dm_message() -> MagicMock:
+    """A DM to the bot: message.guild is None."""
+    msg = MagicMock(spec=discord.Message)
+    msg.content = 'join'
+    msg.guild = None
+    msg.author = MagicMock(spec=discord.User)
+    msg.author.bot = False
+    msg.author.id = 555555555
+    msg.author.display_name = 'TestUser'
+    msg.channel = MagicMock(spec=discord.DMChannel)
+    msg.channel.send = AsyncMock()
+    return msg
+
+
+@pytest.fixture
+def guild_message(dm_message: MagicMock) -> MagicMock:
+    """The same message, but sent in a server channel."""
+    dm_message.guild = MagicMock(spec=discord.Guild)
+    dm_message.guild.id = 123456789
+    return dm_message

@@ -3,6 +3,9 @@ bot:
   prefix: "!"
   version: "1.0"
   color: 0x9B59B6      # embed accent — deep purple
+  # Sent when someone DMs the bot "join". Regenerate at
+  # Developer Portal -> OAuth2 -> URL Generator if the permissions change.
+  invite_url: "https://discord.com/oauth2/authorize?client_id=1542871697491886140&permissions=2815284491020352&integration_type=0&scope=bot+applications.commands"
   emojis:
     dice: "🎲"
     crit: "💥"

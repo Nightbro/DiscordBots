@@ -17,6 +17,7 @@ _dice = _cfg['dice']
 BOT_NAME: str = _bot['name']
 PREFIX: str = _bot['prefix']
 COLOR: int = _bot['color']
+INVITE_URL: str = _bot['invite_url']
 
 
 def _git(cmd: list[str]) -> str:

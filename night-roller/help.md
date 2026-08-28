@@ -56,6 +56,14 @@ Rolls too large to print die by die collapse to per-group subtotals — `300d20(
 
 ---
 
+## Direct messages
+
+DM the bot **`join`** (or `invite` / `add`) and it replies with the URL for adding it to a server. Case doesn't matter, and a leading `!` is fine.
+
+Commands work in DMs too — `!roll 2d6+3` in a DM rolls normally.
+
+---
+
 ## Other
 
 | Command | Description |
