@@ -77,11 +77,13 @@ Run `!config system wod` and the server switches to WoD scoring:
 - the default die becomes **d10**
 - a plain `!roll 5` is scored against the server difficulty (default **6**) with no need to type `(6)`
 - **each `1` cancels a success** — underlined in the breakdown
-- more 1s than hits is a **Botch**; hits cancelled down to zero is a plain Failure
+- **Botch** — any 1 came up and no success survived it, including successes cancelled exactly down to zero
+- **Failure** — nothing hit the target and no 1s were rolled
+- **Success** — at least one success survives after the 1s cancel
 
 ```
 !roll 5          ->  5d10 · difficulty 6   3 successes   [8, 3, 9, 10, 2]
-!roll 5 (5)      ->  5d10 · difficulty 5   Failure       [1, 7, 2, 6, 1]
+!roll 5 (5)      ->  5d10 · difficulty 5   Botch         [1, 7, 2, 6, 1]  (2 hits - 2 ones)
 !roll 2d6+3d8    ->  still a plain sum — explicit dice notation is never rescored
 ```
 

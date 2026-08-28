@@ -86,10 +86,30 @@ def test_outcome_failure_when_nothing_hits():
     assert rolled([2, 3], target=6, subtract_ones=True).outcome == 'failure'
 
 
-def test_outcome_failure_when_ones_cancel_everything():
-    """One hit, one 1 — a wash, not a botch."""
+def test_outcome_botch_when_ones_cancel_everything():
+    """One hit, one 1 — cancelled to zero with a 1 on the table is a botch."""
     result = rolled([1, 8], target=6, subtract_ones=True)
     assert result.net_hits == 0
+    assert result.outcome == 'botch'
+
+
+def test_outcome_botch_when_several_ones_cancel_several_hits():
+    result = rolled([1, 7, 2, 6, 1], target=5, subtract_ones=True)
+    assert (result.hits, result.ones, result.net_hits) == (2, 2, 0)
+    assert result.outcome == 'botch'
+
+
+def test_surviving_success_beats_a_one():
+    """2 hits, 1 one — one success survives, so it is a plain success."""
+    result = rolled([1, 8, 9], target=6, subtract_ones=True)
+    assert result.net_hits == 1
+    assert result.outcome == 'success'
+
+
+def test_plain_failure_needs_no_ones():
+    """Nothing hit and no 1s — a clean failure, not a botch."""
+    result = rolled([2, 3, 4], target=6, subtract_ones=True)
+    assert result.ones == 0
     assert result.outcome == 'failure'
 
 
@@ -102,7 +122,12 @@ def test_outcome_botch_with_no_hits_at_all():
 
 
 def test_no_botch_without_the_rule():
+    """With the botch rule off, 1s are just low dice."""
     assert rolled([1, 1, 5], target=6, subtract_ones=False).outcome == 'failure'
+
+
+def test_no_botch_without_the_rule_even_when_cancelled():
+    assert rolled([1, 8], target=6, subtract_ones=False).outcome == 'success'
 
 
 # ---------------------------------------------------------------------------

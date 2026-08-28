@@ -41,8 +41,8 @@ def _success_style(result: RollResult) -> tuple[str, int, str]:
 def _success_headline(result: RollResult) -> str:
     """The big number: net successes, or the word Botch."""
     net = result.net_hits
-    if net < 0:
-        return f'Botch ({net})'
+    if result.outcome == 'botch':
+        return f'Botch ({net})' if net < 0 else 'Botch'
     if net == 0:
         return '0 successes'
     return f'{net} success' if net == 1 else f'{net} successes'

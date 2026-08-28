@@ -90,10 +90,15 @@ class RollResult:
 
     @property
     def outcome(self) -> str:
-        """'success' | 'failure' | 'botch' — only meaningful when counting."""
+        """'success' | 'failure' | 'botch' — only meaningful when counting.
+
+        A botch is any roll where 1s came up and no successes survived them —
+        including successes cancelled exactly down to zero. A plain failure is
+        rolling nothing good with no 1s either.
+        """
         if self.net_hits > 0:
             return 'success'
-        if self.net_hits < 0:
+        if self.ones > 0:
             return 'botch'
         return 'failure'
 

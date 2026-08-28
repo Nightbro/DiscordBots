@@ -154,9 +154,11 @@ counts_successes -> bool     # target was given
 faces -> list[int]           # every kept die (dropped dice excluded)
 hits -> int                  # faces >= target
 ones -> int                  # faces == 1, only when subtract_ones
-net_hits -> int              # hits - ones; negative is a botch
+net_hits -> int              # hits - ones; can go negative
 outcome -> str               # 'success' | 'failure' | 'botch'
 ```
+
+**Outcome rule** (Storyteller as this table plays it): a success survives → `success`; otherwise any 1 on the table → `botch`, *including successes cancelled exactly to zero*; nothing hit and no 1s → `failure`. With `subtract_ones` off, `ones` is always 0, so a botch is impossible by construction.
 
 `total` is still computed, so nothing about sum mode changes — the embed simply reads `net_hits` instead when `counts_successes` is true. `breakdown()` marks hits in bold and cancelling 1s with underline.
 
