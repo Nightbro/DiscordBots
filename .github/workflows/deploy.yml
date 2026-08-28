@@ -3,6 +3,8 @@ name: Deploy to Raspberry Pi
 on:
   push:
     branches: [main]
+    paths:
+      - 'echo-bot/**'
 
 jobs:
   deploy:
