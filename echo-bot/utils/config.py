@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 
 import yaml
@@ -18,6 +19,17 @@ _tts = _cfg['tts']
 BOT_NAME: str = _bot['name']
 PREFIX: str = _bot['prefix']
 COLOR: int = _bot['color']
+
+def _git(cmd: list[str]) -> str:
+    try:
+        return subprocess.check_output(cmd, cwd=_HERE, stderr=subprocess.DEVNULL).decode().strip()
+    except Exception:
+        return ''
+
+_version_base: str = _bot.get('version', '1.0')
+_commit_count: str = _git(['git', 'rev-list', '--count', 'HEAD']) or '0'
+_commit_hash: str = _git(['git', 'rev-parse', '--short', 'HEAD']) or 'unknown'
+VERSION: str = f'{_version_base}.{_commit_count} ({_commit_hash})'
 
 # Emojis
 EMOJI_YES: str = _bot['emojis']['yes']

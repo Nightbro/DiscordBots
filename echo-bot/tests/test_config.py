@@ -3,6 +3,7 @@ from utils.config import (
     PREFIX,
     COLOR,
     EMOJI_YES,
+    VERSION,
     EMOJI_NO,
     EMOJI_MUSIC,
     EMOJI_SPEAKING,
@@ -65,3 +66,9 @@ def test_json_paths_are_under_data():
     for path in (PLAYLISTS_FILE, INTRO_CONFIG_FILE, SOUNDBOARD_CONFIG_FILE):
         assert path.parent == DATA_DIR
         assert path.suffix == '.json'
+
+
+def test_version_format():
+    # e.g. "1.0.42 (abc1234)" or "1.0.0 (unknown)" when git is unavailable
+    import re
+    assert re.match(r'^\d+\.\d+\.\d+ \(.+\)$', VERSION), f'Unexpected VERSION format: {VERSION}'

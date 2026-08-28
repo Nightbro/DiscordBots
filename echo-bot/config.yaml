@@ -1,6 +1,7 @@
 bot:
   name: Echo
   prefix: "!"
+  version: "1.0"
   color: 0x5865F2
   emojis:
     "yes": "✅"

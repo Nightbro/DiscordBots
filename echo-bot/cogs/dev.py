@@ -5,7 +5,9 @@ import sys
 import discord
 from discord.ext import commands
 
+from utils.config import BOT_NAME, VERSION
 from utils.i18n import t
+from utils.message import MessageWriter
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +34,8 @@ class DevCog(commands.Cog, name='Dev'):
         self.bot = bot
 
     async def cog_check(self, ctx: commands.Context) -> bool:
+        if ctx.command and ctx.command.name == 'version':
+            return True
         return await self.bot.is_owner(ctx.author)
 
     @commands.command(name='reload', hidden=True)
@@ -80,6 +84,11 @@ class DevCog(commands.Cog, name='Dev'):
     async def list_cogs(self, ctx: commands.Context) -> None:
         loaded = list(self.bot.extensions)
         await ctx.send(t('dev.cogs_header') + '\n' + '\n'.join(f'• `{c}`' for c in loaded))
+
+    @commands.command(name='version')
+    async def version(self, ctx: commands.Context) -> None:
+        """Show the running bot version."""
+        await ctx.send(embed=MessageWriter.info(f'{BOT_NAME} version', VERSION))
 
 
 async def setup(bot: commands.Bot) -> None:
