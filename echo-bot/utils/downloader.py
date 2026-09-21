@@ -55,6 +55,8 @@ class Downloader:
     @staticmethod
     async def resolve(query: str) -> Track:
         """Return a Track with metadata. Does not download the audio file."""
+        if Downloader.is_suno_url(query):
+            return await Downloader._resolve_suno(query)
         if query.startswith('http'):
             return await Downloader._resolve_url(query)
         return await Downloader._resolve_search(query)
@@ -100,6 +102,41 @@ class Downloader:
         )
 
     @staticmethod
+    async def _resolve_suno(url: str) -> Track:
+        """Resolve a Suno link via Suno's clip API.
+
+        yt-dlp deliberately refuses suno.com (since 2026.08), so it is not used here.
+        """
+        loop = asyncio.get_event_loop()
+        m = _UUID_RE.search(url)
+        uuid = m.group(0) if m else await loop.run_in_executor(
+            None, Downloader._suno_uuid_from_share_link, url
+        )
+        clip = await loop.run_in_executor(None, Downloader._suno_clip, uuid) or {}
+        duration = (clip.get('metadata') or {}).get('duration')
+        return Track(
+            title=clip.get('title') or f'Suno {uuid}',
+            url=f'https://suno.com/song/{uuid}',
+            duration=int(duration) if duration else None,
+            source_id=uuid,
+        )
+
+    @staticmethod
+    def _suno_uuid_from_share_link(url: str) -> str:
+        """Follow a share link (e.g. suno.com/s/AbC123) to find the song UUID."""
+        req = urllib.request.Request(url, headers={'User-Agent': _HTTP_UA})
+        with urllib.request.urlopen(req, timeout=30, context=_SSL_CTX) as resp:
+            final_url = resp.geturl()
+            m = _UUID_RE.search(final_url)
+            if m:
+                return m.group(0)
+            html = resp.read().decode('utf-8', 'replace')
+        m = re.search(r'/song/(' + _UUID_RE.pattern + ')', html)
+        if not m:
+            raise ValueError(f'Could not find a Suno song in: {url}')
+        return m.group(1)
+
+    @staticmethod
     async def _download_suno(track: Track) -> Path:
         """Download a Suno track.
 
@@ -116,7 +153,8 @@ class Downloader:
                 return cached
 
         loop = asyncio.get_event_loop()
-        candidates = await loop.run_in_executor(None, Downloader._suno_audio_urls, uuid)
+        clip = await loop.run_in_executor(None, Downloader._suno_clip, uuid)
+        candidates = Downloader._suno_audio_urls(clip or {})
         legacy = _SUNO_LEGACY_CDN.format(uuid=uuid)
         candidates.append(f'{legacy}?{share_qs}' if share_qs else legacy)
 
@@ -149,19 +187,23 @@ class Downloader:
         raise ValueError(f'Could not extract Suno UUID from: {track.url}')
 
     @staticmethod
-    def _suno_audio_urls(uuid: str) -> list[str]:
-        """Ask Suno's clip API for playable audio URLs. Returns [] on failure."""
+    def _suno_clip(uuid: str) -> dict | None:
+        """Fetch a song's metadata from Suno's clip API. Returns None on failure."""
         req = urllib.request.Request(
             _SUNO_CLIP_API.format(uuid=uuid), headers={'User-Agent': _HTTP_UA}
         )
         try:
             with urllib.request.urlopen(req, timeout=30, context=_SSL_CTX) as resp:
-                data = json.loads(resp.read())
+                return json.loads(resp.read())
         except Exception as e:
             log.warning('Suno clip API lookup failed for %s: %s', uuid, e)
-            return []
-        urls = [m['url'] for m in data.get('media_urls') or [] if m.get('url')]
-        audio_url = data.get('audio_url') or ''
+            return None
+
+    @staticmethod
+    def _suno_audio_urls(clip: dict) -> list[str]:
+        """Playable audio URLs listed in a clip API response."""
+        urls = [m['url'] for m in clip.get('media_urls') or [] if m.get('url')]
+        audio_url = clip.get('audio_url') or ''
         if audio_url and not audio_url.endswith('/forbidden'):
             urls.append(audio_url)
         return urls

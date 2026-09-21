@@ -53,12 +53,47 @@ async def test_resolve_dispatches_search_query():
     assert track.title == 'Result'
 
 
-async def test_resolve_suno_url_goes_to_resolve_url():
-    with patch.object(Downloader, '_resolve_url', new=AsyncMock(
+async def test_resolve_suno_url_does_not_use_ytdlp():
+    """yt-dlp refuses suno.com, so Suno links must never go through _resolve_url."""
+    with patch.object(Downloader, '_resolve_suno', new=AsyncMock(
         return_value=Track(title='Suno', url='https://suno.com/song/abc')
-    )) as mock:
+    )) as mock_suno, patch.object(Downloader, '_resolve_url') as mock_ydl:
         await Downloader.resolve('https://suno.com/song/abc')
-    mock.assert_awaited_once()
+    mock_suno.assert_awaited_once()
+    mock_ydl.assert_not_called()
+
+
+async def test_resolve_suno_uses_clip_api_metadata():
+    uuid = 'f91ed0cb-a4f8-4938-b1f5-17fbbf143e6d'
+    clip = {'title': 'Burning Up', 'metadata': {'duration': 191.4}}
+    with patch.object(Downloader, '_suno_clip', return_value=clip) as mock_clip:
+        track = await Downloader.resolve(f'https://suno.com/song/{uuid}?sh=xyz')
+    mock_clip.assert_called_once_with(uuid)
+    assert track.title == 'Burning Up'
+    assert track.duration == 191
+    assert track.source_id == uuid
+    assert track.url == f'https://suno.com/song/{uuid}'
+
+
+async def test_resolve_suno_survives_clip_api_failure():
+    uuid = 'aaaaaaaa-bbbb-cccc-dddd-444444444444'
+    with patch.object(Downloader, '_suno_clip', return_value=None):
+        track = await Downloader.resolve(f'https://suno.com/song/{uuid}')
+    assert track.source_id == uuid
+    assert track.duration is None
+    assert uuid in track.title
+
+
+async def test_resolve_suno_share_link_follows_redirect():
+    uuid = 'aaaaaaaa-bbbb-cccc-dddd-555555555555'
+    resp = MagicMock()
+    resp.__enter__ = MagicMock(return_value=resp)
+    resp.__exit__ = MagicMock(return_value=False)
+    resp.geturl.return_value = f'https://suno.com/song/{uuid}'
+    with patch('utils.downloader.urllib.request.urlopen', return_value=resp),          patch.object(Downloader, '_suno_clip', return_value={'title': 'Shared'}):
+        track = await Downloader.resolve('https://suno.com/s/AbCdEf123')
+    assert track.source_id == uuid
+    assert track.title == 'Shared'
 
 
 def _fake_resp(body: bytes) -> MagicMock:

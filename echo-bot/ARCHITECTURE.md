@@ -290,7 +290,7 @@ class Downloader:
 
 Source handlers (internal, not exposed to cogs):
 - `_youtube(query)` — yt-dlp
-- `_download_suno(track)` — Suno download: clip API `media_urls` (.m4a), legacy `cdn1.suno.ai` mp3 as fallback
+- `_resolve_suno(url)` / `_download_suno(track)` — Suno via its clip API (yt-dlp refuses suno.com since 2026.08): metadata + `media_urls` (.m4a), legacy `cdn1.suno.ai` mp3 as fallback
 - Future: `_spotify_preview(url)`, `_soundcloud(url)`
 
 ---
