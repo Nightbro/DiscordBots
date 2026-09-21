@@ -1,11 +1,13 @@
 import asyncio
 import logging
+import tempfile
 import time
 from collections import deque
 
 import discord
 from discord.ext import commands
 
+from utils import devlog
 from utils.config import MAX_QUEUE
 from utils.downloader import Downloader
 from utils.guild_state import GuildState, Track
@@ -15,7 +17,9 @@ log = logging.getLogger(__name__)
 
 # FFmpeg option fragments
 _FFMPEG_RECONNECT = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
-_FFMPEG_AUDIO = '-vn'
+# -loglevel error keeps FFmpeg's stderr empty on a clean run, so anything it
+# writes there is a real problem worth reporting (see _report_ffmpeg_errors).
+_FFMPEG_AUDIO = '-vn -loglevel error'
 
 
 class VoiceStreamer:
@@ -115,6 +119,7 @@ class VoiceStreamer:
             state.track_play_start = None
             state.track_position_secs = 0.0
             return
+        devlog.current_guild.set(self._guild_id)
         track = state.queue.popleft()
         state.current_track = track
         state.last_track = track
@@ -124,7 +129,7 @@ class VoiceStreamer:
             try:
                 await Downloader.download(track)
             except Exception as exc:
-                log.error('Failed to download "%s": %s — skipping', track.title, exc)
+                log.error('Failed to download "%s": %s — skipping', track.title, exc, exc_info=exc)
                 await self._send_error_to_channel(track.title, exc)
                 asyncio.run_coroutine_threadsafe(self.play_next(), self._bot.loop)
                 return
@@ -135,8 +140,11 @@ class VoiceStreamer:
         track.seek_to = 0.0
 
         def after(error: Exception | None) -> None:
+            # Runs on the player thread — pass the guild explicitly for the dev log.
             if error:
-                log.error('Playback error in guild %s: %s', self._guild_id, error)
+                log.error('Playback error in guild %s: %s', self._guild_id, error,
+                          extra={'guild_id': self._guild_id})
+            _report_ffmpeg_errors(source, track, self._guild_id)
             asyncio.run_coroutine_threadsafe(self.play_next(), self._bot.loop)
 
         state.track_play_start = time.monotonic()
@@ -144,6 +152,7 @@ class VoiceStreamer:
 
     async def interrupt(self, track: Track) -> None:
         """Play track immediately, pausing current playback. Resumes from exact position after."""
+        devlog.current_guild.set(self._guild_id)
         state = self._state
         # Resync from discord.py's guild-level vc if our state is stale — this handles
         # the race where interrupt() is called during join() before state.voice_client is set
@@ -178,7 +187,9 @@ class VoiceStreamer:
 
         def after(error: Exception | None) -> None:
             if error:
-                log.error('Interrupt playback error in guild %s: %s', self._guild_id, error)
+                log.error('Interrupt playback error in guild %s: %s', self._guild_id, error,
+                          extra={'guild_id': self._guild_id})
+            _report_ffmpeg_errors(source, track, self._guild_id)
             if track.cleanup_path:
                 track.cleanup_path.unlink(missing_ok=True)
             if interrupted:
@@ -286,14 +297,42 @@ class VoiceStreamer:
 # ------------------------------------------------------------------
 
 def _make_source(track: Track) -> discord.FFmpegPCMAudio:
-    """Build an FFmpegPCMAudio source, seeking to track.seek_to if non-zero."""
+    """Build an FFmpegPCMAudio source, seeking to track.seek_to if non-zero.
+
+    FFmpeg's stderr goes to a temp file (``source.ffmpeg_stderr``) so failures
+    that end playback silently — e.g. an unreadable file — can be reported.
+    """
     seek = f'-ss {track.seek_to:.3f}' if track.seek_to else None
+    stderr = tempfile.TemporaryFile()
     if track.file_path and track.file_path.exists():
-        return discord.FFmpegPCMAudio(
+        source = discord.FFmpegPCMAudio(
             str(track.file_path),
             before_options=seek,
             options=_FFMPEG_AUDIO,
+            stderr=stderr,
         )
-    # Stream: combine optional seek with reconnect flags
-    before = f'{seek} {_FFMPEG_RECONNECT}' if seek else _FFMPEG_RECONNECT
-    return discord.FFmpegPCMAudio(track.url, before_options=before, options=_FFMPEG_AUDIO)
+    else:
+        # Stream: combine optional seek with reconnect flags
+        before = f'{seek} {_FFMPEG_RECONNECT}' if seek else _FFMPEG_RECONNECT
+        source = discord.FFmpegPCMAudio(
+            track.url, before_options=before, options=_FFMPEG_AUDIO, stderr=stderr,
+        )
+    source.ffmpeg_stderr = stderr
+    return source
+
+
+def _report_ffmpeg_errors(source: discord.AudioSource, track: Track, guild_id: int) -> None:
+    """Log whatever FFmpeg wrote to stderr for this source, then close the temp file."""
+    stderr = getattr(source, 'ffmpeg_stderr', None)
+    if stderr is None:
+        return
+    try:
+        stderr.seek(0)
+        output = stderr.read()
+        stderr.close()
+    except Exception:
+        return
+    if isinstance(output, bytes) and output.strip():
+        text = output.decode('utf-8', 'replace').strip()
+        log.warning('FFmpeg reported errors for "%s":\n%s', track.title, text[-1500:],
+                    extra={'guild_id': guild_id})

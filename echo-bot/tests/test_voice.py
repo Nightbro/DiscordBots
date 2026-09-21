@@ -554,3 +554,48 @@ def test_make_source_seek_prepended_for_stream(sample_track):
         before = mock_ffmpeg.call_args.kwargs.get('before_options', '')
         assert '-ss 120.000' in before
         assert 'reconnect' in before
+
+
+# ---------------------------------------------------------------------------
+# FFmpeg stderr capture (dev log)
+# ---------------------------------------------------------------------------
+
+def test_make_source_captures_stderr(sample_track):
+    sample_track.file_path = None
+    with patch('utils.voice.discord.FFmpegPCMAudio') as mock_ffmpeg:
+        source = _make_source(sample_track)
+    stderr = mock_ffmpeg.call_args.kwargs['stderr']
+    assert source.ffmpeg_stderr is stderr
+    assert '-loglevel error' in mock_ffmpeg.call_args.kwargs['options']
+    stderr.close()
+
+
+def test_report_ffmpeg_errors_logs_with_guild(sample_track, caplog):
+    import tempfile
+    from utils.voice import _report_ffmpeg_errors
+    source = MagicMock()
+    source.ffmpeg_stderr = tempfile.TemporaryFile()
+    source.ffmpeg_stderr.write(b'moov atom not found\n')
+    with caplog.at_level('WARNING', logger='utils.voice'):
+        _report_ffmpeg_errors(source, sample_track, 42)
+    rec = next(r for r in caplog.records if 'FFmpeg reported errors' in r.getMessage())
+    assert 'moov atom not found' in rec.getMessage()
+    assert rec.guild_id == 42
+    assert source.ffmpeg_stderr.closed
+
+
+def test_report_ffmpeg_errors_silent_on_clean_run(sample_track, caplog):
+    import tempfile
+    from utils.voice import _report_ffmpeg_errors
+    source = MagicMock()
+    source.ffmpeg_stderr = tempfile.TemporaryFile()
+    with caplog.at_level('WARNING', logger='utils.voice'):
+        _report_ffmpeg_errors(source, sample_track, 42)
+    assert not caplog.records
+
+
+def test_report_ffmpeg_errors_ignores_mock_sources(sample_track, caplog):
+    from utils.voice import _report_ffmpeg_errors
+    with caplog.at_level('WARNING', logger='utils.voice'):
+        _report_ffmpeg_errors(MagicMock(), sample_track, 42)
+    assert not caplog.records

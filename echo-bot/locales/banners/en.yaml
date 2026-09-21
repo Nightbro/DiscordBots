@@ -104,3 +104,6 @@ help:
       `notify_song_voice` — speak track title when a song is loaded
       `notify_say_text` — send embed after `{prefix}say` completes
       `notify_say_voice` — speak "Speaking." confirmation after `{prefix}say`
+
+      **Dev log** (Manage Server):
+      `{prefix}devlog here` / `dm` / `off` / `test` — send this server's errors to this channel or your DMs

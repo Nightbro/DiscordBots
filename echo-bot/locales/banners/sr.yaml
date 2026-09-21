@@ -104,3 +104,6 @@ help:
       `notify_song_voice` — izgovori naslov pesme kada se učita
       `notify_say_text` — pošalji poruku nakon `{prefix}say`
       `notify_say_voice` — izgovori potvrdu "Govorim." nakon `{prefix}say`
+
+      **Dev log** (Manage Server):
+      `{prefix}devlog here` / `dm` / `off` / `test` — šalji greške ovog servera u ovaj kanal ili u privatne poruke

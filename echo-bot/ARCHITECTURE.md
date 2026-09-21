@@ -30,6 +30,7 @@ echo-bot/
 │   ├── soundboard.py         # Reaction-based soundboard panel
 │   ├── tts.py                # edge-tts voice output, per-guild voice setting
 │   ├── listener.py           # Voice receive placeholder (future STT)
+│   ├── devlog.py             # !devlog: per-server error forwarding to a channel or DM
 │   └── dev.py                # Owner-only: reload, restart, sync, status
 │
 ├── utils/                    # Shared libraries — no Discord command logic here
@@ -39,6 +40,7 @@ echo-bot/
 │   ├── persistence.py        # BaseConfig: shared JSON load/save for all config types
 │   ├── voice.py              # VoiceStreamer: join, leave, queue, play, interrupt/resume
 │   ├── message.py            # MessageWriter: embed builder, error/success/info helpers
+│   ├── devlog.py             # Dev log: guild-tagged logging handler → Discord channel/DM
 │   ├── reactions.py          # ReactionHandler: yes/no confirm, panel reactions
 │   ├── audio.py              # AudioFileManager: validate ext, receive attachment, copy
 │   └── downloader.py         # Downloader class: pluggable sources (YouTube, Suno, ...)
@@ -50,7 +52,8 @@ echo-bot/
 │   ├── logs/                 # Rotating log files
 │   ├── playlists.json        # Saved playlists (per guild)
 │   ├── intro_config.json     # Intro assignments and schedules (per guild)
-│   └── soundboard_config.json
+│   ├── soundboard_config.json
+│   └── devlog_config.json    # Dev log destinations (per guild + owner DM)
 │
 └── tests/
     ├── conftest.py           # Shared fixtures: mock_bot, ctx, guild_state, voice_client
@@ -129,6 +132,7 @@ LOGS_DIR: Path
 PLAYLISTS_FILE: Path
 INTRO_CONFIG_FILE: Path
 SOUNDBOARD_CONFIG_FILE: Path
+DEVLOG_CONFIG_FILE: Path
 ```
 
 All paths are derived from `DATA_DIR` which is `echo-bot/data/`. Directories are created on import if missing.
@@ -386,6 +390,19 @@ Owner-only (checked via `bot.owner_id` from `OWNER_ID` env var). Prefix commands
 | `!status` | Show queue state, voice connections, uptime |
 | `!cogs` | List loaded cogs and their status |
 
+### `cogs/devlog.py` — DevlogCog
+
+`!devlog [here|dm|off|test] [all]` — prefix only. Turns on per-server error forwarding. Changing it needs **Manage Server** (or bot owner); `all` and DM use are owner-only. In a DM with the bot, `!devlog here` subscribes the owner to every record from every server (`owner_dm`).
+
+### `utils/devlog.py` — Dev log
+
+- `current_guild` ContextVar — set in `bot.py` (`on_message`, `on_voice_state_update`, `before_invoke`) and in `VoiceStreamer.play_next` / `interrupt`. Code on FFmpeg player threads passes `extra={'guild_id': ...}` instead.
+- `GuildContextFilter` stamps `record.guild_id`; `targets_for(guild_id)` routes: a guild's records → that guild's target; unscoped records → targets with `all`; `owner_dm` → everything.
+- `DevlogHandler` (module-level `handler`, attached to the root logger in `bot.py`, started in `on_ready`): WARNING+, thread-safe `emit`, batches for `BATCH_WINDOW` (3 s), max `MAX_ENTRIES` (5) per message per target, rendered with `MessageWriter.devlog`. Records logged before start are kept (up to 200). Its own send failures are never forwarded.
+- `utils.devlog` is intentionally **not** in DevCog's hot-reload list — reloading it would split the ContextVar between old and new module objects.
+
+FFmpeg errors: `_make_source` sends FFmpeg's stderr to a temp file with `-loglevel error`, so a clean run writes nothing; the after-callbacks call `_report_ffmpeg_errors`, which logs any output as a WARNING. This surfaces failures that otherwise end playback silently (e.g. an unreadable file).
+
 ---
 
 ## Hot Reload Strategy
@@ -415,7 +432,8 @@ Slash command tree must be re-synced after reloading cogs that add or remove sla
 - Creates `commands.Bot` with `command_prefix=PREFIX`, `intents`, `help_command=None`
 - Attaches `get_guild_state(guild_id) -> GuildState` helper to bot instance
 - Loads all cogs in order: `music`, `intros`, `soundboard`, `tts`, `listener`, `dev`
-- On `on_ready`: logs bot name/ID, syncs slash tree to dev guild if `DEV_GUILD_ID` is set
+- Adds `devlog.handler` to the root logger; tags each event/command with its guild for it
+- On `on_ready`: starts the dev log sender, logs bot name/ID, syncs slash tree to dev guild if `DEV_GUILD_ID` is set
 - On `on_command_error`: routes to `MessageWriter.error()` for unknown commands, missing args, permission errors
 
 ---

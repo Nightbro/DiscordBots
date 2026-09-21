@@ -69,3 +69,11 @@ class GuildConfig(BaseConfig):
     def __init__(self) -> None:
         from utils.config import GUILD_CONFIG_FILE
         self.path = GUILD_CONFIG_FILE
+
+
+class DevlogConfig(BaseConfig):
+    """Dev-log destinations (per guild + owner DM), persisted to devlog_config.json."""
+
+    def __init__(self) -> None:
+        from utils.config import DEVLOG_CONFIG_FILE
+        self.path = DEVLOG_CONFIG_FILE

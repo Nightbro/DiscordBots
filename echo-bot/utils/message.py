@@ -31,6 +31,25 @@ class MessageWriter:
         return e
 
     @staticmethod
+    def devlog(entries: list[str], suppressed: int = 0) -> discord.Embed:
+        """Dev-log batch: one code block per log entry, capped to Discord's embed limit."""
+        e = _embed(_RED)
+        e.title = '🛠️ Dev log'
+        parts: list[str] = []
+        used = 0
+        for i, entry in enumerate(entries):
+            block = f'```\n{entry.replace("```", "`​``")}\n```'
+            if used + len(block) > 3800:
+                suppressed += len(entries) - i
+                break
+            parts.append(block)
+            used += len(block)
+        if suppressed:
+            parts.append(f'…and {suppressed} more — see the log files.')
+        e.description = '\n'.join(parts)
+        return e
+
+    @staticmethod
     def info(title: str, description: str = '') -> discord.Embed:
         e = _embed()
         e.title = f'ℹ️ {title}'

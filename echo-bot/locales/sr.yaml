@@ -142,6 +142,35 @@ dev:
   status: "**{user}** — online\nGlasoovne konekcije: {voice}\nServeri: {guilds}\nKogovi: {cogs}"
   cogs_header: "**Učitana proširenja:**"
 
+devlog:
+  usage_title: "Upotreba dev loga"
+  usage: "`!devlog` — prikaži stanje
+`!devlog here` — šalji greške ovog servera u ovaj kanal
+`!devlog dm` — šalji greške ovog servera u tvoje privatne poruke
+`!devlog off` — isključi
+`!devlog test` — pošalji probni unos
+Dodaj `all` (samo vlasnik bota) da dobijaš i greške koje nisu vezane ni za jedan server."
+  no_permission: "Potrebna ti je dozvola Manage Server da menjaš dev log."
+  all_owner_only: "Samo vlasnik bota može da koristi `all` — uključuje greške van ovog servera."
+  dm_owner_only: "Samo vlasnik bota može da koristi dev log u privatnim porukama."
+  status_title: "Dev log"
+  status_off: "Isključen za ovaj server."
+  status_on: "Uključen — greške ovog servera idu u {where}."
+  status_on_all: "Uključen — greške ovog servera, i greške koje nisu vezane ni za jedan server, idu u {where}."
+  on_title: "Dev log uključen"
+  on_channel: "Greške ovog servera biće objavljivane u ovom kanalu."
+  on_channel_all: "Greške ovog servera, i greške koje nisu vezane ni za jedan server, biće objavljivane u ovom kanalu."
+  on_dm: "Greške ovog servera stizaće ti u privatne poruke."
+  dm_welcome: "Ovde ćeš dobijati greške sa servera **{guild}**."
+  dm_blocked: "Ne mogu da ti pošaljem privatnu poruku — dozvoli poruke od članova servera i pokušaj ponovo."
+  off: "Dev log je isključen za ovaj server."
+  already_off: "Dev log je već isključen za ovaj server."
+  dm_status_on: "Uključen — dobijaš sve greške, sa svih servera, u ovim porukama."
+  dm_status_off: "Isključen. Koristi `!devlog here` da dobijaš sve greške ovde."
+  on_owner_dm: "Dobijaćeš sve greške, sa svih servera, u ovim porukama."
+  off_owner_dm: "Više ne šaljem greške ovde."
+  test_sent: "Probni unos je zabeležen — trebalo bi da stigne za nekoliko sekundi."
+
 listener:
   not_implemented: "Glasovno slušanje još nije implementirano."
 

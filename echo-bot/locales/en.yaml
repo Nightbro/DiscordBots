@@ -145,6 +145,35 @@ dev:
   status: "**{user}** — online\nVoice connections: {voice}\nGuilds: {guilds}\nCogs: {cogs}"
   cogs_header: "**Loaded extensions:**"
 
+devlog:
+  usage_title: "Dev log usage"
+  usage: "`!devlog` — show status
+`!devlog here` — send this server's errors to this channel
+`!devlog dm` — send this server's errors to your DMs
+`!devlog off` — turn it off
+`!devlog test` — send a test entry
+Add `all` (bot owner only) to also get errors not tied to any server."
+  no_permission: "You need the Manage Server permission to change the dev log."
+  all_owner_only: "Only the bot owner can use `all` — it includes errors from outside this server."
+  dm_owner_only: "Only the bot owner can use the dev log in DMs."
+  status_title: "Dev log"
+  status_off: "Off for this server."
+  status_on: "On — this server's errors go to {where}."
+  status_on_all: "On — this server's errors, plus errors not tied to any server, go to {where}."
+  on_title: "Dev log on"
+  on_channel: "This server's errors will be posted in this channel."
+  on_channel_all: "This server's errors, plus errors not tied to any server, will be posted in this channel."
+  on_dm: "This server's errors will be sent to your DMs."
+  dm_welcome: "You'll get errors from **{guild}** here."
+  dm_blocked: "I can't DM you — allow direct messages from server members and try again."
+  off: "Dev log turned off for this server."
+  already_off: "Dev log is already off for this server."
+  dm_status_on: "On — you get every error, from every server, in this DM."
+  dm_status_off: "Off. Use `!devlog here` to get every error in this DM."
+  on_owner_dm: "You'll get every error, from every server, in this DM."
+  off_owner_dm: "Stopped sending errors to this DM."
+  test_sent: "Test entry logged — it should arrive within a few seconds."
+
 listener:
   not_implemented: "Voice listening is not yet implemented."
 

@@ -111,3 +111,17 @@ def test_soundboard_panel_with_sounds():
 def test_soundboard_panel_empty():
     e = MessageWriter.soundboard_panel({})
     assert 'No sounds' in e.description
+
+
+def test_devlog_embed_lists_entries_and_overflow():
+    from utils.message import MessageWriter
+    e = MessageWriter.devlog(['first error', 'second error'], suppressed=4)
+    assert 'first error' in e.description and 'second error' in e.description
+    assert '4 more' in e.description
+
+
+def test_devlog_embed_stays_under_discord_limit():
+    from utils.message import MessageWriter
+    e = MessageWriter.devlog(['x' * 1500] * 5)
+    assert len(e.description) <= 4096
+    assert 'more' in e.description

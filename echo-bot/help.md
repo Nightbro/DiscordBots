@@ -151,6 +151,24 @@ Per-server overrides for bot behaviour. Values marked *(overridden)* differ from
 
 ---
 
+## Dev log (Manage Server)
+
+Forward this server's errors (WARNING and above, with a short traceback) to a channel or your DMs. Each server opts in on its own and only sees its own errors. Entries are batched, at most one message every few seconds.
+
+| Command | Description |
+|---|---|
+| `!devlog` | Show whether the dev log is on for this server, and where it goes |
+| `!devlog here` | Send this server's errors to the channel you type it in |
+| `!devlog dm` | Send this server's errors to your DMs |
+| `!devlog off` | Turn the dev log off for this server |
+| `!devlog test` | Log a test entry to check it arrives |
+| `!devlog here all` / `!devlog dm all` | *(bot owner)* Also include errors not tied to any server (startup, connection, cog loading) |
+| `!devlog here` *(in a DM with the bot)* | *(bot owner)* Get **every** error from **every** server in that DM; `!devlog off` there stops it |
+
+Settings are stored in `data/devlog_config.json` and survive restarts.
+
+---
+
 ## Dev (owner only)
 
 | Command | Description |

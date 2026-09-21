@@ -22,6 +22,7 @@ from discord.ext import commands
 
 from utils.config import BOT_NAME, PREFIX, LOGS_DIR, DOWNLOADS_DIR
 from utils.cleanup import purge_old_files
+from utils import devlog
 from utils.guild_config import get_auto_join, get_auto_leave
 from utils.guild_state import GuildState
 from utils.voice import VoiceStreamer
@@ -57,7 +58,10 @@ _error_handler = RotatingFileHandler(
 _error_handler.setLevel(logging.WARNING)
 _error_handler.setFormatter(_fmt)
 
-logging.basicConfig(level=logging.DEBUG, handlers=[_file_handler, _error_handler])
+# Dev log — WARNING and above forwarded to Discord for servers that opted in (!devlog)
+logging.basicConfig(
+    level=logging.DEBUG, handlers=[_file_handler, _error_handler, devlog.handler]
+)
 logging.getLogger('discord').setLevel(logging.WARNING)
 logging.getLogger('discord.http').setLevel(logging.WARNING)
 
@@ -89,12 +93,14 @@ _COGS = [
     'cogs.soundboard',
     'cogs.tts',
     'cogs.listener',
+    'cogs.devlog',
     'cogs.dev',
 ]
 
 
 @bot.event
 async def on_ready():
+    devlog.handler.start(bot)
     log.info('Logged in as %s (ID: %s)', bot.user, bot.user.id)
     log.info('Data dir: %s', DOWNLOADS_DIR.parent)
     dev_guild_id = os.getenv('DEV_GUILD_ID')
@@ -104,6 +110,12 @@ async def on_ready():
         await bot.tree.sync(guild=guild)
         log.info('Slash commands synced to dev guild %s', dev_guild_id)
     log.info('%s is ready.', BOT_NAME)
+
+
+@bot.before_invoke
+async def _tag_command_guild(ctx: commands.Context) -> None:
+    # Covers slash invocations of hybrid commands, which skip on_message.
+    devlog.current_guild.set(ctx.guild.id if ctx.guild else None)
 
 
 @bot.event
@@ -136,6 +148,7 @@ async def on_voice_state_update(
         return
 
     guild_id = member.guild.id
+    devlog.current_guild.set(guild_id)
 
     # Auto-leave: member left a channel the bot is in — check if it's now empty
     if get_auto_leave(guild_id):
@@ -154,6 +167,8 @@ async def on_voice_state_update(
 
 @bot.event
 async def on_message(message: discord.Message):
+    # Tag everything this message triggers with its server, for the dev log.
+    devlog.current_guild.set(message.guild.id if message.guild else None)
     # Track the last channel where a human wrote, for maintenance announcements.
     if message.guild and not message.author.bot:
         get_guild_state(message.guild.id).last_text_channel_id = message.channel.id
