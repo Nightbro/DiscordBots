@@ -61,67 +61,110 @@ async def test_resolve_suno_url_goes_to_resolve_url():
     mock.assert_awaited_once()
 
 
-async def test_download_suno_fetches_from_cdn(tmp_path):
-    """_download_suno downloads from cdn1.suno.ai and saves the file."""
+def _fake_resp(body: bytes) -> MagicMock:
+    resp = MagicMock()
+    resp.__enter__ = MagicMock(return_value=resp)
+    resp.__exit__ = MagicMock(return_value=False)
+    resp.read.return_value = body
+    return resp
+
+
+def _suno_urlopen(uuid: str, *, clip: dict | None, ok_urls: set[str], captured: list[str]):
+    """Fake urlopen: serves the clip API JSON and 'audio' bytes for ok_urls, 403s otherwise."""
+    import json
+    import urllib.error
+
+    def fake(req, **_):
+        url = req.full_url
+        captured.append(url)
+        if url == f'https://studio-api.prod.suno.com/api/clip/{uuid}':
+            if clip is None:
+                raise urllib.error.HTTPError(url, 404, 'Not Found', {}, None)
+            return _fake_resp(json.dumps(clip).encode())
+        if url in ok_urls:
+            return _fake_resp(b'audio:' + url.encode())
+        raise urllib.error.HTTPError(url, 403, 'Forbidden', {}, None)
+    return fake
+
+
+async def test_download_suno_uses_clip_api_media_url(tmp_path):
+    """_download_suno downloads the m4a listed in the clip API's media_urls."""
     uuid = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
     track = Track(title='Suno Song', url=f'https://suno.com/song/{uuid}', source_id=uuid)
-    fake_mp3 = b'fake-mp3-data'
+    m4a = f'https://d2lwuy8qc234o3.cloudfront.net/1/clip/{uuid}.m4a'
+    clip = {
+        'audio_url': 'https://studio-api.prod.suno.com/api/forbidden',
+        'media_urls': [{'url': m4a, 'content_type': 'm4a-opus'}],
+    }
+    captured: list[str] = []
 
-    mock_resp = MagicMock()
-    mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-    mock_resp.__exit__ = MagicMock(return_value=False)
-    mock_resp.read.return_value = fake_mp3
+    with patch('utils.downloader.DOWNLOADS_DIR', tmp_path),          patch('utils.downloader.urllib.request.urlopen',
+               side_effect=_suno_urlopen(uuid, clip=clip, ok_urls={m4a}, captured=captured)):
+        result = await Downloader._download_suno(track)
 
-    with patch('utils.downloader.DOWNLOADS_DIR', tmp_path), \
-         patch('utils.downloader.urllib.request.urlopen', return_value=mock_resp):
+    assert result == tmp_path / f'{uuid}.m4a'
+    assert result.read_bytes() == b'audio:' + m4a.encode()
+    assert track.file_path == result
+    assert 'https://studio-api.prod.suno.com/api/forbidden' not in captured
+
+
+async def test_download_suno_falls_back_to_legacy_cdn(tmp_path):
+    """If the clip API fails, the legacy cdn1 mp3 URL is tried."""
+    uuid = 'aaaaaaaa-bbbb-cccc-dddd-222222222222'
+    track = Track(title='Suno', url=f'https://suno.com/song/{uuid}', source_id=uuid)
+    legacy = f'https://cdn1.suno.ai/{uuid}.mp3'
+    captured: list[str] = []
+
+    with patch('utils.downloader.DOWNLOADS_DIR', tmp_path),          patch('utils.downloader.urllib.request.urlopen',
+               side_effect=_suno_urlopen(uuid, clip=None, ok_urls={legacy}, captured=captured)):
         result = await Downloader._download_suno(track)
 
     assert result == tmp_path / f'{uuid}.mp3'
-    assert result.read_bytes() == fake_mp3
-    assert track.file_path == result
+    assert captured[-1] == legacy
 
 
-async def test_download_suno_uses_cache(tmp_path):
+async def test_download_suno_raises_when_all_sources_fail(tmp_path):
+    uuid = 'aaaaaaaa-bbbb-cccc-dddd-333333333333'
+    track = Track(title='Suno', url=f'https://suno.com/song/{uuid}', source_id=uuid)
+
+    with patch('utils.downloader.DOWNLOADS_DIR', tmp_path),          patch('utils.downloader.urllib.request.urlopen',
+               side_effect=_suno_urlopen(uuid, clip={}, ok_urls=set(), captured=[])):
+        with pytest.raises(RuntimeError, match=uuid):
+            await Downloader._download_suno(track)
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize('ext', ['.mp3', '.m4a'])
+async def test_download_suno_uses_cache(tmp_path, ext):
     """_download_suno returns cached file without hitting the network."""
     uuid = 'aaaaaaaa-bbbb-cccc-dddd-ffffffffffff'
-    cached = tmp_path / f'{uuid}.mp3'
+    cached = tmp_path / f'{uuid}{ext}'
     cached.write_bytes(b'cached')
     track = Track(title='Suno', url=f'https://suno.com/song/{uuid}', source_id=uuid)
 
-    with patch('utils.downloader.DOWNLOADS_DIR', tmp_path), \
-         patch('utils.downloader.urllib.request.urlopen') as mock_open:
+    with patch('utils.downloader.DOWNLOADS_DIR', tmp_path),          patch('utils.downloader.urllib.request.urlopen') as mock_open:
         result = await Downloader._download_suno(track)
 
     mock_open.assert_not_called()
     assert result == cached
 
 
-async def test_download_suno_strips_share_hash_from_source_id(tmp_path):
-    """source_id with ?sh= query: uuid is cleaned, CDN URL includes hash properly."""
+@pytest.mark.parametrize('suffix', ['?sh=abc123XYZ', '-1'])
+async def test_download_suno_cleans_source_id(tmp_path, suffix):
+    """yt-dlp source_ids like 'uuid?sh=..' or 'uuid-1' resolve to the bare UUID."""
     uuid = 'aaaaaaaa-bbbb-cccc-dddd-111111111111'
-    source_id_with_hash = f'{uuid}?sh=abc123XYZ'
-    track = Track(title='Suno', url=f'https://suno.com/song/{uuid}', source_id=source_id_with_hash)
-    fake_mp3 = b'fake-mp3'
+    track = Track(title='Suno', url=f'https://suno.com/song/{uuid}', source_id=uuid + suffix)
+    legacy = f'https://cdn1.suno.ai/{uuid}.mp3'
+    legacy_url = f'{legacy}?sh=abc123XYZ' if suffix.startswith('?') else legacy
+    captured: list[str] = []
 
-    mock_resp = MagicMock()
-    mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-    mock_resp.__exit__ = MagicMock(return_value=False)
-    mock_resp.read.return_value = fake_mp3
-
-    captured_url = []
-
-    def fake_urlopen(req, **_):
-        captured_url.append(req.full_url)
-        return mock_resp
-
-    with patch('utils.downloader.DOWNLOADS_DIR', tmp_path), \
-         patch('utils.downloader.urllib.request.urlopen', side_effect=fake_urlopen):
+    with patch('utils.downloader.DOWNLOADS_DIR', tmp_path),          patch('utils.downloader.urllib.request.urlopen',
+               side_effect=_suno_urlopen(uuid, clip=None, ok_urls={legacy_url}, captured=captured)):
         result = await Downloader._download_suno(track)
 
-    # File must use clean UUID (no ? in filename)
+    assert captured[0] == f'https://studio-api.prod.suno.com/api/clip/{uuid}'
+    assert captured[-1] == legacy_url
     assert result == tmp_path / f'{uuid}.mp3'
-    # CDN URL must have .mp3 before the query string
-    assert captured_url[0] == f'https://cdn1.suno.ai/{uuid}.mp3?sh=abc123XYZ'
 
 
 async def test_download_routes_suno_to_download_suno():
