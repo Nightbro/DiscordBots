@@ -18,7 +18,9 @@ _UUID_RE = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 
 _SUNO_CLIP_API = 'https://studio-api.prod.suno.com/api/clip/{uuid}'
 _SUNO_LEGACY_CDN = 'https://cdn1.suno.ai/{uuid}.mp3'
-_SUNO_EXTS = ('.m4a', '.mp3')
+_SUNO_EXTS = ('.mp4', '.mp3')
+# Earlier builds cached Suno's media_urls .m4a, which is not playable audio.
+_SUNO_STALE_EXTS = ('.m4a',)
 _HTTP_UA = (
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/140.0 Safari/537.36'
@@ -45,6 +47,15 @@ _DL_OPTS: dict = {
         'preferredquality': '192',
     }],
 }
+
+
+def _looks_like_audio(data: bytes) -> bool:
+    """Cheap container sniff: MP4 ('ftyp' box) or MP3 (ID3 tag / frame sync)."""
+    return (
+        data[4:8] == b'ftyp'
+        or data[:3] == b'ID3'
+        or (len(data) > 1 and data[0] == 0xFF and data[1] & 0xE0 == 0xE0)
+    )
 
 
 class Downloader:
@@ -140,12 +151,15 @@ class Downloader:
     async def _download_suno(track: Track) -> Path:
         """Download a Suno track.
 
-        Suno's clip API lists the playable file under ``media_urls`` (an .m4a on
-        CloudFront). The old ``cdn1.suno.ai/{uuid}.mp3`` URL now returns 403, so it
-        is only tried as a last resort.
+        Suno's ``video_url`` (cdn1.suno.ai/{uuid}.mp4) is a plain MP4 with an AAC
+        audio track; FFmpeg plays it with ``-vn``. The clip API's ``media_urls``
+        file is not a playable container, and ``cdn1.suno.ai/{uuid}.mp3`` now
+        returns 403, so that is only tried as a last resort.
         """
         uuid, share_qs = Downloader._suno_id(track)
 
+        for ext in _SUNO_STALE_EXTS:
+            (DOWNLOADS_DIR / f'{uuid}{ext}').unlink(missing_ok=True)
         for ext in _SUNO_EXTS:
             cached = DOWNLOADS_DIR / f'{uuid}{ext}'
             if cached.exists():
@@ -201,8 +215,8 @@ class Downloader:
 
     @staticmethod
     def _suno_audio_urls(clip: dict) -> list[str]:
-        """Playable audio URLs listed in a clip API response."""
-        urls = [m['url'] for m in clip.get('media_urls') or [] if m.get('url')]
+        """Playable URLs from a clip API response, best first."""
+        urls = [clip['video_url']] if clip.get('video_url') else []
         audio_url = clip.get('audio_url') or ''
         if audio_url and not audio_url.endswith('/forbidden'):
             urls.append(audio_url)
@@ -213,6 +227,8 @@ class Downloader:
         req = urllib.request.Request(url, headers={'User-Agent': _HTTP_UA})
         with urllib.request.urlopen(req, timeout=60, context=_SSL_CTX) as resp:
             data = resp.read()
+        if not _looks_like_audio(data):
+            raise ValueError(f'response from {url} is not an MP3/MP4 file')
         dest.write_bytes(data)
 
     @staticmethod

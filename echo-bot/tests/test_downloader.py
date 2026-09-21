@@ -96,6 +96,9 @@ async def test_resolve_suno_share_link_follows_redirect():
     assert track.title == 'Shared'
 
 
+_MP4 = b'\x00\x00\x00\x18ftypisom'
+
+
 def _fake_resp(body: bytes) -> MagicMock:
     resp = MagicMock()
     resp.__enter__ = MagicMock(return_value=resp)
@@ -117,30 +120,71 @@ def _suno_urlopen(uuid: str, *, clip: dict | None, ok_urls: set[str], captured: 
                 raise urllib.error.HTTPError(url, 404, 'Not Found', {}, None)
             return _fake_resp(json.dumps(clip).encode())
         if url in ok_urls:
-            return _fake_resp(b'audio:' + url.encode())
+            return _fake_resp(_MP4 + url.encode())
         raise urllib.error.HTTPError(url, 403, 'Forbidden', {}, None)
     return fake
 
 
-async def test_download_suno_uses_clip_api_media_url(tmp_path):
-    """_download_suno downloads the m4a listed in the clip API's media_urls."""
+async def test_download_suno_uses_clip_video_url(tmp_path):
+    """_download_suno downloads the clip's video_url MP4, not the media_urls file."""
     uuid = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
     track = Track(title='Suno Song', url=f'https://suno.com/song/{uuid}', source_id=uuid)
+    mp4 = f'https://cdn1.suno.ai/{uuid}.mp4'
     m4a = f'https://d2lwuy8qc234o3.cloudfront.net/1/clip/{uuid}.m4a'
     clip = {
+        'video_url': mp4,
         'audio_url': 'https://studio-api.prod.suno.com/api/forbidden',
         'media_urls': [{'url': m4a, 'content_type': 'm4a-opus'}],
     }
     captured: list[str] = []
 
     with patch('utils.downloader.DOWNLOADS_DIR', tmp_path),          patch('utils.downloader.urllib.request.urlopen',
-               side_effect=_suno_urlopen(uuid, clip=clip, ok_urls={m4a}, captured=captured)):
+               side_effect=_suno_urlopen(uuid, clip=clip, ok_urls={mp4, m4a}, captured=captured)):
         result = await Downloader._download_suno(track)
 
-    assert result == tmp_path / f'{uuid}.m4a'
-    assert result.read_bytes() == b'audio:' + m4a.encode()
+    assert result == tmp_path / f'{uuid}.mp4'
+    assert result.read_bytes() == _MP4 + mp4.encode()
     assert track.file_path == result
+    assert m4a not in captured
     assert 'https://studio-api.prod.suno.com/api/forbidden' not in captured
+
+
+async def test_download_suno_rejects_non_audio_response(tmp_path):
+    """A 200 response that isn't MP3/MP4 is not cached; the next candidate is tried."""
+    import json
+    uuid = 'aaaaaaaa-bbbb-cccc-dddd-666666666666'
+    track = Track(title='Suno', url=f'https://suno.com/song/{uuid}', source_id=uuid)
+    mp4 = f'https://cdn1.suno.ai/{uuid}.mp4'
+    legacy = f'https://cdn1.suno.ai/{uuid}.mp3'
+
+    def fake(req, **_):
+        if 'api/clip' in req.full_url:
+            return _fake_resp(json.dumps({'video_url': mp4}).encode())
+        if req.full_url == mp4:
+            return _fake_resp(b'\x53\xed\xee\xb4scrambled')
+        return _fake_resp(b'ID3' + b'\x00' * 10)
+
+    with patch('utils.downloader.DOWNLOADS_DIR', tmp_path),          patch('utils.downloader.urllib.request.urlopen', side_effect=fake):
+        result = await Downloader._download_suno(track)
+
+    assert result == tmp_path / f'{uuid}.mp3'
+    assert not (tmp_path / f'{uuid}.mp4').exists()
+
+
+async def test_download_suno_discards_stale_m4a_cache(tmp_path):
+    """A .m4a cached by an earlier build is unplayable and must be re-downloaded."""
+    uuid = 'aaaaaaaa-bbbb-cccc-dddd-777777777777'
+    stale = tmp_path / f'{uuid}.m4a'
+    stale.write_bytes(b'scrambled')
+    track = Track(title='Suno', url=f'https://suno.com/song/{uuid}', source_id=uuid)
+    mp4 = f'https://cdn1.suno.ai/{uuid}.mp4'
+
+    with patch('utils.downloader.DOWNLOADS_DIR', tmp_path),          patch('utils.downloader.urllib.request.urlopen',
+               side_effect=_suno_urlopen(uuid, clip={'video_url': mp4}, ok_urls={mp4}, captured=[])):
+        result = await Downloader._download_suno(track)
+
+    assert result == tmp_path / f'{uuid}.mp4'
+    assert not stale.exists()
 
 
 async def test_download_suno_falls_back_to_legacy_cdn(tmp_path):
@@ -169,7 +213,7 @@ async def test_download_suno_raises_when_all_sources_fail(tmp_path):
     assert not list(tmp_path.iterdir())
 
 
-@pytest.mark.parametrize('ext', ['.mp3', '.m4a'])
+@pytest.mark.parametrize('ext', ['.mp3', '.mp4'])
 async def test_download_suno_uses_cache(tmp_path, ext):
     """_download_suno returns cached file without hitting the network."""
     uuid = 'aaaaaaaa-bbbb-cccc-dddd-ffffffffffff'
