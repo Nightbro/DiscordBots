@@ -1,6 +1,7 @@
 # Echo Bot — Command Reference
 
-All commands work with `!` prefix and as `/` slash commands.
+Most commands work with the `!` prefix and as `/` slash commands.
+`!save`, `!library`, `!devlog`, `!version` and the owner-only dev commands are prefix-only.
 
 ---
 
@@ -9,7 +10,8 @@ All commands work with `!` prefix and as `/` slash commands.
 | Command | Description |
 |---|---|
 | `!help` | Show paginated help (overview + all sections) |
-| `!help <section>` | Jump directly to a section: `music`, `queue`, `intros`, `soundboard`, `tts` |
+| `!help <section>` | Jump directly to a section: `music`, `library`, `queue`, `intros`, `soundboard`, `tts`, `settings` |
+| `!version` | Show the running bot version (base version, commit count, commit hash) |
 
 ---
 
@@ -110,6 +112,14 @@ Alias: `!soundboard`
 
 ---
 
+## Voice listening
+
+| Command | Aliases | Description |
+|---|---|---|
+| `!listen` | — | Placeholder — replies that voice listening is not yet implemented |
+
+---
+
 ## TTS
 
 Text-to-speech via Microsoft Edge TTS. Speaks in your voice channel, pausing any music playback while speaking.
@@ -137,6 +147,8 @@ Per-server overrides for bot behaviour. Values marked *(overridden)* differ from
 | `!settings show` | Same as above |
 | `!settings set <key> <true\|false>` | Override a setting for this server |
 | `!settings reset <key>` | Revert a setting to the global default |
+| `!settings locale <code>` | Set the display language for bot text (`en`, `sr`) |
+| `!settings voice_language <code>` | Set the TTS voice language (e.g. `en`, `sr`) |
 
 **Available keys:**
 

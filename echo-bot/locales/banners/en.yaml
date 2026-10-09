@@ -13,20 +13,26 @@ help:
       Use `{prefix}help <section>` or the buttons below to browse.
 
       `music` — playback controls
+      `library` — tracks uploaded to this server
       `queue` — queue & playlists
       `intros` — per-user join sounds
       `soundboard` — reaction soundboard
       `tts` — text-to-speech
       `settings` — per-server settings *(admins)*
 
-      All commands also work as slash commands — type `/` to browse.
+      `{prefix}version` — running version · `{prefix}listen` — voice listening *(not yet implemented)*
+
+      Most commands also work as slash commands — type `/` to browse.
+      `{prefix}save`, `{prefix}library`, `{prefix}devlog` and `{prefix}version` are prefix-only.
 
   music:
     title: "🎵 Music — Playback"
     body: |
-      `{prefix}play <url|search>` (`{prefix}p`) — add a track to the queue
+      `{prefix}play <url|search|name|#N>` (`{prefix}p`) — add a track to the queue
+      (a name matching an uploaded track plays that — see `library`)
       `{prefix}skip` (`{prefix}s`) — skip the current track
       `{prefix}pause` — pause playback
+      `{prefix}replay` (`{prefix}rp`) — restart the current track
       `{prefix}resume` — resume playback
       `{prefix}stop` — stop and clear the queue
       `{prefix}nowplaying` (`{prefix}np`) — show current track
@@ -53,7 +59,7 @@ help:
       `{prefix}save <name>` — save an attached audio file to this server's library
       (also works when you reply to a message that has the file)
       `{prefix}library` — browse: numbered list, dropdown to play, page buttons
-      `{prefix}library <name|#N>` — play an uploaded track right away
+      `{prefix}library <name|#N>` (or `{prefix}lib play <name|#N>`) — play an uploaded track
       `{prefix}lib remove <name|#N>` — remove a track
       `{prefix}lib rename <name|#N> <new name>` — rename a track
       `{prefix}lib info <name|#N>` — length, size, who added it, play count
@@ -87,6 +93,7 @@ help:
       `{prefix}sb remove <name>` — remove a sound and its file
       `{prefix}sb play <name>` — play a sound in your channel
       `{prefix}sb list` — list all sounds
+      `{prefix}sb short <name> <short>` — set a short trigger for a sound
       `{prefix}sb panel` — post a reaction panel (react to play)
 
       Alias: `{prefix}soundboard`
@@ -104,7 +111,7 @@ help:
   settings:
     title: "⚙️ Settings (admins only)"
     body: |
-      `{prefix}settings` — show current per-server settings
+      `{prefix}settings` (or `{prefix}settings show`) — show current per-server settings
       `{prefix}settings set <key> <true|false>` — override a toggle setting
       `{prefix}settings reset <key>` — revert to the global default
       `{prefix}settings locale <code>` — set display language (e.g. `en`, `sr`)

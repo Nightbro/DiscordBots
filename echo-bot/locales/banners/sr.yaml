@@ -13,20 +13,26 @@ help:
       Koristi `{prefix}help <sekcija>` ili dugmad ispod za pregled.
 
       `music` — kontrole reprodukcije
+      `library` — pesme otpremljene na ovaj server
       `queue` — red i plejliste
       `intros` — lični zvuci pri ulasku
       `soundboard` — tabla sa zvukovima
       `tts` — tekst u govor
       `settings` — podešavanja servera *(admini)*
 
-      Sve komande rade i kao slash komande — ukucaj `/` za pregled.
+      `{prefix}version` — verzija bota · `{prefix}listen` — glasovno slušanje *(nije implementirano)*
+
+      Većina komandi radi i kao slash komande — ukucaj `/` za pregled.
+      `{prefix}save`, `{prefix}library`, `{prefix}devlog` i `{prefix}version` rade samo sa prefiksom.
 
   music:
     title: "🎵 Muzika — Reprodukcija"
     body: |
-      `{prefix}play <url|pretraga>` (`{prefix}p`) — dodaj pesmu u red
+      `{prefix}play <url|pretraga|ime|#N>` (`{prefix}p`) — dodaj pesmu u red
+      (ime koje odgovara otpremljenoj pesmi pušta nju — vidi `library`)
       `{prefix}skip` (`{prefix}s`) — preskoči trenutnu pesmu
       `{prefix}pause` — pauziraj reprodukciju
+      `{prefix}replay` (`{prefix}rp`) — pusti trenutnu pesmu od početka
       `{prefix}resume` — nastavi reprodukciju
       `{prefix}stop` — zaustavi i obriši red
       `{prefix}nowplaying` (`{prefix}np`) — prikaži trenutnu pesmu
@@ -53,7 +59,7 @@ help:
       `{prefix}save <ime>` — sačuvaj priloženi audio fajl u biblioteku servera
       (radi i kada odgovoriš na poruku koja sadrži fajl)
       `{prefix}library` — pregledaj: numerisana lista, meni za puštanje, strane
-      `{prefix}library <ime|#N>` — pusti otpremljenu pesmu odmah
+      `{prefix}library <ime|#N>` (ili `{prefix}lib play <ime|#N>`) — pusti otpremljenu pesmu
       `{prefix}lib remove <ime|#N>` — ukloni pesmu
       `{prefix}lib rename <ime|#N> <novo ime>` — preimenuj pesmu
       `{prefix}lib info <ime|#N>` — dužina, veličina, ko je dodao, broj puštanja
@@ -87,6 +93,7 @@ help:
       `{prefix}sb remove <ime>` — ukloni zvuk i fajl
       `{prefix}sb play <ime>` — pusti zvuk u svom kanalu
       `{prefix}sb list` — lista svih zvukova
+      `{prefix}sb short <ime> <skraćenica>` — postavi kratki okidač za zvuk
       `{prefix}sb panel` — postavi panel sa reakcijama (reaguj da pustiš)
 
       Alias: `{prefix}soundboard`
@@ -104,7 +111,7 @@ help:
   settings:
     title: "⚙️ Podešavanja (samo admini)"
     body: |
-      `{prefix}settings` — prikaži podešavanja servera
+      `{prefix}settings` (ili `{prefix}settings show`) — prikaži podešavanja servera
       `{prefix}settings set <ključ> <true|false>` — promeni podešavanje
       `{prefix}settings reset <ključ>` — vrati na globalnu podrazumevanu vrednost
       `{prefix}settings locale <kod>` — postavi jezik prikaza (npr. `en`, `sr`)
