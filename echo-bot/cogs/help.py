@@ -7,7 +7,7 @@ from utils.config import BOT_NAME, COLOR, PREFIX
 from utils.i18n import t
 
 # Ordered page keys: overview first, then one per section
-_PAGE_KEYS = ['__overview__', 'music', 'queue', 'intros', 'soundboard', 'tts', 'settings']
+_PAGE_KEYS = ['__overview__', 'music', 'library', 'queue', 'intros', 'soundboard', 'tts', 'settings']
 
 
 def _build_embed(key: str, page_num: int, total: int, guild_id: int) -> discord.Embed:

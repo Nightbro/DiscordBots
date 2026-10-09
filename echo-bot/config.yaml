@@ -20,6 +20,11 @@ intros:
   on_bot_join: true    # play the bot's intro when it joins a voice channel
   on_user_join: true   # play a user's intro when they join a voice channel
 
+library:
+  max_tracks: 100          # per server
+  max_total_mb: 2048       # per server
+  confirm_secs: 5          # !play library match: seconds to switch to a YouTube search (0 = play at once)
+
 tts:
   default_voice: "en-US-AriaNeural"
   default_rate: "+0%"

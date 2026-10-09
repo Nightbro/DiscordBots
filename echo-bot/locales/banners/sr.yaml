@@ -47,6 +47,21 @@ help:
       `{prefix}playlist delete <ime>` — obriši plejlistu
       `{prefix}playlist show <ime>` — prikaži sadržaj plejliste
 
+  library:
+    title: "💾 Biblioteka — otpremljene pesme"
+    body: |
+      `{prefix}save <ime>` — sačuvaj priloženi audio fajl u biblioteku servera
+      (radi i kada odgovoriš na poruku koja sadrži fajl)
+      `{prefix}library` — pregledaj: numerisana lista, meni za puštanje, strane
+      `{prefix}library <ime|#N>` — pusti otpremljenu pesmu odmah
+      `{prefix}lib remove <ime|#N>` — ukloni pesmu
+      `{prefix}lib rename <ime|#N> <novo ime>` — preimenuj pesmu
+      `{prefix}lib info <ime|#N>` — dužina, veličina, ko je dodao, broj puštanja
+
+      `{prefix}play <ime>` pušta otpremljenu pesmu ako ime odgovara,
+      sa kratkim upitom da umesto toga pretražiš YouTube.
+      Svaki server ima svoju biblioteku. Podržano: mp3, ogg, wav, flac, m4a, opus, aac.
+
   intros:
     title: "👋 Intra"
     body: |

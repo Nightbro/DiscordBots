@@ -17,7 +17,7 @@ All commands work with `!` prefix and as `/` slash commands.
 
 | Command | Aliases | Description |
 |---|---|---|
-| `!play <url\|search>` | `!p` | Add a track to the queue and start playback |
+| `!play <url\|search\|name\|#N>` | `!p` | Add a track to the queue and start playback. A name matching an uploaded track plays that, after a 5-second prompt offering a YouTube search instead |
 | `!skip` | `!s` | Skip the current track |
 | `!pause` | — | Pause playback |
 | `!resume` | `!unpause` | Resume playback |
@@ -26,6 +26,24 @@ All commands work with `!` prefix and as `/` slash commands.
 | `!nowplaying` | `!np` | Show the currently playing track |
 | `!join` | — | Join your voice channel |
 | `!leave` | `!disconnect`, `!dc` | Leave the voice channel and clear all state |
+
+---
+
+## Library (uploaded tracks)
+
+Songs uploaded to the bot and kept on the server, so nothing depends on an outside site. Each server has its own library; anyone can add or remove.
+
+| Command | Aliases | Description |
+|---|---|---|
+| `!save [name]` | `!upload` | Save the attached audio file to this server's library. Works on a reply to a message with an attachment. Name defaults to the filename |
+| `!library` | `!lib` | Browse the library: numbered list, a dropdown to play, page buttons |
+| `!library <name\|#N>` | `!lib` | Play a track straight away |
+| `!lib play <name\|#N>` | — | Same, spelled out |
+| `!lib remove <name\|#N>` | `!lib delete` | Remove a track and delete its file |
+| `!lib rename <name\|#N> <new name>` | — | Rename a track |
+| `!lib info <name\|#N>` | — | Length, size, who added it, play count |
+
+`#N` is the number shown by `!library`. Limits per server: 100 tracks, 2048 MB — both in `config.yaml`, along with `confirm_secs` for the `!play` prompt (set it to 0 to play uploads without asking). Supported formats: mp3, ogg, wav, flac, m4a, opus, aac. Discord caps uploads at 10 MB on unboosted servers.
 
 ---
 

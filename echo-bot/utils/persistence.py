@@ -77,3 +77,11 @@ class DevlogConfig(BaseConfig):
     def __init__(self) -> None:
         from utils.config import DEVLOG_CONFIG_FILE
         self.path = DEVLOG_CONFIG_FILE
+
+
+class LibraryConfig(BaseConfig):
+    """Per-guild uploaded track libraries, persisted to library_config.json."""
+
+    def __init__(self) -> None:
+        from utils.config import LIBRARY_CONFIG_FILE
+        self.path = LIBRARY_CONFIG_FILE

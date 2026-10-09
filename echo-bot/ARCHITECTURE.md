@@ -25,7 +25,8 @@ echo-bot/
 │
 ├── cogs/                     # Feature cogs — one per domain
 │   ├── __init__.py
-│   ├── music.py              # Playback: YouTube, Suno, search, queue, playlists
+│   ├── music.py              # Playback: YouTube, search, queue, playlists, library-first !play
+│   ├── library.py            # !save / !library: per-guild uploaded track library
 │   ├── intros.py             # Per-user/bot join sounds with schedule support
 │   ├── soundboard.py         # Reaction-based soundboard panel
 │   ├── tts.py                # edge-tts voice output, per-guild voice setting
@@ -41,6 +42,7 @@ echo-bot/
 │   ├── voice.py              # VoiceStreamer: join, leave, queue, play, interrupt/resume
 │   ├── message.py            # MessageWriter: embed builder, error/success/info helpers
 │   ├── devlog.py             # Dev log: guild-tagged logging handler → Discord channel/DM
+│   ├── library.py            # Per-guild track library: slugs, quota, lookup by name/#N
 │   ├── reactions.py          # ReactionHandler: yes/no confirm, panel reactions
 │   ├── audio.py              # AudioFileManager: validate ext, receive attachment, copy
 │   └── downloader.py         # Downloader class: pluggable sources (YouTube, Suno, ...)
@@ -49,11 +51,13 @@ echo-bot/
 │   ├── downloads/            # Cached downloaded audio (yt-dlp output)
 │   ├── intro_sounds/         # Per-user intro audio files
 │   ├── soundboard/           # Soundboard audio files
+│   ├── library/<guild_id>/   # Uploaded tracks, one folder per guild
 │   ├── logs/                 # Rotating log files
 │   ├── playlists.json        # Saved playlists (per guild)
 │   ├── intro_config.json     # Intro assignments and schedules (per guild)
 │   ├── soundboard_config.json
-│   └── devlog_config.json    # Dev log destinations (per guild + owner DM)
+│   ├── devlog_config.json    # Dev log destinations (per guild + owner DM)
+│   └── library_config.json   # Uploaded track metadata (per guild)
 │
 └── tests/
     ├── conftest.py           # Shared fixtures: mock_bot, ctx, guild_state, voice_client
@@ -133,6 +137,11 @@ PLAYLISTS_FILE: Path
 INTRO_CONFIG_FILE: Path
 SOUNDBOARD_CONFIG_FILE: Path
 DEVLOG_CONFIG_FILE: Path
+LIBRARY_CONFIG_FILE: Path
+LIBRARY_DIR: Path
+LIBRARY_MAX_TRACKS: int
+LIBRARY_MAX_TOTAL_MB: int
+LIBRARY_CONFIRM_SECS: int
 ```
 
 All paths are derived from `DATA_DIR` which is `echo-bot/data/`. Directories are created on import if missing.
@@ -390,6 +399,32 @@ Owner-only (checked via `bot.owner_id` from `OWNER_ID` env var). Prefix commands
 | `!status` | Show queue state, voice connections, uptime |
 | `!cogs` | List loaded cogs and their status |
 
+### `cogs/library.py` — LibraryCog
+
+Per-guild library of uploaded tracks — the dependable alternative to third-party sources.
+
+| Command | Description |
+|---|---|
+| `!save [name]` | Store the attached (or replied-to) audio file; name defaults to the filename |
+| `!library` / `!lib` | Numbered list + dropdown picker + page buttons (`_LibraryView`) |
+| `!library <name\|#N>`, `!lib play` | Play an uploaded track |
+| `!lib remove\|rename\|info` | Manage entries — anyone may remove (logged with the actor) |
+
+`!play <name>` consults the library first (`MusicCog._try_library`): a `#N` reference plays at
+once, while a name match shows `_LibrarySwitchView` for `LIBRARY_CONFIRM_SECS` seconds offering a
+YouTube search instead. The countdown is `asyncio.wait_for(view.wait(), ...)` rather than discord's
+view timer, so it does not depend on the view being registered with the client.
+
+### `utils/library.py` — track library
+
+- Files: `LIBRARY_DIR/<guild_id>/<slug>.<ext>`; metadata in `library_config.json` keyed by guild.
+- `slugify` gives the filesystem/command-safe key; `track_list` sorts by title and defines the
+  `#N` numbering, so no per-channel selection state is stored.
+- `find`/`find_all` match exact slug or title first, then partial titles; `resolve` also accepts `#N`.
+- `check_quota` enforces `LIBRARY_MAX_TRACKS` and `LIBRARY_MAX_TOTAL_MB` per guild; `probe_duration`
+  shells out to ffprobe and degrades to `None` when it is unavailable.
+- No Discord types - cogs own all presentation.
+
 ### `cogs/devlog.py` — DevlogCog
 
 `!devlog [here|dm|off|test] [all]` — prefix only. Turns on per-server error forwarding. Changing it needs **Manage Server** (or bot owner); `all` and DM use are owner-only. In a DM with the bot, `!devlog here` subscribes the owner to every record from every server (`owner_dm`).
@@ -431,7 +466,7 @@ Slash command tree must be re-synced after reloading cogs that add or remove sla
 - Sets up per-run rotating file loggers (`data/logs/echo_<timestamp>.log` and `errors_<timestamp>.log`, 5 MB / 2 MB max, 3/5 backups) — no console handler; all output goes to files
 - Creates `commands.Bot` with `command_prefix=PREFIX`, `intents`, `help_command=None`
 - Attaches `get_guild_state(guild_id) -> GuildState` helper to bot instance
-- Loads all cogs in order: `music`, `intros`, `soundboard`, `tts`, `listener`, `dev`
+- Loads all cogs in order: `music`, `library`, `intros`, `soundboard`, `tts`, `listener`, `dev`
 - Adds `devlog.handler` to the root logger; tags each event/command with its guild for it
 - On `on_ready`: starts the dev log sender, logs bot name/ID, syncs slash tree to dev guild if `DEV_GUILD_ID` is set
 - On `on_command_error`: routes to `MessageWriter.error()` for unknown commands, missing args, permission errors

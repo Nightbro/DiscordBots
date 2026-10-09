@@ -47,6 +47,21 @@ help:
       `{prefix}playlist delete <name>` — delete a playlist
       `{prefix}playlist show <name>` — show playlist contents
 
+  library:
+    title: "💾 Library — uploaded tracks"
+    body: |
+      `{prefix}save <name>` — save an attached audio file to this server's library
+      (also works when you reply to a message that has the file)
+      `{prefix}library` — browse: numbered list, dropdown to play, page buttons
+      `{prefix}library <name|#N>` — play an uploaded track right away
+      `{prefix}lib remove <name|#N>` — remove a track
+      `{prefix}lib rename <name|#N> <new name>` — rename a track
+      `{prefix}lib info <name|#N>` — length, size, who added it, play count
+
+      `{prefix}play <name>` plays an uploaded track if the name matches,
+      with a short prompt to search YouTube instead.
+      Each server has its own library. Supported: mp3, ogg, wav, flac, m4a, opus, aac.
+
   intros:
     title: "👋 Intros"
     body: |

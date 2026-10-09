@@ -89,6 +89,7 @@ _COGS = [
     'cogs.help',
     'cogs.settings',
     'cogs.music',
+    'cogs.library',
     'cogs.intros',
     'cogs.soundboard',
     'cogs.tts',

@@ -4,6 +4,9 @@ common:
   error_no_voice: "Moraš biti u glasovnom kanalu."
 
 music:
+  library_found: "Nađeno u biblioteci: {title}"
+  library_countdown: "Pušta se za {secs} sekundi — ili pretraži YouTube."
+  library_switch: "Pretraži YouTube"
   resolving: "⏳ Učitavam…"
   error_resolve: "Nisam mogao da pronađem pesmu."
   joined: "Pridružio sam se kanalu."
@@ -141,6 +144,35 @@ dev:
   sync_global: "✅ Sinhronizovano {count} globalnih komandi (može potrajati do sat vremena)"
   status: "**{user}** — online\nGlasoovne konekcije: {voice}\nServeri: {guilds}\nKogovi: {cogs}"
   cogs_header: "**Učitana proširenja:**"
+
+library:
+  title: "Biblioteka servera"
+  empty: "Još nema sačuvanih pesama. Priloži audio fajl i pošalji `!save <ime>` da dodaš jednu."
+  footer: "Strana {page}/{pages} · {count}/{max} pesama · {used}/{limit} MB iskorišćeno"
+  pick: "Izaberi pesmu za puštanje…"
+  not_yours: "Samo osoba koja je pokrenula komandu može da koristi ove kontrole."
+  not_found: "Nema pesme koja odgovara `{query}` u biblioteci ovog servera."
+  file_missing: "Fajl te pesme ne postoji na serveru — ukloni je i otpremi ponovo."
+  no_attachment: "Nije priložen audio fajl"
+  no_attachment_hint: "Priloži fajl uz `!save` poruku, ili odgovori na poruku koja ga sadrži.
+Podržano: {formats}"
+  bad_format: "Nepodržan tip fajla"
+  bad_format_hint: "Podržani formati: {formats}"
+  name_taken: "**{title}** već postoji u biblioteci — izaberi drugo ime ili ukloni staru pesmu."
+  limit_tracks: "Biblioteka ovog servera je puna ({max} pesama). Prvo ukloni nešto."
+  limit_size: "Biblioteka ovog servera nema više prostora ({limit} MB). Prvo ukloni nešto."
+  save_failed: "Nije moguće sačuvati taj fajl."
+  saved: "Sačuvano **{title}**"
+  saved_hint: "`#{index}` u biblioteci · {duration} · {size} MB
+Pusti sa `!play {title}` ili `!lib play #{index}`."
+  removed: "**{title}** je uklonjeno iz biblioteke."
+  renamed: "**{old}** je preimenovano u **{new}**."
+  info: "Dužina: {duration}
+Veličina: {size} MB
+Dodao: {added_by}
+Dodato: {added_at}
+Puštanja: {plays}
+Ključ: `{slug}`"
 
 devlog:
   usage_title: "Upotreba dev loga"

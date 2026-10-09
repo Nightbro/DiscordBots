@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import random
 from typing import Any
 
 import discord
 from discord.ext import commands
 
-from utils.config import EMOJI_LOADING, EMOJI_MUSIC, MAX_QUEUE
+from utils import library
+from utils.config import EMOJI_LOADING, EMOJI_MUSIC, LIBRARY_CONFIRM_SECS, MAX_QUEUE
 from utils.downloader import Downloader
 from utils.guild_state import GuildState, Track
 from utils.i18n import t
@@ -38,6 +40,35 @@ def _dict_to_track(data: dict[str, Any]) -> Track:
         duration=data.get('duration'),
         source_id=data.get('source_id'),
     )
+
+
+class _LibrarySwitchView(discord.ui.View):
+    """Offers a YouTube search instead of the library match, until the timeout runs out."""
+
+    def __init__(self, user_id: int, guild_id: int) -> None:
+        # The countdown is driven by asyncio.wait_for in _try_library, not by
+        # discord's own view timer, so it does not depend on the view being
+        # registered with the client.
+        super().__init__(timeout=None)
+        self._user_id = user_id
+        self._guild_id = guild_id
+        self.search_youtube = False
+        button = discord.ui.Button(label=t('music.library_switch', guild_id), emoji='🔎')
+        button.callback = self._on_switch
+        self.add_item(button)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self._user_id:
+            return True
+        await interaction.response.send_message(
+            t('library.not_yours', self._guild_id), ephemeral=True,
+        )
+        return False
+
+    async def _on_switch(self, interaction: discord.Interaction) -> None:
+        self.search_youtube = True
+        await interaction.response.defer()
+        self.stop()
 
 
 # ---------------------------------------------------------------------------
@@ -75,6 +106,11 @@ class MusicCog(commands.Cog, name='Music'):
         """Add a track to the queue and start playback."""
         gid = ctx.guild.id
         notifier = self._notifier(ctx)
+
+        # Uploaded tracks win over a web search, unless the user switches in time.
+        if not query.startswith('http') and await self._try_library(ctx, query):
+            return
+
         streamer, _ = await self._ensure_voice(ctx)
         if streamer is None:
             return
@@ -100,6 +136,43 @@ class MusicCog(commands.Cog, name='Music'):
             title=track.title,
             loading=loading,
         )
+
+    async def _try_library(self, ctx, query: str) -> bool:
+        """Play a matching library track. Returns False to fall through to a web search.
+
+        A `#N` reference plays at once; a name match shows a short prompt first so
+        the requester can ask for a YouTube search instead.
+        """
+        gid = ctx.guild.id
+        match = library.resolve(gid, query)
+        lib_cog = self.bot.get_cog('Library')
+        if match is None or lib_cog is None:
+            return False
+        slug, meta = match
+
+        if library.parse_index(query) is not None or LIBRARY_CONFIRM_SECS <= 0:
+            return await lib_cog.play_slug(ctx, slug)
+
+        view = _LibrarySwitchView(ctx.author.id, gid)
+        prompt = await ctx.send(
+            embed=MessageWriter.info(
+                t('music.library_found', gid, title=meta['title']),
+                t('music.library_countdown', gid, secs=LIBRARY_CONFIRM_SECS),
+            ),
+            view=view,
+        )
+        try:
+            await asyncio.wait_for(view.wait(), timeout=float(LIBRARY_CONFIRM_SECS))
+        except asyncio.TimeoutError:
+            pass
+        view.stop()
+        try:
+            await prompt.delete()
+        except discord.HTTPException:
+            pass
+        if view.search_youtube:
+            return False
+        return await lib_cog.play_slug(ctx, slug)
 
     @commands.hybrid_command(name='skip', aliases=['s'])
     async def skip(self, ctx: commands.Context) -> None:

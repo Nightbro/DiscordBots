@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -256,3 +258,139 @@ async def test_playlist_delete_success(mock_bot, ctx, guild_state):
         await cog.playlist_delete.callback(cog, ctx, name='my_list')
     embed = ctx.send.call_args.kwargs.get('embed') or ctx.send.call_args.args[0]
     assert '✅' in embed.title
+
+
+# ---------------------------------------------------------------------------
+# Library-first !play (with the switch-to-YouTube prompt)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def lib_bot(mock_bot):
+    """mock_bot whose get_cog('Library') returns a stub library cog."""
+    lib_cog = MagicMock()
+    lib_cog.play_slug = AsyncMock(return_value=True)
+    mock_bot.get_cog = MagicMock(return_value=lib_cog)
+    return mock_bot, lib_cog
+
+
+async def test_play_prefers_library_match_after_countdown(lib_bot, ctx):
+    bot, lib_cog = lib_bot
+    cog = _cog(bot)
+    ctx.send = AsyncMock(return_value=AsyncMock())
+    with patch('cogs.music.library.resolve', return_value=('halloween', {'title': 'Halloween'})), \
+         patch('cogs.music.LIBRARY_CONFIRM_SECS', 0.01), \
+         patch('cogs.music.Downloader.resolve', new=AsyncMock()) as mock_resolve:
+        await cog.play.callback(cog, ctx, query='halloween')
+    lib_cog.play_slug.assert_awaited_once_with(ctx, 'halloween')
+    mock_resolve.assert_not_awaited()  # never hit the web
+
+
+async def test_play_prompt_offers_youtube_switch(lib_bot, ctx):
+    bot, _ = lib_bot
+    cog = _cog(bot)
+    ctx.send = AsyncMock(return_value=AsyncMock())
+    with patch('cogs.music.library.resolve', return_value=('halloween', {'title': 'Halloween'})), \
+         patch('cogs.music.LIBRARY_CONFIRM_SECS', 0.01), \
+         patch('cogs.music.Downloader.resolve', new=AsyncMock()):
+        await cog.play.callback(cog, ctx, query='halloween')
+    view = ctx.send.await_args_list[0].kwargs['view']
+    assert any('YouTube' in (c.label or '') for c in view.children)
+    embed = ctx.send.await_args_list[0].kwargs['embed']
+    assert 'Halloween' in embed.title
+
+
+async def test_play_switches_to_youtube_when_button_pressed(lib_bot, ctx):
+    bot, lib_cog = lib_bot
+    cog = _cog(bot)
+    prompt = AsyncMock()
+    ctx.send = AsyncMock(return_value=prompt)
+    fake_track = Track(title='YT Song', url='https://youtube.com/watch?v=x')
+    pressed = asyncio.Event()
+
+    async def press_when_shown():
+        """Stand in for the user clicking 'Search YouTube instead' during the countdown."""
+        while not ctx.send.await_args_list:
+            await asyncio.sleep(0)
+        view = ctx.send.await_args_list[0].kwargs['view']
+        interaction = MagicMock()
+        interaction.user.id = ctx.author.id
+        interaction.response.defer = AsyncMock()
+        await view.children[0].callback(interaction)
+        pressed.set()
+
+    with patch('cogs.music.library.resolve', return_value=('halloween', {'title': 'Halloween'})),          patch('cogs.music.LIBRARY_CONFIRM_SECS', 30),          patch('cogs.music.VoiceStreamer') as MockStreamer,          patch('cogs.music.Downloader.resolve', new=AsyncMock(return_value=fake_track)):
+        streamer = AsyncMock()
+        MockStreamer.return_value = streamer
+        presser = asyncio.create_task(press_when_shown())
+        await cog.play.callback(cog, ctx, query='halloween')
+        await presser
+
+    assert pressed.is_set()
+    lib_cog.play_slug.assert_not_awaited()
+    streamer.play.assert_awaited_once_with(fake_track)
+    prompt.delete.assert_awaited_once()
+
+
+async def test_play_index_reference_skips_the_prompt(lib_bot, ctx):
+    bot, lib_cog = lib_bot
+    cog = _cog(bot)
+    ctx.send = AsyncMock(return_value=AsyncMock())
+    with patch('cogs.music.library.resolve', return_value=('halloween', {'title': 'Halloween'})), \
+         patch('cogs.music.LIBRARY_CONFIRM_SECS', 5):
+        await cog.play.callback(cog, ctx, query='#1')
+    lib_cog.play_slug.assert_awaited_once_with(ctx, 'halloween')
+    assert not any('view' in c.kwargs for c in ctx.send.await_args_list)
+
+
+async def test_play_confirm_disabled_plays_library_immediately(lib_bot, ctx):
+    bot, lib_cog = lib_bot
+    cog = _cog(bot)
+    ctx.send = AsyncMock(return_value=AsyncMock())
+    with patch('cogs.music.library.resolve', return_value=('halloween', {'title': 'Halloween'})), \
+         patch('cogs.music.LIBRARY_CONFIRM_SECS', 0):
+        await cog.play.callback(cog, ctx, query='halloween')
+    lib_cog.play_slug.assert_awaited_once()
+
+
+async def test_play_url_never_checks_the_library(lib_bot, ctx):
+    bot, lib_cog = lib_bot
+    cog = _cog(bot)
+    ctx.send = AsyncMock(return_value=AsyncMock())
+    fake_track = Track(title='Song', url='https://youtube.com/watch?v=x')
+    with patch('cogs.music.library.resolve') as mock_resolve, \
+         patch('cogs.music.VoiceStreamer') as MockStreamer, \
+         patch('cogs.music.Downloader.resolve', new=AsyncMock(return_value=fake_track)):
+        MockStreamer.return_value = AsyncMock()
+        await cog.play.callback(cog, ctx, query='https://youtube.com/watch?v=x')
+    mock_resolve.assert_not_called()
+    lib_cog.play_slug.assert_not_awaited()
+
+
+async def test_play_falls_back_to_search_when_no_library_match(lib_bot, ctx):
+    bot, lib_cog = lib_bot
+    cog = _cog(bot)
+    ctx.send = AsyncMock(return_value=AsyncMock())
+    fake_track = Track(title='Song', url='u')
+    with patch('cogs.music.library.resolve', return_value=None), \
+         patch('cogs.music.VoiceStreamer') as MockStreamer, \
+         patch('cogs.music.Downloader.resolve', new=AsyncMock(return_value=fake_track)):
+        streamer = AsyncMock()
+        MockStreamer.return_value = streamer
+        await cog.play.callback(cog, ctx, query='something else')
+    lib_cog.play_slug.assert_not_awaited()
+    streamer.play.assert_awaited_once_with(fake_track)
+
+
+async def test_play_prompt_rejects_other_users(lib_bot, ctx):
+    bot, _ = lib_bot
+    cog = _cog(bot)
+    ctx.send = AsyncMock(return_value=AsyncMock())
+    with patch('cogs.music.library.resolve', return_value=('halloween', {'title': 'Halloween'})), \
+         patch('cogs.music.LIBRARY_CONFIRM_SECS', 0.01), \
+         patch('cogs.music.Downloader.resolve', new=AsyncMock()):
+        await cog.play.callback(cog, ctx, query='halloween')
+    view = ctx.send.await_args_list[0].kwargs['view']
+    interaction = MagicMock()
+    interaction.user.id = 999999
+    interaction.response.send_message = AsyncMock()
+    assert await view.interaction_check(interaction) is False

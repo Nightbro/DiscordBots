@@ -6,6 +6,9 @@ common:
   error_no_voice: "You must be in a voice channel."
 
 music:
+  library_found: "Found in library: {title}"
+  library_countdown: "Playing it in {secs} seconds — or search YouTube instead."
+  library_switch: "Search YouTube instead"
   resolving: "⏳ Resolving…"
   error_resolve: "Could not resolve track."
   joined: "Joined your channel."
@@ -144,6 +147,35 @@ dev:
   sync_global: "✅ Synced {count} global commands (may take up to 1 hour to propagate)"
   status: "**{user}** — online\nVoice connections: {voice}\nGuilds: {guilds}\nCogs: {cogs}"
   cogs_header: "**Loaded extensions:**"
+
+library:
+  title: "Server library"
+  empty: "No tracks saved yet. Attach an audio file and send `!save <name>` to add one."
+  footer: "Page {page}/{pages} · {count}/{max} tracks · {used}/{limit} MB used"
+  pick: "Pick a track to play…"
+  not_yours: "Only the person who ran the command can use these controls."
+  not_found: "No track matching `{query}` in this server's library."
+  file_missing: "That track's file is missing from the server — remove it and upload it again."
+  no_attachment: "No audio file attached"
+  no_attachment_hint: "Attach a file to your `!save` message, or reply to a message that has one.
+Supported: {formats}"
+  bad_format: "Unsupported file type"
+  bad_format_hint: "Supported formats: {formats}"
+  name_taken: "**{title}** is already in the library — pick another name or remove the old one."
+  limit_tracks: "This server's library is full ({max} tracks). Remove something first."
+  limit_size: "This server's library is out of space ({limit} MB). Remove something first."
+  save_failed: "Could not save that file."
+  saved: "Saved **{title}**"
+  saved_hint: "`#{index}` in the library · {duration} · {size} MB
+Play it with `!play {title}` or `!lib play #{index}`."
+  removed: "Removed **{title}** from the library."
+  renamed: "Renamed **{old}** to **{new}**."
+  info: "Length: {duration}
+Size: {size} MB
+Added by: {added_by}
+Added: {added_at}
+Plays: {plays}
+Key: `{slug}`"
 
 devlog:
   usage_title: "Dev log usage"
