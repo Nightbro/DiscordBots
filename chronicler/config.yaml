@@ -1,0 +1,28 @@
+bot:
+  name: Chronicler
+  prefix: "!"
+  version: "1.0"
+  color: 0x7B241C      # embed accent — oxblood
+  # Sent when someone DMs the bot "join". Generate at
+  # Developer Portal -> OAuth2 -> URL Generator once the application exists.
+  # Empty until then; !join reports that it is not configured yet.
+  invite_url: ""
+  emojis:
+    dice: "🎲"
+    crit: "💥"
+    fail: "💀"
+
+dice:
+  # Global defaults. Every server can override system/die/difficulty/ones
+  # with !config — these are what a server gets before it does.
+  default_system: standard    # standard (sum the dice) | wod (count successes)
+  default_die: 20             # bare "!roll" = 1d20, bare "!roll 5" = 5d20
+  default_difficulty: 6       # target number when counting hits
+  default_subtract_ones: true # WoD botch rule: each 1 cancels a success
+  # Any die size works (d3, d7, d37, ...) — these are only abuse guards, not a
+  # list of allowed dice. Raise them freely; the embed collapses to per-group
+  # subtotals when a roll is too big to print die by die.
+  max_dice: 500               # most dice allowed in a single group
+  max_sides: 10000            # largest die allowed
+  max_groups: 25              # most dice groups in one expression
+  show_rolls: true            # list individual die results in the embed

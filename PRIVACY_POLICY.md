@@ -1,8 +1,8 @@
 # Privacy Policy
 
-**Applies to:** the Discord bots **Echo** (`echo-bot`) and **Night Roller** (`night-roller`), together "the Bots".
+**Applies to:** the Discord bots **Echo** (`echo-bot`), **Night Roller** (`night-roller`) and **Chronicler** (`chronicler`), together "the Bots".
 
-**Last updated:** 2026-08-28
+**Last updated:** 2026-11-14
 
 **Contact:** `<CONTACT — replace with the email or Discord handle you want users to reach you at>`
 
@@ -32,9 +32,21 @@ The Bots store the minimum needed to work: server settings, the audio you delibe
 
 | Data | Where | Why |
 |---|---|---|
+| Discord **server (guild) IDs** | `data/guild_config.json` | Keep per-server roll settings: scoring system, default die, difficulty, botch rule |
 | **Operational logs** | `data/logs/` | Diagnose errors and crashes |
 
-Night Roller stores **no persistent data at all** — no settings, no roll history, no user records. Every roll is computed in memory and forgotten.
+Night Roller keeps **no roll history and no user records**. Individual rolls are computed in memory and forgotten; only the per-server settings above are written to disk.
+
+### Chronicler (`chronicler`)
+
+| Data | Where | Why |
+|---|---|---|
+| Discord **server (guild) IDs** | `data/guild_config.json` | Keep per-server roll settings: scoring system, default die, difficulty, botch rule |
+| **Operational logs** | `data/logs/` | Diagnose errors and crashes |
+
+Chronicler currently does the same as Night Roller, whose dice it has absorbed: per-server settings and logs, nothing else. Individual rolls are not recorded.
+
+Its planned features — announcements and reminders, a character builder, and session notes — **will** store content you write, attributable to your user ID. None of that exists yet. This policy will be updated before those features are released, and this paragraph is here so the change is not a surprise.
 
 ### What logs contain
 
@@ -67,7 +79,7 @@ The Microsoft TTS one is worth stating plainly: text you pass to `!say` leaves t
 
 The Operator has no control over these services and does not receive personal data back from them.
 
-**Night Roller** contacts no third-party service other than Discord.
+**Night Roller** and **Chronicler** contact no third-party service other than Discord.
 
 ## 6. Retention
 
@@ -76,7 +88,10 @@ The Operator has no control over these services and does not receive personal da
 | Echo — logs and cached downloads | Automatically deleted when older than **7 days** (purged on every startup) |
 | Echo — settings, playlists, intro and soundboard configs | Until deleted by a user, a server admin, or the Operator |
 | Echo — uploaded audio files | Until deleted via the relevant command, or by the Operator |
-| Night Roller — logs | Rotating files capped at 2 MB with 3 backups; the oldest are overwritten automatically. No age-based purge, because nothing else is stored |
+| Night Roller — logs | Rotating files capped at 2 MB with 3 backups; the oldest are overwritten automatically. No age-based purge |
+| Night Roller — per-server settings | Until reset with `!config reset`, or deleted by the Operator |
+| Chronicler — logs | Rotating files capped at 2 MB with 3 backups; the oldest are overwritten automatically. No age-based purge |
+| Chronicler — per-server settings | Until reset with `!config reset`, or deleted by the Operator |
 
 Data is not automatically erased when a Bot is removed from a server — ask the Operator if you want it wiped immediately.
 

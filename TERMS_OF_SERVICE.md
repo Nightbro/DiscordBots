@@ -1,8 +1,8 @@
 # Terms of Service
 
-**Applies to:** the Discord bots **Echo** (`echo-bot`) and **Night Roller** (`night-roller`), together "the Bots".
+**Applies to:** the Discord bots **Echo** (`echo-bot`), **Night Roller** (`night-roller`) and **Chronicler** (`chronicler`), together "the Bots".
 
-**Last updated:** 2026-08-28
+**Last updated:** 2026-11-14
 
 **Contact:** `<CONTACT — replace with the email or Discord handle you want users to reach you at>`
 
@@ -17,7 +17,8 @@ By adding either Bot to a Discord server, or by using its commands in a server w
 The Bots are free, non-commercial hobby projects, self-hosted by a private individual ("the Operator") on personal hardware. They are not a company, not a paid service, and carry no service-level guarantee.
 
 - **Echo** plays audio in voice channels: music from links or search, per-user intro sounds, a soundboard, and text-to-speech.
-- **Night Roller** rolls dice for tabletop games.
+- **Night Roller** rolls dice for tabletop games. It is superseded by Chronicler and will be retired.
+- **Chronicler** keeps a tabletop chronicle: dice today, with announcements, a character builder and session notes planned.
 
 Source code is public at <https://github.com/Nightbro/DiscordBots>.
 

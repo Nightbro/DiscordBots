@@ -13,7 +13,7 @@ Full-featured audio bot: music playback, soundboard, per-user intro sounds, and 
 
 See [`echo-bot/LINUX_SETUP.md`](echo-bot/LINUX_SETUP.md) for setup and deployment guide.
 
-### Features
+#### Features
 - Play YouTube audio by URL or search
 - Suno AI song playback
 - Per-user intro sounds (on voice join)
@@ -27,14 +27,31 @@ See [`echo-bot/LINUX_SETUP.md`](echo-bot/LINUX_SETUP.md) for setup and deploymen
 ### 🎲 night-roller
 Dice bot for D&D. `!roll` rolls a d20; `!roll 2d6+3`, `!roll adv +5`, and multi-group expressions all work, as prefix or slash commands. Runs on the same Raspberry Pi with its own auto-deploy.
 
+**Superseded by Chronicler**, which has absorbed its dice. Night Roller stays here and keeps running until Chronicler is deployed and verified, then it will be retired. Do not add both to the same server — they both answer `!roll`.
+
 See [`night-roller/LINUX_SETUP.md`](night-roller/LINUX_SETUP.md) for the Discord app walkthrough, Pi setup, and auto-update guide, and [`night-roller/help.md`](night-roller/help.md) for the command reference.
 
-### Features
+#### Features
 - `!roll` with full dice expressions: `d20`, `2d6+3`, `d20+2d4+1`, `2d6-1d4`
 - Advantage / disadvantage (`!roll adv`, `!roll dis`)
 - Natural 20 and natural 1 called out
 - Optional free-text label on any roll (`!roll 2d6+3 sneak attack`)
 - Auto-deploy to Raspberry Pi on every push
+
+---
+
+### 🕯️ chronicler
+Tabletop chronicle keeper, aimed at Chronicle of Darkness. Four responsibilities: dice, announcements and reminders, a character builder, and session notes. **Dice are built; the other three are planned** — see [`chronicler/FEATURES.md`](chronicler/FEATURES.md) for what works today and [`chronicler/ARCHITECTURE.md`](chronicler/ARCHITECTURE.md) for how it is put together.
+
+No Discord application exists for it yet, so it is not deployed. See [`chronicler/LINUX_SETUP.md`](chronicler/LINUX_SETUP.md) for what remains, and [`chronicler/help.md`](chronicler/help.md) for the command reference.
+
+#### Features
+- `!roll` with full dice expressions, advantage/disadvantage and free-text labels, ported from Night Roller
+- Success-counting dice pools: `!roll 5 (6)`, or automatic scoring in World of Darkness servers
+- Per-server settings via `!config` — roll system, default die, difficulty, botch rule
+- Paginated `!help` that adapts to the server's roll system
+- A feature list and command reference that the test suite refuses to let drift
+- Atomic JSON writes, so a crash mid-save cannot truncate stored data
 
 ---
 
@@ -56,4 +73,4 @@ Get a token at [discord.com/developers/applications](https://discord.com/develop
 - [Terms of Service](TERMS_OF_SERVICE.md)
 - [Privacy Policy](PRIVACY_POLICY.md)
 
-Both cover Echo and Night Roller. Link them in the Discord Developer Portal under **General Information → Terms of Service URL / Privacy Policy URL** for each application.
+They cover Echo, Night Roller and Chronicler. Link them in the Discord Developer Portal under **General Information → Terms of Service URL / Privacy Policy URL** for each application.

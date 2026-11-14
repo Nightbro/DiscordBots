@@ -1,0 +1,23 @@
+name: Deploy Chronicler to Raspberry Pi
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'chronicler/**'
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Pull latest code
+        run: git -C ~/DiscordBots pull origin main
+
+      - name: Install dependencies
+        run: |
+          cd ~/DiscordBots/chronicler
+          source venv/bin/activate
+          pip install -q -r requirements.txt
+
+      - name: Restart bot
+        run: sudo systemctl restart chronicler

@@ -1,0 +1,16 @@
+[Unit]
+Description=Chronicler Discord Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/DiscordBots/chronicler
+ExecStart=/home/pi/DiscordBots/chronicler/venv/bin/python bot.py
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=/home/pi/DiscordBots/chronicler/.env
+
+[Install]
+WantedBy=multi-user.target

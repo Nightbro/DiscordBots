@@ -1,0 +1,13 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+venv/
+
+# Runtime data — content ignored, dir structure kept via .gitkeep
+data/logs/*
+data/*.json
+!data/**/.gitkeep

@@ -1,0 +1,9 @@
+discord.py
+python-dotenv
+certifi
+pyyaml
+
+# Dev / testing
+pytest
+pytest-asyncio
+pytest-mock
