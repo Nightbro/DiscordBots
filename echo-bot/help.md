@@ -93,7 +93,7 @@ Supported formats: `.mp3` `.ogg` `.wav` `.flac` `.m4a` `.opus` `.aac`
 
 | Command | Description |
 |---|---|
-| `!sb add <name> 💥 [short]` | Add a sound (attach audio file). Emoji separates name from optional short. Auto-short is name with spaces removed. |
+| `!sb add <name> [💥] [\| short]` | Add a sound (attach audio file). Name may contain spaces. Emoji and short trigger are both optional. |
 | `!sb remove <name>` | Remove a sound and delete its file |
 | `!sb play <name>` | Play a sound in your voice channel |
 | `!sb short <name> <short>` | Change the short trigger for an existing sound |
@@ -102,13 +102,14 @@ Supported formats: `.mp3` `.ogg` `.wav` `.flac` `.m4a` `.opus` `.aac`
 
 Alias: `!soundboard`
 
-> **`sb add`** — emoji is required and acts as a delimiter: everything before it is the name, everything after is the short. No quotes needed for multi-word names.
-> Examples: `!sb add explosion effect 💥` → auto-short `explosioneffect` · `!sb add explosion effect 💥 ex` → short `ex`
+> **`sb add`** — only the name is required, and it may contain spaces. No quotes needed.
+> Add `| short` for a custom short trigger, and an emoji anywhere for the panel icon. Without an emoji the bot assigns a free one, so panel reactions stay unambiguous.
+> Examples: `!sb add epic fail sound` → auto-short `epicfailsound`, pooled emoji · `!sb add epic fail 💥` → chosen emoji · `!sb add epic fail 💥 | ef` → short `ef`
 >
 > **`sb short`** — put the new short last, everything before it is the name. No quotes needed.
 > Example: `!sb short explosion effect ex` → sets short to `ex`
 
-**Quick trigger:** Type `!<name>` or `!<short>` directly (e.g. `!explosioneffect` or `!ex`) to play a sound. Case-insensitive. Unknown names are silently ignored.
+**Quick trigger:** Type `!<name>` or `!<short>` directly (e.g. `!epic fail sound` or `!ef`) to play a sound. Multi-word names work, and the first word is tried as a fallback. Case-insensitive. Unknown names are silently ignored.
 
 ---
 

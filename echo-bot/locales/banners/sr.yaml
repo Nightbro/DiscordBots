@@ -89,7 +89,8 @@ help:
   soundboard:
     title: "🔊 Tabla sa Zvukovima"
     body: |
-      `{prefix}sb add <ime> [emoji]` — dodaj zvuk (priloži audio)
+      `{prefix}sb add <ime> [emoji] [| kratko]` — dodaj zvuk (priloži audio)
+      (potrebno je samo ime; može imati više reči)
       `{prefix}sb remove <ime>` — ukloni zvuk i fajl
       `{prefix}sb play <ime>` — pusti zvuk u svom kanalu
       `{prefix}sb list` — lista svih zvukova

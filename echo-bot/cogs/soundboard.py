@@ -13,38 +13,53 @@ from utils.i18n import t
 from utils.message import MessageWriter
 from utils.notifier import Notifier
 from utils.soundboard_config import (
+    DEFAULT_EMOJI,
     add_sound,
     find_sound,
     get_sound,
     get_sound_path,
     get_sounds,
+    next_free_emoji,
     remove_sound,
     set_short,
     sound_exists,
 )
 from utils.voice import VoiceStreamer
 
-# Matches Unicode emoji (main planes + misc symbols) and Discord custom emoji
+# Matches Unicode emoji (main planes + misc symbols), keycaps, and Discord custom emoji
 _EMOJI_RE = re.compile(
     '(?:<a?:[^:]+:\\d+>'
+    '|[0-9#*]️?⃣'
     '|[\U0001F000-\U0001FFFF]'
     '|[⌀-⯿]'
     ')'
 )
 
+# Separates an optional short trigger from the name: "epic fail | ef"
+_SHORT_SEP = '|'
 
-def _parse_add_text(text: str) -> tuple[str, str, str] | None:
+
+def _parse_add_text(text: str) -> tuple[str, str, str]:
     """
-    Parse 'name emoji [short]' from raw add text.
-    Returns (name, emoji, short) — short may be empty — or None if no emoji found.
+    Parse the text of `!sb add` into (name, emoji, short).
+
+    Only the name is required, and it may contain spaces:
+        'epic fail'          → ('epic fail', '',   '')
+        'epic fail 💥'        → ('epic fail', '💥', '')
+        'epic fail | ef'     → ('epic fail', '',   'ef')
+        'epic fail 💥 | ef'   → ('epic fail', '💥', 'ef')
+
+    An emoji may sit anywhere in the name part and is lifted out of the name.
     """
-    m = _EMOJI_RE.search(text)
-    if m is None:
-        return None
-    name = text[:m.start()].strip()
-    emoji = m.group()
-    short = text[m.end():].strip()
-    return name, emoji, short
+    name_part, _, short = text.partition(_SHORT_SEP)
+
+    emoji = ''
+    match = _EMOJI_RE.search(name_part)
+    if match:
+        emoji = match.group()
+        name_part = f'{name_part[:match.start()]} {name_part[match.end():]}'
+
+    return ' '.join(name_part.split()), emoji, ' '.join(short.split())
 
 
 class SoundboardCog(commands.Cog, name='Soundboard'):
@@ -81,14 +96,15 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         rest = message.content[len(PREFIX):].strip()
         if not rest:
             return
-        name = rest.split()[0].lower()
+        first_word = rest.split()[0].lower()
 
         # Don't intercept registered commands
-        if self.bot.get_command(name):
+        if self.bot.get_command(first_word):
             return
 
-        # Case-insensitive lookup by full name OR short trigger
-        result = find_sound(name)
+        # Case-insensitive lookup by full name OR short trigger. The whole text is
+        # tried first so multi-word names work ("!epic fail"), then the first word.
+        result = find_sound(rest) or find_sound(first_word)
         if result is None:
             return
         matched_name, _ = result
@@ -174,11 +190,7 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         gid = ctx.guild.id
         notifier = self._notifier(ctx)
 
-        parsed = _parse_add_text(text)
-        if parsed is None:
-            await notifier.error(ctx, t('soundboard.add_parse_error', gid))
-            return
-        name, emoji, short_raw = parsed
+        name, emoji, short_raw = _parse_add_text(text)
 
         if not name:
             await notifier.error(ctx, t('soundboard.add_no_name', gid))
@@ -199,9 +211,17 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
             return
 
         assigned_short = short_raw if short_raw else name.replace(' ', '').lower()
+        # No emoji given: take a free one so panel reactions stay unambiguous.
+        pool_exhausted = False
+        if not emoji:
+            free = next_free_emoji()
+            pool_exhausted = free is None
+            emoji = free or DEFAULT_EMOJI
         add_sound(name, filename, emoji, assigned_short)
         desc = t('soundboard.add_desc', gid, emoji=emoji, filename=filename)
-        desc += f'\nShort trigger: `!{assigned_short}`'
+        desc += '\n' + t('soundboard.add_short_line', gid, short=assigned_short)
+        if pool_exhausted:
+            desc += '\n' + t('soundboard.add_emoji_reused', gid)
         await notifier.success(ctx, t('soundboard.add_title', gid, name=name), desc)
 
     @sb.command(name='short')
@@ -224,7 +244,7 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         await notifier.success(ctx, t('soundboard.short_done', gid, name=name, short=new_short))
 
     @sb.command(name='remove')
-    async def sb_remove(self, ctx: commands.Context, name: str) -> None:
+    async def sb_remove(self, ctx: commands.Context, *, name: str) -> None:
         """Remove a sound from the soundboard (also deletes the file)."""
         gid = ctx.guild.id
         notifier = self._notifier(ctx)
@@ -241,7 +261,7 @@ class SoundboardCog(commands.Cog, name='Soundboard'):
         await notifier.success(ctx, t('soundboard.remove_done', gid, name=name))
 
     @sb.command(name='play')
-    async def sb_play(self, ctx: commands.Context, name: str) -> None:
+    async def sb_play(self, ctx: commands.Context, *, name: str) -> None:
         """Play a soundboard sound in your voice channel."""
         gid = ctx.guild.id
         notifier = self._notifier(ctx)

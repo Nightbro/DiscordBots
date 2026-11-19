@@ -171,3 +171,39 @@ def test_set_short_empty_removes_short(mock_cfg):
 
 def test_set_short_returns_false_when_sound_missing(mock_cfg):
     assert set_short('nonexistent', 'x') is False
+
+
+# ---------------------------------------------------------------------------
+# Emoji pool (used when !sb add is given no emoji)
+# ---------------------------------------------------------------------------
+
+def test_emoji_pool_entries_are_unique():
+    from utils.soundboard_config import EMOJI_POOL
+    assert len(EMOJI_POOL) == len(set(EMOJI_POOL))
+
+
+def test_used_emojis_reports_existing_sounds():
+    from utils.soundboard_config import EMOJI_POOL, used_emojis
+    sounds = {'a': {'emoji': EMOJI_POOL[0], 'file': 'a.mp3'}}
+    with patch('utils.soundboard_config.get_sounds', return_value=sounds):
+        assert used_emojis() == {EMOJI_POOL[0]}
+
+
+def test_next_free_emoji_skips_taken_ones():
+    from utils.soundboard_config import EMOJI_POOL, next_free_emoji
+    sounds = {
+        str(i): {'emoji': emoji, 'file': f'{i}.mp3'}
+        for i, emoji in enumerate(EMOJI_POOL[:3])
+    }
+    with patch('utils.soundboard_config.get_sounds', return_value=sounds):
+        assert next_free_emoji() == EMOJI_POOL[3]
+
+
+def test_next_free_emoji_returns_none_when_pool_is_full():
+    from utils.soundboard_config import EMOJI_POOL, next_free_emoji
+    sounds = {
+        str(i): {'emoji': emoji, 'file': f'{i}.mp3'}
+        for i, emoji in enumerate(EMOJI_POOL)
+    }
+    with patch('utils.soundboard_config.get_sounds', return_value=sounds):
+        assert next_free_emoji() is None

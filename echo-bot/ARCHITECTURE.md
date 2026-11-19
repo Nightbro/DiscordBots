@@ -352,7 +352,7 @@ Bot-join intro fires via `on_voice_state_update` when `member.id == bot.user.id`
 
 | Command | Aliases | Description |
 |---|---|---|
-| `!soundboard add <name> 💥 [short]` | `!sb add` | Add sound (attachment). Emoji delimits name from optional short. |
+| `!soundboard add <name> [💥] [\| short]` | `!sb add` | Add sound (attachment). Name may contain spaces; emoji and short optional. |
 | `!soundboard remove <name>` | `!sb remove` | Remove sound |
 | `!soundboard play <name>` | `!sb play` | Play sound immediately |
 | `!soundboard short <name> <short>` | `!sb short` | Change short trigger for a sound |
@@ -361,7 +361,9 @@ Bot-join intro fires via `on_voice_state_update` when `member.id == bot.user.id`
 
 Panel uses `ReactionHandler.panel()`. Plays via `VoiceStreamer.interrupt()`.
 
-**`sb add` parsing:** `_parse_add_text(text)` uses `_EMOJI_RE` to find the first emoji; everything before it is the name, everything after is the short. If short is omitted, it defaults to `name.replace(' ', '').lower()`.
+**`sb add` parsing:** `_parse_add_text(text)` splits an optional short trigger at `|`, lifts the first emoji found anywhere out of the remainder, and treats what is left (whitespace collapsed) as the name, so names may contain spaces. Nothing but the name is required. Omitted short defaults to `name.replace(' ', '').lower()`; omitted emoji is filled from `soundboard_config.EMOJI_POOL` via `next_free_emoji()`, falling back to `DEFAULT_EMOJI` once the pool is exhausted — panel reactions map emoji→sound, so duplicates would be ambiguous.
+
+**Quick trigger:** `on_message` tries the whole text after the prefix against names and shorts first, then the first word, so `!epic fail sound` works as well as `!ef`.
 
 **`sb short` parsing:** `rsplit(maxsplit=1)` — last word is the new short, the rest is the sound name. No quotes needed for multi-word names.
 

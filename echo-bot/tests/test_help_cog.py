@@ -215,12 +215,26 @@ def test_help_md_mentions_every_visible_command():
     assert not missing, f'commands missing from help.md: {missing}'
 
 
-def test_help_pages_have_no_stale_commands():
-    """Every !command named in the help pages still exists."""
+def test_features_md_mentions_every_visible_command():
+    """FEATURES.md is the always-current feature list — enforced, not promised."""
+    md = open('FEATURES.md', encoding='utf-8').read()
+    missing = [name for name, spell in _visible_commands() if not _mentions(md, spell)]
+    assert not missing, f'commands missing from FEATURES.md: {missing}'
+
+
+# Soundboard quick-trigger examples in the docs are typed like commands ('!ef')
+# but name sounds, not registered commands.
+_TRIGGER_EXAMPLES = {'epic', 'ef', 'explosioneffect', 'epicfailsound'}
+
+
+@pytest.mark.parametrize('source', ['pages', 'help.md', 'FEATURES.md'])
+def test_documentation_has_no_stale_commands(source):
+    """Every !command named in the documentation still exists."""
     import re
-    real = _all_command_names()
-    named = set(re.findall(r'!([a-z]+)', _rendered_help()))
-    assert not named - real, f'help names commands that do not exist: {sorted(named - real)}'
+    text = _rendered_help() if source == 'pages' else open(source, encoding='utf-8').read()
+    real = _all_command_names() | _TRIGGER_EXAMPLES
+    named = set(re.findall(r'!([a-z]+)', text))
+    assert not named - real, f'{source} names commands that do not exist: {sorted(named - real)}'
 
 
 def test_every_section_page_is_reachable_by_name():

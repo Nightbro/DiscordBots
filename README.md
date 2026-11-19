@@ -11,16 +11,21 @@ A collection of Discord bots.
 ### 🔊 echo-bot
 Full-featured audio bot: music playback, soundboard, per-user intro sounds, and TTS. Runs on Raspberry Pi with auto-deploy via GitHub Actions.
 
-See [`echo-bot/LINUX_SETUP.md`](echo-bot/LINUX_SETUP.md) for setup and deployment guide.
+See [`echo-bot/LINUX_SETUP.md`](echo-bot/LINUX_SETUP.md) for setup and deployment guide,
+[`echo-bot/FEATURES.md`](echo-bot/FEATURES.md) for the full feature list, and
+[`echo-bot/help.md`](echo-bot/help.md) for the command reference.
 
 #### Features
 - Play YouTube audio by URL or search
-- Suno AI song playback
+- Per-server library of uploaded tracks (`!save`, `!library`), played by name or number
 - Per-user intro sounds (on voice join)
-- Soundboard with reaction panel
+- Soundboard with reaction panel and multi-word quick triggers
 - Text-to-speech via edge-tts
 - Per-server settings and playlists
+- Dev log: per-server error forwarding to a channel or DM
 - Auto-deploy to Raspberry Pi on every push
+
+Suno playback was removed in November 2026 — see [`echo-bot/FEATURES.md`](echo-bot/FEATURES.md#withdrawn).
 
 ---
 

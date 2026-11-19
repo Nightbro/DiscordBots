@@ -89,7 +89,8 @@ help:
   soundboard:
     title: "🔊 Soundboard"
     body: |
-      `{prefix}sb add <name> [emoji]` — add a sound (attach audio)
+      `{prefix}sb add <name> [emoji] [| short]` — add a sound (attach audio)
+      (only the name is needed; it may contain spaces)
       `{prefix}sb remove <name>` — remove a sound and its file
       `{prefix}sb play <name>` — play a sound in your channel
       `{prefix}sb list` — list all sounds
