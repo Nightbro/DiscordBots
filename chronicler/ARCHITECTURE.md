@@ -59,7 +59,7 @@ chronicler/
 │   ├── dice.py              # Dice grammar and scoring — no strings for humans
 │   ├── format.py            # Renders a RollResult as text (Discord markdown)
 │   ├── archive.py           # Export model, manifest, limits, export records
-│   ├── transcript.py        # Renders a Transcript to HTML (PDF/DOCX to come)
+│   ├── transcript.py        # Renders a Transcript to HTML, PDF and DOCX
 │   └── message.py           # MessageWriter: every embed the bot sends
 │
 ├── data/
@@ -226,8 +226,31 @@ Discord's attachment links are signed and expire after about a day, so a linked
 export is unreadable almost immediately. They are stored at full size and sized
 down only for display, by width attribute and CSS.
 
+`render_pdf` (fpdf2) and `render_docx` (python-docx) produce the same messages
+as documents: author, timestamp, text and inline images, no structure.
+
 Each format renders from the model independently; nothing here parses another
-format's output. That is why there is no HTML-to-PDF step — see Build Phases.
+format's output. There is deliberately **no HTML-to-PDF step** and no Word→PDF
+chain — both would mean carrying a renderer with native dependencies that the
+Pi deploy cannot install, since it only runs `pip install`.
+
+Two things worth knowing before touching either:
+
+- **fpdf2's built-in fonts are Latin-1 only.** A transcript with Cyrillic would
+  otherwise be mangled, so `unicode_font()` looks for a system TrueType font
+  (DejaVu, Liberation, Segoe, Arial) and registers it. With none found the PDF
+  falls back to a Latin-1 font, replaces what it cannot encode, and logs that it
+  did. `archive.pdf_font` pins one explicitly. No font is vendored — a font
+  binary in the repo for one feature is a poor trade.
+- **Images are re-encoded before embedding.** `_embeddable()` downscales to
+  print resolution via Pillow and re-encodes as JPEG, in memory. Without it a
+  transcript of phone photographs would produce a PDF hundreds of megabytes
+  wide. The originals in `images/` are never touched.
+
+A Word template, if `archive.docx_template` names one, is a source of **styles
+only** — its own paragraphs are stripped before the transcript is written, so a
+template's placeholder text cannot leak into an export. Missing styles fall back
+to defaults rather than failing.
 
 ### utils/persistence.py + utils/guild_config.py
 
@@ -437,8 +460,8 @@ list self-enforcing rather than a promise.
    ported, settings/help/dev/invite, full test suite, docs, CI workflow.
 2. **Channel archive, export** — done. `!archive run` / `status` / `seed`,
    the bundle format, the manifest interlock, the pre-flight limits.
-3. **Archive transcripts as PDF and Word** — `transcript.pdf` and
-   `transcript.docx` in the bundle, rendered from the same model as the HTML
+3. **Archive transcripts as PDF and Word** — done. `transcript.pdf` and
+   `transcript.docx` in every bundle, rendered from the same model as the HTML
    rather than converted from it. Messages only, no structure.
 
    Rendering is pure-Python (`fpdf2`, `python-docx`, `Pillow`) on purpose.

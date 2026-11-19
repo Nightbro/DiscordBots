@@ -91,6 +91,10 @@ defaults and limits. `archive:` bounds exports and sets how transcripts look:
 | `max_messages` | 20000 | Largest export, refused before downloading |
 | `max_bundle_mb` | 1024 | Most attachment bytes in one export |
 | `image_width` | 480 | Display width of images in `index.html` |
+| `pdf_image_width_mm` | 120 | Width of inline images in the PDF and Word files |
+| `pdf_font_size` | 10 | Body text size in the PDF |
+| `pdf_font` | *(empty)* | A `.ttf` for the PDF. Empty auto-detects a system font; see below |
+| `docx_template` | *(empty)* | A `.docx` whose styles the Word transcript borrows |
 | `retention_days` | 0 | **0 means bundles are never auto-deleted** |
 | `confirm_secs` | 60 | How long a deletion confirmation stays live |
 | `progress_every` | 250 | Edit the progress message every N messages |
@@ -98,6 +102,41 @@ defaults and limits. `archive:` bounds exports and sets how transcripts look:
 `retention_days` defaults to off on purpose. A bundle can be the only remaining
 copy of a cleared channel, so deleting backups by age has to be a choice
 somebody makes deliberately.
+
+### Fonts for the PDF
+
+The PDF needs a TrueType font to render anything outside Latin-1 — Cyrillic,
+Greek, Turkish and so on. Chronicler looks for one automatically:
+
+| Platform | Looked for |
+|---|---|
+| Debian / Raspberry Pi OS | `/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf`, then Liberation |
+| Windows | `C:/Windows/Fonts/segoeui.ttf`, then `arial.ttf` |
+
+Raspberry Pi OS ships DejaVu in the `fonts-dejavu-core` package, which is
+normally already installed. If it is not:
+
+```bash
+sudo apt install fonts-dejavu-core
+```
+
+With no font found the export still succeeds — the PDF falls back to a Latin-1
+font, replaces characters it cannot encode with `?`, and logs a warning. The
+HTML and Word versions are unaffected either way, since neither has that
+limitation.
+
+To use a specific font, drop it in `assets/` and set `archive.pdf_font` to its
+filename, or give an absolute path.
+
+### Styling the Word transcript
+
+Leave `archive.docx_template` empty for Word's own defaults. To restyle it,
+create a `.docx` in Word, set up the **Title**, **Subtitle**, **Heading 2** and
+**Normal** styles how you want them, save it into `assets/`, and name it in
+`archive.docx_template`.
+
+Only the template's *styles* are used. Any text in it is stripped, so a template
+cannot leak placeholder content into an export.
 
 ---
 

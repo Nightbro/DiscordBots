@@ -103,12 +103,25 @@ Message ids come from right-clicking a message and choosing **Copy Message ID**
 ### What the bundle contains
 
 ```
-index.html      open this
-style.css       edit it if you want it to look different
-manifest.json   every exported message id, the range, who ran it
-images/         image attachments, exactly as uploaded
-files/          every other attachment, exactly as uploaded
+index.html       open this
+style.css        edit it if you want it to look different
+transcript.pdf   the same messages as a PDF
+transcript.docx  the same messages as a Word document
+manifest.json    every exported message id, the range, who ran it
+images/          image attachments, exactly as uploaded
+files/           every other attachment, exactly as uploaded
 ```
+
+The PDF and Word versions carry the messages — author, timestamp, text and
+inline images — and nothing else. No threads, replies or embeds. Images in them
+are downscaled to print resolution; the untouched originals stay in `images/`.
+
+To restyle the Word output, put a `.docx` with your own **Title**, **Subtitle**,
+**Heading 2** and **Normal** styles into `assets/` and name it in
+`archive.docx_template`. Only its styles are used, never its text.
+
+If the PDF shows `?` instead of Cyrillic or other non-Latin characters, no
+system TrueType font was found. Point `archive.pdf_font` at one.
 
 Images are **saved into the bundle**, not linked back to Discord — Discord's
 attachment links are signed and stop working after about a day, so a linked

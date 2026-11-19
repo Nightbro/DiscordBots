@@ -132,17 +132,24 @@ def _to_archived(message: discord.Message) -> tuple[ArchivedMessage, list[discor
     return archived, list(message.attachments)
 
 
-def _write_bundle(dest: Path, staging: Path, html: str, manifest: dict) -> None:
-    """Zip the staged attachments together with the rendered documents.
+def _build_bundle(dest: Path, staging: Path, transcript: Transcript, manifest: dict) -> None:
+    """Render every format and zip it with the staged attachments.
 
-    Blocking — callers run it in an executor.
+    All of this blocks — rendering a PDF and recompressing images are both CPU
+    work — so callers hand it to an executor rather than running it on the
+    event loop.
+
+    The zip is written to a .part file and moved into place, so a crash cannot
+    leave a half-written bundle that a later purge might trust.
     """
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(f'{dest.name}.part')
     try:
         with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr('index.html', html)
+            zf.writestr('index.html', render.render_html(transcript))
             zf.writestr('style.css', render.STYLE_CSS)
+            zf.writestr('transcript.pdf', render.render_pdf(transcript, root=staging))
+            zf.writestr('transcript.docx', render.render_docx(transcript, root=staging))
             zf.writestr(archive.MANIFEST_NAME, json.dumps(manifest, indent=2, ensure_ascii=False))
             for path in sorted(staging.rglob('*')):
                 if path.is_file():
@@ -322,12 +329,14 @@ class ArchiveCog(commands.Cog, name='Archive'):
                 exported_by=ctx.author.id,
                 exported_by_name=ctx.author.display_name,
             )
-            html = render.render_html(transcript)
             dest = archive.guild_dir(ctx.guild.id) / archive.bundle_name(
                 target.name, transcript.generated_at
             )
+            await progress.edit(embed=MessageWriter.info(
+                'Exporting', f'Rendering {len(collected)} messages…'
+            ))
             await asyncio.get_running_loop().run_in_executor(
-                None, _write_bundle, dest, staging, html, manifest
+                None, _build_bundle, dest, staging, transcript, manifest
             )
 
         archive.record_export(ctx.guild.id, target.id, manifest, dest)

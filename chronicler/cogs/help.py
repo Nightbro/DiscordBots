@@ -71,7 +71,8 @@ browser. Needs **Manage Server**.
 
 **A range is always required.** There is no default, on purpose.
 
-The bundle holds `index.html` to read it, the images and files exactly as they
+The bundle holds `index.html` to read it, `transcript.pdf` and
+`transcript.docx` of the same messages, the images and files exactly as they
 were uploaded, and a `manifest.json` listing every message id. Images are saved
 locally rather than linked, because Discord's own links expire after a day.
 

@@ -38,6 +38,15 @@ archive:
   # being embedded, so the PDF does not carry full-resolution originals.
   pdf_image_width_mm: 120
   pdf_font_size: 10
+  # A TrueType font for the PDF, so non-Latin text survives. Empty means
+  # auto-detect a system font (DejaVu / Liberation on Linux, Segoe / Arial on
+  # Windows). With none found the PDF falls back to a built-in Latin-1 font and
+  # anything outside that range is replaced.
+  pdf_font: ""
+  # A .docx whose styles the Word transcript should use. Empty means Word's
+  # defaults. Put one in assets/ and name it here to restyle the output; the
+  # transcript uses the Title, Heading 2 and Normal styles.
+  docx_template: ""
   # A bundle may be the only remaining copy of a purged channel, so age-based
   # deletion is opt-in. 0 = never delete a bundle automatically.
   retention_days: 0

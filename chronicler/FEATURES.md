@@ -15,7 +15,7 @@ Updating it is mandatory whenever a command is added, removed or renamed.
 | Dice roller | **Shipped** |
 | Per-server settings | **Shipped** |
 | Channel archive — export | **Shipped** |
-| Channel archive — PDF and Word | Planned |
+| Channel archive — PDF and Word | **Shipped** |
 | Channel archive — clearing a channel | Planned |
 | Announcements and reminders | Planned |
 | Character builder | Planned |
@@ -81,8 +81,19 @@ Exports a channel's history into one zip that opens in a browser.
   History in the target channel, and Attach Files to deliver the bundle.
 - **A range is always required** — there is no default, so an export can never
   guess bounds that a later deletion would act on.
-- The bundle holds `index.html`, `style.css`, `manifest.json` listing every
-  exported message id, `images/` and `files/`.
+- The bundle holds `index.html`, `style.css`, `transcript.pdf`,
+  `transcript.docx`, `manifest.json` listing every exported message id,
+  `images/` and `files/`.
+- PDF and Word are rendered from the same message model as the HTML, not
+  converted from it: author, timestamp, text and inline images, with no thread
+  or reply structure. Word styling comes from an optional template `.docx` you
+  provide; PDF font and image size come from `config.yaml`.
+- Images are downscaled in memory to print resolution before being embedded in
+  the PDF and Word files, so a transcript of photographs stays a sensible size
+  while the originals in `images/` remain untouched.
+- The PDF uses a system TrueType font when one is present so Cyrillic and other
+  non-Latin text renders; with none found it degrades to a Latin-1 font and
+  says so in the log. Set `archive.pdf_font` to pin one.
 - Images and other attachments are stored exactly as uploaded and referenced
   relatively, because Discord's signed attachment links expire after about a
   day — a linked export would be unreadable within 24 hours.
@@ -115,18 +126,6 @@ Exports a channel's history into one zip that opens in a browser.
 Listed here so the roadmap lives beside the feature list. Most carry no
 commands yet, by design — see `ARCHITECTURE.md` for the open design questions
 each one holds.
-
-### Archive transcripts as PDF and Word
-
-The bundle will also carry `transcript.pdf` and `transcript.docx`, rendered
-from the same message model as the HTML rather than converted from it. Messages
-only — author, timestamp, text and inline images — with no thread or reply
-structure. Word styling comes from an editable template, PDF styling from
-`config.yaml`.
-
-Rendering goes through pure-Python libraries on purpose. The obvious choice,
-WeasyPrint, needs Pango and cairo as native system libraries, which the Pi
-deploy cannot install for itself since it only runs `pip install`.
 
 ### Clearing an archived channel
 

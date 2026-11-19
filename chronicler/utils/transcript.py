@@ -11,9 +11,34 @@ No Discord types. Blocking work only, so callers run it off the event loop.
 from __future__ import annotations
 
 import html
+import logging
+from io import BytesIO
+from pathlib import Path
 
 from utils.archive import Transcript
-from utils.config import ARCHIVE_IMAGE_WIDTH
+from utils.config import (
+    ARCHIVE_DOCX_TEMPLATE,
+    ARCHIVE_IMAGE_WIDTH,
+    ARCHIVE_PDF_FONT,
+    ARCHIVE_PDF_FONT_SIZE,
+    ARCHIVE_PDF_IMAGE_WIDTH_MM,
+    ASSETS_DIR,
+)
+
+log = logging.getLogger(__name__)
+
+# fpdf2's built-in fonts are Latin-1 only, so a transcript containing Cyrillic,
+# Greek or anything else outside that range needs a real TrueType font. None is
+# vendored — a font binary in the repo for one feature is a poor trade — so a
+# system one is used when present, in this order.
+_FONT_CANDIDATES = (
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+    '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+    '/usr/share/fonts/TTF/DejaVuSans.ttf',
+    '/Library/Fonts/Arial Unicode.ttf',
+    'C:/Windows/Fonts/segoeui.ttf',
+    'C:/Windows/Fonts/arial.ttf',
+)
 
 STYLE_CSS = """\
 :root {
@@ -148,3 +173,229 @@ def render_html(transcript: Transcript, *, image_width: int = 0) -> str:
     )
     body.append('</div></body></html>')
     return '\n'.join(body)
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers for the document formats
+# ---------------------------------------------------------------------------
+
+# Images are embedded at print resolution rather than at whatever the camera
+# produced, so a transcript of holiday photos does not become a 200 MB PDF.
+_IMAGE_DPI = 150
+
+
+def unicode_font() -> Path | None:
+    """A TrueType font able to render the whole transcript, if one is around."""
+    if ARCHIVE_PDF_FONT:
+        configured = Path(ARCHIVE_PDF_FONT)
+        if not configured.is_absolute():
+            configured = ASSETS_DIR / configured
+        if configured.exists():
+            return configured
+        log.warning('Configured PDF font %s does not exist — looking for a system one', configured)
+    for candidate in _FONT_CANDIDATES:
+        path = Path(candidate)
+        if path.exists():
+            return path
+    return None
+
+
+def _latin1(text: str) -> str:
+    """Last resort when no TrueType font exists: keep what Latin-1 can hold."""
+    return text.encode('latin-1', 'replace').decode('latin-1')
+
+
+def _embeddable(path: Path, width_mm: int) -> BytesIO | None:
+    """One image, downscaled in memory. None if it cannot be read."""
+    try:
+        from PIL import Image
+
+        max_px = max(1, round(width_mm / 25.4 * _IMAGE_DPI))
+        with Image.open(path) as img:
+            frame = img.convert('RGB')
+            if frame.width > max_px:
+                ratio = max_px / frame.width
+                frame = frame.resize((max_px, max(1, round(frame.height * ratio))))
+            buffer = BytesIO()
+            frame.save(buffer, format='JPEG', quality=85)
+        buffer.seek(0)
+        return buffer
+    except Exception as exc:
+        # A corrupt or exotic upload must not cost the whole transcript.
+        log.warning('Image %s could not be embedded: %s', path.name, exc)
+        return None
+
+
+def _header_lines(transcript: Transcript) -> tuple[str, str]:
+    generated = transcript.generated_at.strftime('%Y-%m-%d %H:%M UTC')
+    return (
+        f'#{transcript.channel_name}',
+        f'{transcript.guild_name} · {len(transcript.messages)} messages · '
+        f'{transcript.attachment_count} attachments · exported {generated}',
+    )
+
+
+# ---------------------------------------------------------------------------
+# PDF
+# ---------------------------------------------------------------------------
+
+def render_pdf(transcript: Transcript, *, root: Path | None = None) -> bytes:
+    """The transcript as a PDF: messages, timestamps and inline images.
+
+    Rendered from the model, not from the HTML — see the module docstring.
+    """
+    from fpdf import FPDF
+
+    font = unicode_font()
+    pdf = FPDF(unit='mm', format='A4')
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+
+    if font is not None:
+        pdf.add_font('body', '', str(font))
+        family = 'body'
+
+        def clean(text: str) -> str:
+            return text
+    else:
+        family = 'helvetica'
+        clean = _latin1
+        log.warning(
+            'No TrueType font found — the PDF uses a Latin-1 font and other '
+            'characters will be replaced. Set archive.pdf_font in config.yaml.'
+        )
+
+    size = ARCHIVE_PDF_FONT_SIZE
+    title, meta = _header_lines(transcript)
+
+    pdf.set_font(family, size=size + 6)
+    pdf.multi_cell(0, 9, clean(title), new_x='LMARGIN', new_y='NEXT')
+    pdf.set_font(family, size=size - 2)
+    pdf.set_text_color(110)
+    pdf.multi_cell(0, 5, clean(meta), new_x='LMARGIN', new_y='NEXT')
+    pdf.ln(4)
+
+    if not transcript.messages:
+        pdf.set_font(family, size=size)
+        pdf.multi_cell(0, 5, clean('No messages in this range.'),
+                       new_x='LMARGIN', new_y='NEXT')
+        return bytes(pdf.output())
+
+    for message in transcript.messages:
+        pdf.set_text_color(90)
+        pdf.set_font(family, size=size - 2)
+        stamp = f'{message.author_name} · {message.timestamp}'
+        if message.edited:
+            stamp += ' (edited)'
+        pdf.multi_cell(0, 5, clean(stamp), new_x='LMARGIN', new_y='NEXT')
+
+        pdf.set_text_color(0)
+        pdf.set_font(family, size=size)
+        if message.content:
+            pdf.multi_cell(0, 5, clean(message.content), new_x='LMARGIN', new_y='NEXT')
+
+        for attachment in message.images:
+            buffer = None
+            if root is not None:
+                buffer = _embeddable(root / attachment.path_in_bundle,
+                                     ARCHIVE_PDF_IMAGE_WIDTH_MM)
+            if buffer is None:
+                pdf.multi_cell(0, 5, clean(f'[image: {attachment.filename}]'),
+                               new_x='LMARGIN', new_y='NEXT')
+                continue
+            try:
+                pdf.image(buffer, w=ARCHIVE_PDF_IMAGE_WIDTH_MM)
+            except Exception as exc:
+                log.warning('Image %s rejected by the PDF writer: %s',
+                            attachment.filename, exc)
+                pdf.multi_cell(0, 5, clean(f'[image: {attachment.filename}]'),
+                               new_x='LMARGIN', new_y='NEXT')
+
+        for attachment in message.files:
+            pdf.set_text_color(110)
+            pdf.multi_cell(0, 5, clean(f'[file: {attachment.filename}]'),
+                           new_x='LMARGIN', new_y='NEXT')
+            pdf.set_text_color(0)
+
+        pdf.ln(3)
+
+    return bytes(pdf.output())
+
+
+# ---------------------------------------------------------------------------
+# Word
+# ---------------------------------------------------------------------------
+
+def docx_template() -> Path | None:
+    """The .docx whose styles the Word transcript should borrow, if configured."""
+    if not ARCHIVE_DOCX_TEMPLATE:
+        return None
+    path = Path(ARCHIVE_DOCX_TEMPLATE)
+    if not path.is_absolute():
+        path = ASSETS_DIR / path
+    if path.exists():
+        return path
+    log.warning('Configured Word template %s does not exist — using defaults', path)
+    return None
+
+
+def _paragraph(doc, text: str, style: str | None = None):
+    """Add a paragraph, falling back when a template lacks the named style."""
+    if style:
+        try:
+            return doc.add_paragraph(text, style=style)
+        except KeyError:
+            log.warning('Word template has no %s style — using the default', style)
+    return doc.add_paragraph(text)
+
+
+def render_docx(transcript: Transcript, *, root: Path | None = None) -> bytes:
+    """The transcript as a .docx, styled by an optional template."""
+    from docx import Document
+    from docx.shared import Mm
+
+    template = docx_template()
+    doc = Document(str(template)) if template is not None else Document()
+
+    # A template is a source of styles, not of content — drop anything it holds
+    # so the transcript does not inherit somebody's placeholder text.
+    for paragraph in list(doc.paragraphs):
+        element = paragraph._element
+        element.getparent().remove(element)
+
+    title, meta = _header_lines(transcript)
+    _paragraph(doc, title, 'Title')
+    _paragraph(doc, meta, 'Subtitle')
+
+    if not transcript.messages:
+        _paragraph(doc, 'No messages in this range.')
+    for message in transcript.messages:
+        stamp = f'{message.author_name} · {message.timestamp}'
+        if message.edited:
+            stamp += ' (edited)'
+        _paragraph(doc, stamp, 'Heading 2')
+
+        if message.content:
+            _paragraph(doc, message.content)
+
+        for attachment in message.images:
+            buffer = None
+            if root is not None:
+                buffer = _embeddable(root / attachment.path_in_bundle,
+                                     ARCHIVE_PDF_IMAGE_WIDTH_MM)
+            if buffer is None:
+                _paragraph(doc, f'[image: {attachment.filename}]')
+                continue
+            try:
+                doc.add_picture(buffer, width=Mm(ARCHIVE_PDF_IMAGE_WIDTH_MM))
+            except Exception as exc:
+                log.warning('Image %s rejected by the Word writer: %s',
+                            attachment.filename, exc)
+                _paragraph(doc, f'[image: {attachment.filename}]')
+
+        for attachment in message.files:
+            _paragraph(doc, f'[file: {attachment.filename}]')
+
+    out = BytesIO()
+    doc.save(out)
+    return out.getvalue()

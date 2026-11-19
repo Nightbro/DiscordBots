@@ -294,9 +294,18 @@ async def test_export_writes_a_bundle_with_every_part(mock_bot, guild_id):
         names = zf.namelist()
         assert 'index.html' in names
         assert 'style.css' in names
+        assert 'transcript.pdf' in names
+        assert 'transcript.docx' in names
         assert archive.MANIFEST_NAME in names
         assert any(n.startswith('images/') and n.endswith('.png') for n in names)
         assert any(n.startswith('files/') and n.endswith('.pdf') for n in names)
+
+
+async def test_bundle_documents_are_real_files(mock_bot, guild_id):
+    await _export(mock_bot, [_message(1001, 'roll for initiative')], guild_id=guild_id)
+    with zipfile.ZipFile(_bundle_of(guild_id)) as zf:
+        assert zf.read('transcript.pdf').startswith(b'%PDF')
+        assert zf.read('transcript.docx').startswith(b'PK')
 
 
 async def test_bundle_html_contains_the_messages(mock_bot, guild_id):

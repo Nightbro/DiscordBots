@@ -1,6 +1,9 @@
-"""Rendering a transcript to HTML."""
+"""Rendering a transcript to HTML, PDF and Word."""
 
 from datetime import datetime, timezone
+from io import BytesIO
+
+import pytest
 
 from utils import transcript as render
 from utils.archive import ArchivedAttachment, ArchivedMessage, Transcript
@@ -178,3 +181,237 @@ def test_stylesheet_defines_colours_for_both_schemes():
 
 def test_stylesheet_keeps_images_inside_the_page():
     assert 'max-width: 100%' in render.STYLE_CSS
+
+
+# ---------------------------------------------------------------------------
+# Shared fixtures for the document formats
+# ---------------------------------------------------------------------------
+
+def _transcript(messages=None, guild='The Table', channel='general'):
+    return Transcript(
+        guild_name=guild,
+        channel_name=channel,
+        messages=messages if messages is not None else [_message()],
+        generated_at=WHEN,
+    )
+
+
+@pytest.fixture
+def staged(tmp_path):
+    """A staging tree with one real image in it, as an export would produce."""
+    from PIL import Image
+
+    images = tmp_path / 'images'
+    images.mkdir()
+    Image.new('RGB', (1600, 900), (30, 40, 50)).save(images / '1-0-shot.png')
+    return tmp_path
+
+
+def _docx_text(data: bytes) -> str:
+    from docx import Document
+
+    return '\n'.join(p.text for p in Document(BytesIO(data)).paragraphs)
+
+
+# ---------------------------------------------------------------------------
+# PDF
+# ---------------------------------------------------------------------------
+
+def test_pdf_is_a_pdf():
+    data = render.render_pdf(_transcript())
+    assert data.startswith(b'%PDF')
+    assert len(data) > 500
+
+
+def test_pdf_of_an_empty_range_still_renders():
+    assert render.render_pdf(_transcript([])).startswith(b'%PDF')
+
+
+def test_pdf_embeds_an_image_when_the_files_are_there(staged):
+    """A JPEG stream in the PDF shows as a DCTDecode filter — assert that,
+    rather than a size delta, which a flat test image barely moves."""
+    plain = render.render_pdf(_transcript([_message(content='look')]))
+    withimg = render.render_pdf(
+        _transcript([_message(content='look', attachments=[_att('shot.png')])]),
+        root=staged,
+    )
+    assert b'DCTDecode' in withimg
+    assert b'DCTDecode' not in plain
+
+
+def test_pdf_notes_an_image_it_cannot_reach(tmp_path):
+    """A missing file must leave a trace in the document, not vanish silently."""
+    data = render.render_pdf(
+        _transcript([_message(attachments=[_att('gone.png')])]), root=tmp_path
+    )
+    assert data.startswith(b'%PDF')
+
+
+def test_pdf_survives_a_corrupt_image(tmp_path):
+    images = tmp_path / 'images'
+    images.mkdir()
+    (images / '1-0-shot.png').write_bytes(b'not an image at all')
+    data = render.render_pdf(
+        _transcript([_message(attachments=[_att('shot.png')])]), root=tmp_path
+    )
+    assert data.startswith(b'%PDF')
+
+
+def test_pdf_handles_non_latin_text():
+    """A Serbian or Cyrillic transcript must not blow up the renderer."""
+    data = render.render_pdf(_transcript([
+        _message(content='Мршави Вук каже здраво', author='Мира'),
+        _message(content='Šta ćeš raditi večeras?', author='Miloš'),
+    ]))
+    assert data.startswith(b'%PDF')
+
+
+def test_pdf_falls_back_when_no_truetype_font_exists(monkeypatch):
+    """With no system font, output degrades to Latin-1 rather than failing."""
+    monkeypatch.setattr(render, '_FONT_CANDIDATES', ())
+    monkeypatch.setattr(render, 'ARCHIVE_PDF_FONT', '')
+    assert render.unicode_font() is None
+    data = render.render_pdf(_transcript([_message(content='Мршави Вук')]))
+    assert data.startswith(b'%PDF')
+
+
+def test_configured_font_is_preferred(monkeypatch, tmp_path):
+    font = tmp_path / 'custom.ttf'
+    font.write_bytes(b'stub')
+    monkeypatch.setattr(render, 'ARCHIVE_PDF_FONT', str(font))
+    assert render.unicode_font() == font
+
+
+def test_a_missing_configured_font_falls_back_to_a_system_one(monkeypatch, tmp_path):
+    monkeypatch.setattr(render, 'ARCHIVE_PDF_FONT', str(tmp_path / 'nope.ttf'))
+    monkeypatch.setattr(render, '_FONT_CANDIDATES', ())
+    assert render.unicode_font() is None
+
+
+def test_pdf_notes_non_image_attachments():
+    data = render.render_pdf(_transcript([_message(attachments=[_att('notes.pdf')])]))
+    assert data.startswith(b'%PDF')
+
+
+# ---------------------------------------------------------------------------
+# Word
+# ---------------------------------------------------------------------------
+
+def test_docx_opens_and_carries_the_messages():
+    data = render.render_docx(_transcript([
+        _message(content='roll for initiative', author='Mira'),
+    ]))
+    text = _docx_text(data)
+    assert 'roll for initiative' in text
+    assert 'Mira' in text
+    assert '#general' in text
+
+
+def test_docx_header_carries_the_counts():
+    data = render.render_docx(_transcript([_message(), _message(mid=2)]))
+    assert '2 messages' in _docx_text(data)
+
+
+def test_docx_of_an_empty_range_says_so():
+    assert 'No messages in this range' in _docx_text(render.render_docx(_transcript([])))
+
+
+def test_docx_marks_edited_messages():
+    data = render.render_docx(_transcript([_message(edited=True)]))
+    assert '(edited)' in _docx_text(data)
+
+
+def test_docx_keeps_non_latin_text_intact():
+    """Unlike the PDF fallback, Word has no Latin-1 limitation to work around."""
+    data = render.render_docx(_transcript([_message(content='Мршави Вук', author='Мира')]))
+    text = _docx_text(data)
+    assert 'Мршави Вук' in text
+    assert 'Мира' in text
+
+
+def test_docx_embeds_an_image(staged):
+    """A .docx is a zip — an embedded picture lands under word/media/."""
+    import zipfile
+
+    withimg = render.render_docx(
+        _transcript([_message(attachments=[_att('shot.png')])]), root=staged
+    )
+    with zipfile.ZipFile(BytesIO(withimg)) as zf:
+        media = [n for n in zf.namelist() if n.startswith('word/media/')]
+    assert media, 'no image was embedded'
+
+    plain = render.render_docx(_transcript([_message()]))
+    with zipfile.ZipFile(BytesIO(plain)) as zf:
+        assert not [n for n in zf.namelist() if n.startswith('word/media/')]
+
+
+def test_docx_notes_an_image_it_cannot_reach(tmp_path):
+    data = render.render_docx(
+        _transcript([_message(attachments=[_att('gone.png')])]), root=tmp_path
+    )
+    assert '[image: gone.png]' in _docx_text(data)
+
+
+def test_docx_notes_non_image_attachments():
+    data = render.render_docx(_transcript([_message(attachments=[_att('notes.pdf')])]))
+    assert '[file: notes.pdf]' in _docx_text(data)
+
+
+def test_docx_template_is_optional(monkeypatch):
+    monkeypatch.setattr(render, 'ARCHIVE_DOCX_TEMPLATE', '')
+    assert render.docx_template() is None
+
+
+def test_a_missing_docx_template_is_ignored(monkeypatch, tmp_path):
+    monkeypatch.setattr(render, 'ARCHIVE_DOCX_TEMPLATE', str(tmp_path / 'nope.docx'))
+    assert render.docx_template() is None
+    assert render.render_docx(_transcript()).startswith(b'PK')
+
+
+def test_docx_template_supplies_styles_and_not_content(monkeypatch, tmp_path):
+    """A template is a source of styles — its own text must not leak through."""
+    from docx import Document
+
+    template = tmp_path / 'template.docx'
+    doc = Document()
+    doc.add_paragraph('PLACEHOLDER TEXT FROM THE TEMPLATE')
+    doc.save(template)
+
+    monkeypatch.setattr(render, 'ARCHIVE_DOCX_TEMPLATE', str(template))
+    assert render.docx_template() == template
+    text = _docx_text(render.render_docx(_transcript([_message(content='real content')])))
+    assert 'PLACEHOLDER' not in text
+    assert 'real content' in text
+
+
+# ---------------------------------------------------------------------------
+# Image downscaling
+# ---------------------------------------------------------------------------
+
+def test_large_images_are_downscaled_for_embedding(staged):
+    from PIL import Image
+
+    buffer = render._embeddable(staged / 'images' / '1-0-shot.png', 120)
+    assert buffer is not None
+    with Image.open(buffer) as embedded:
+        assert embedded.width < 1600
+
+
+def test_a_small_image_is_left_alone(tmp_path):
+    from PIL import Image
+
+    images = tmp_path / 'images'
+    images.mkdir()
+    Image.new('RGB', (50, 40)).save(images / 'tiny.png')
+    buffer = render._embeddable(images / 'tiny.png', 120)
+    with Image.open(buffer) as embedded:
+        assert embedded.size == (50, 40)
+
+
+def test_an_unreadable_image_returns_nothing(tmp_path):
+    (tmp_path / 'broken.png').write_bytes(b'nope')
+    assert render._embeddable(tmp_path / 'broken.png', 120) is None
+
+
+def test_a_missing_image_returns_nothing(tmp_path):
+    assert render._embeddable(tmp_path / 'absent.png', 120) is None
