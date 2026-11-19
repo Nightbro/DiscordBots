@@ -56,7 +56,7 @@ No Discord application exists for it yet, so it is not deployed. See [`chronicle
 - `!archive run` exports a channel's messages, images and files to a zip that opens in a browser
 - Each export also carries a PDF and a Word version of the transcript, rendered from the same source rather than converted
 - Exports keep attachments exactly as uploaded and reference them locally, since Discord's own links expire within a day
-- Every export carries a manifest of the message IDs it saved — the interlock for clearing a channel safely
+- Every export carries a manifest of the message IDs it saved — the interlock that lets `--purge` clear a channel afterwards, deleting only what is provably backed up
 - Per-server settings via `!config` — roll system, default die, difficulty, botch rule
 - Paginated `!help` that adapts to the server's roll system
 - A feature list and command reference that the test suite refuses to let drift

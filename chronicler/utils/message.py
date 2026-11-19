@@ -173,6 +173,41 @@ class MessageWriter:
         return e
 
     @staticmethod
+    def purge_confirm(channel_name: str, count: int, bundle_name: str) -> discord.Embed:
+        """Ask before deleting. The wording has to leave no room for surprise."""
+        e = _embed(_RED)
+        e.title = f'{EMOJI_FAIL} Delete {count} messages from #{channel_name}?'
+        e.description = '\n'.join([
+            f'They are saved in `{bundle_name}`, and only the messages listed '
+            f'in that backup will be deleted.',
+            '',
+            '**This cannot be undone.** Discord has no way to restore a '
+            'deleted message.',
+            '',
+            'Doing nothing deletes nothing.',
+        ])
+        return e
+
+    @staticmethod
+    def purge_result(channel_name: str, *, deleted: int, failed: int, total: int) -> discord.Embed:
+        """What the deletion actually managed."""
+        if failed:
+            e = _embed(_RED)
+            e.title = f'{EMOJI_FAIL} Partly cleared #{channel_name}'
+            e.description = (
+                f'Deleted **{deleted}** of {total} messages. **{failed}** could '
+                f'not be deleted — they are still in the channel, and still in '
+                f'the backup. The log says why.'
+            )
+            return e
+        e = _embed(_GREEN)
+        e.title = f'✅ Cleared #{channel_name}'
+        e.description = (
+            f'Deleted **{deleted}** messages. They remain in the export.'
+        )
+        return e
+
+    @staticmethod
     def invite() -> discord.Embed:
         """Reply to a "join" DM — how to add the bot to a server.
 

@@ -65,7 +65,7 @@ A member with the **Manage Server** permission can ask Chronicler to export a ra
 
 The zip is written to the Operator's machine. If it is small enough it is also posted back into the Discord channel, where Discord then hosts it under its own policy.
 
-A planned feature will delete the messages an export saved, from the channel. That removes them from Discord; it does not remove them from the exported zip, which is the point of taking the backup.
+The person running an export can also ask for the exported messages to be **deleted from the channel** afterwards. That removes them from Discord; it does not remove them from the exported zip, which is the point of taking the backup. Only messages the export actually saved are deleted, and only if the backup is still readable at that moment.
 
 Exports are not automatic. Nothing is exported unless somebody runs the command.
 

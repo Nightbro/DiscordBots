@@ -79,6 +79,11 @@ locally rather than linked, because Discord's own links expire after a day.
 It is always saved on the host machine, and also attached here when it is small
 enough for this server's upload limit.
 
+**Clearing a channel:** add `--purge` to delete the messages the export just
+saved. It asks first and a timeout deletes nothing. Only the ids written into
+that bundle are removed, and only if the bundle is still readable. Needs
+**Manage Messages**.
+
 `{p}archive seed <count>` — owner only, posts numbered test messages so an
 export can be tried against a throwaway channel.
 """,

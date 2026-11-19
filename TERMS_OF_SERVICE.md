@@ -48,7 +48,9 @@ The Operator may remove any content from the Bots' storage at any time, for any 
 
 A Chronicler export copies a channel's messages, images and files — **including other members' content** — onto the Operator's machine, and can post the result back into Discord. Anyone with the **Manage Server** permission can run one.
 
-If you run an export, you are responsible for it: for having the authority to copy that channel, for telling your members if your rules or local law require it, and for what you then do with the archive. A planned feature will also delete the exported messages from the channel, which cannot be undone. Do not run an export on a channel you do not administer.
+If you run an export, you are responsible for it: for having the authority to copy that channel, for telling your members if your rules or local law require it, and for what you then do with the archive. Do not run an export on a channel you do not administer.
+
+An export can also **delete the messages it saved** from the channel, which requires the Manage Messages permission and **cannot be undone** — Discord provides no way to restore a deleted message. The Bot asks for confirmation first and deletes nothing if that goes unanswered, but the decision and its consequences are yours.
 
 The Operator provides the tool and holds the resulting files, but does not decide what gets exported or when.
 

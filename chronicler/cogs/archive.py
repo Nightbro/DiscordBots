@@ -20,10 +20,14 @@ from utils.archive import (
     RangeSpec,
     Transcript,
 )
-from utils.config import ARCHIVE_PROGRESS_EVERY, PREFIX
+from utils.config import ARCHIVE_CONFIRM_SECS, ARCHIVE_PROGRESS_EVERY, PREFIX
 from utils.message import MessageWriter
 
 log = logging.getLogger(__name__)
+
+# Deleting messages older than two weeks is one request each against a strict
+# per-channel limit. Pace them rather than relying on being throttled.
+_SLOW_DELETE_DELAY = 0.75
 
 _PURGE_WORDS = {'--purge', '-p', 'purge'}
 _FROM_WORDS = {'from', 'after'}
@@ -160,6 +164,43 @@ def _build_bundle(dest: Path, staging: Path, transcript: Transcript, manifest: d
         raise
 
 
+class _PurgeConfirm(discord.ui.View):
+    """Confirmation before deleting messages.
+
+    Fail-safe: `confirmed` starts False and only a click sets it, so a timeout
+    or a dismissed prompt deletes nothing.
+
+    Built with `timeout=None` and driven by an external `asyncio.wait_for`, the
+    same way echo-bot's countdown view is, so the deadline does not depend on
+    the view having been registered with the client.
+    """
+
+    def __init__(self, user_id: int) -> None:
+        super().__init__(timeout=None)
+        self._user_id = user_id
+        self.confirmed = False
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self._user_id:
+            return True
+        await interaction.response.send_message(
+            'Only whoever ran the export can confirm this.', ephemeral=True
+        )
+        return False
+
+    @discord.ui.button(label='Delete them', style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
+        self.confirmed = True
+        await interaction.response.defer()
+        self.stop()
+
+    @discord.ui.button(label='Keep them', style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
+        self.confirmed = False
+        await interaction.response.defer()
+        self.stop()
+
+
 class ArchiveCog(commands.Cog, name='Archive'):
     """Export a channel to a readable bundle, and clear what was exported."""
 
@@ -240,21 +281,26 @@ class ArchiveCog(commands.Cog, name='Archive'):
             await ctx.send(embed=MessageWriter.error('Nothing exported', str(exc)))
             return
 
-        if purge:
-            await ctx.send(embed=MessageWriter.error(
-                'Nothing exported',
-                'Deleting messages is not built yet — run the export without `--purge`.',
-            ))
-            return
-
-        gaps = missing_permissions(target, ctx.guild.me, {
+        needed = {
             'view_channel': 'View Channel',
             'read_message_history': 'Read Message History',
-        })
+        }
+        if purge:
+            # Checked up front rather than after the export, so nobody waits
+            # out a long read only to be told they cannot clear the channel.
+            needed['manage_messages'] = 'Manage Messages'
+            if not await self._may_purge(ctx):
+                await ctx.send(embed=MessageWriter.error(
+                    'Nothing exported',
+                    'Clearing a channel needs the **Manage Messages** permission.',
+                ))
+                return
+
+        gaps = missing_permissions(target, ctx.guild.me, needed)
         if gaps:
             await ctx.send(embed=MessageWriter.error(
                 'Nothing exported',
-                f'I need {", ".join(gaps)} in {target.mention} to read its history.',
+                f'I need {", ".join(gaps)} in {target.mention}.',
             ))
             return
 
@@ -263,7 +309,10 @@ class ArchiveCog(commands.Cog, name='Archive'):
         ))
 
         try:
-            await self._export(ctx, target, spec, progress)
+            manifest, dest = await self._export(ctx, target, spec, progress)
+            await self._deliver(ctx, progress, manifest, dest)
+            if purge:
+                await self._purge(ctx, target, dest)
         except ArchiveError as exc:
             await progress.edit(embed=MessageWriter.error('Nothing exported', str(exc)))
         except discord.Forbidden:
@@ -276,8 +325,14 @@ class ArchiveCog(commands.Cog, name='Archive'):
                 'Export failed', f'{type(exc).__name__}: {exc}'
             ))
 
+    async def _may_purge(self, ctx: commands.Context) -> bool:
+        """Clearing a channel is a higher bar than exporting it."""
+        if isinstance(ctx.author, discord.Member) and ctx.author.guild_permissions.manage_messages:
+            return True
+        return await self.bot.is_owner(ctx.author)
+
     async def _export(self, ctx: commands.Context, target: discord.TextChannel,
-                      spec: RangeSpec, progress: discord.Message) -> None:
+                      spec: RangeSpec, progress: discord.Message) -> tuple[dict, Path]:
         collected: list[tuple[ArchivedMessage, list[discord.Attachment]]] = []
 
         # Snowflakes are unique integers, so offsetting by one turns the user's
@@ -345,7 +400,7 @@ class ArchiveCog(commands.Cog, name='Archive'):
             manifest['message_count'], target.id, dest.name,
             dest.stat().st_size, ctx.author,
         )
-        await self._deliver(ctx, progress, manifest, dest)
+        return manifest, dest
 
     async def _download(self, collected, staging: Path,
                         progress: discord.Message, target: discord.TextChannel) -> None:
@@ -387,6 +442,96 @@ class ArchiveCog(commands.Cog, name='Archive'):
         await progress.edit(embed=embed)
         if uploaded:
             await ctx.send(file=discord.File(dest, filename=dest.name))
+
+    # --- purge -------------------------------------------------------------
+
+    async def _purge(self, ctx: commands.Context, target: discord.TextChannel,
+                     bundle: Path) -> None:
+        """Delete exactly the messages the bundle on disk says it holds."""
+        # Read the ids back out of the file that was just written rather than
+        # trusting the in-memory list. That is the whole safety property: a
+        # present, readable backup is the only thing that authorises a delete.
+        manifest = archive.read_manifest(bundle)
+        ids = manifest['message_ids']
+        if not ids:
+            return
+
+        view = _PurgeConfirm(ctx.author.id)
+        prompt = await ctx.send(
+            embed=MessageWriter.purge_confirm(target.name, len(ids), bundle.name),
+            view=view,
+        )
+        try:
+            await asyncio.wait_for(view.wait(), timeout=float(ARCHIVE_CONFIRM_SECS))
+        except asyncio.TimeoutError:
+            pass
+        view.stop()
+        try:
+            await prompt.delete()
+        except discord.HTTPException:
+            pass
+
+        if not view.confirmed:
+            await ctx.send(embed=MessageWriter.info(
+                'Channel kept',
+                'Nothing was deleted. The export is still saved.',
+            ))
+            return
+
+        status = await ctx.send(embed=MessageWriter.info(
+            'Clearing', f'Deleting {len(ids)} messages from {target.mention}…'
+        ))
+        deleted, failed = await self._delete_ids(target, ids, status, len(ids))
+        archive.mark_purged(ctx.guild.id, target.id, deleted)
+        log.info(
+            'Purged %s of %s messages from channel %s for %s (%s failed)',
+            deleted, len(ids), target.id, ctx.author, failed,
+        )
+        await status.edit(embed=MessageWriter.purge_result(
+            target.name, deleted=deleted, failed=failed, total=len(ids)
+        ))
+
+    async def _delete_ids(self, target: discord.TextChannel, ids: list[int],
+                          status: discord.Message, total: int) -> tuple[int, int]:
+        recent, old = archive.split_by_age(ids)
+        deleted = 0
+        failed = 0
+
+        for batch in archive.chunked(recent):
+            try:
+                await target.delete_messages([discord.Object(id=i) for i in batch])
+                deleted += len(batch)
+            except discord.NotFound:
+                deleted += len(batch)  # already gone is the outcome we wanted
+            except discord.HTTPException as exc:
+                log.warning('Bulk delete of %s messages failed: %s', len(batch), exc)
+                failed += len(batch)
+            await self._report_progress(status, target, deleted, total)
+
+        for message_id in old:
+            try:
+                await target.get_partial_message(message_id).delete()
+                deleted += 1
+            except discord.NotFound:
+                deleted += 1
+            except discord.HTTPException as exc:
+                log.warning('Deleting message %s failed: %s', message_id, exc)
+                failed += 1
+            if (deleted + failed) % ARCHIVE_PROGRESS_EVERY == 0:
+                await self._report_progress(status, target, deleted, total)
+            await asyncio.sleep(_SLOW_DELETE_DELAY)
+
+        return deleted, failed
+
+    @staticmethod
+    async def _report_progress(status: discord.Message, target: discord.TextChannel,
+                               deleted: int, total: int) -> None:
+        try:
+            await status.edit(embed=MessageWriter.info(
+                'Clearing', f'Deleted {deleted} of {total} from {target.mention}…'
+            ))
+        except discord.HTTPException:
+            pass  # a progress update is never worth failing the job for
 
 
 async def setup(bot: commands.Bot) -> None:

@@ -341,6 +341,23 @@ reply only when it fits `guild.filesize_limit` and the bot has Attach Files.
 This is the one place in the repo that sends a `discord.File`; the accompanying
 embed still comes from `MessageWriter`.
 
+**The purge path is the dangerous one, and it is built to be boring.** `_purge`
+re-reads the manifest from the bundle that was just written rather than reusing
+the list it already has in memory — the point is to prove a readable backup
+exists at the moment of deletion, not to save a file read. Manage Messages is
+required from both the caller and the bot, and is checked before the export
+starts so nobody waits out a long read to be refused at the end.
+
+`_PurgeConfirm` is built with `timeout=None` and its deadline driven by an
+external `asyncio.wait_for`, the same way echo-bot's countdown view is, so it
+does not depend on the view having been registered with the client. `confirmed`
+starts False and only a click sets it, so every way of not answering —
+timeout, decline, dismissal — leaves the channel alone.
+
+`_delete_ids` splits by age and never mixes the two paths. A message that is
+already gone counts as deleted, since that is the outcome that was wanted; one
+that genuinely fails is counted separately and reported as a partial clear.
+
 ### cogs/settings.py
 
 `cog_check` raises `NoPrivateMessage` outside a guild; `manage_guild` is
@@ -470,14 +487,14 @@ list self-enforcing rather than a promise.
    an `apt install` on the Pi, which `deploy-chronicler.yml` cannot perform
    since it only runs `pip install`. A Word→PDF chain was rejected for the same
    reason: it would need LibreOffice headless on the Pi.
-4. **Clearing an archived channel** — `--purge` on a completed export, never a
-   command of its own, so nothing can be deleted that was not just backed up.
-   Reads its target ids from the bundle's manifest and refuses if the bundle is
-   missing or unreadable. Confirmation through a `discord.ui.View` with
-   fail-safe polarity: a timeout deletes nothing. `bulk_delete` takes messages
-   under 14 days old in chunks of 100; older ones go one at a time against a
-   strict rate limit via `channel.get_partial_message(id).delete()`, so it is a
-   slow job that reports progress.
+4. **Clearing an archived channel** — done. `--purge` on a completed export,
+   never a command of its own, so nothing can be deleted that was not just
+   backed up. Reads its target ids from the bundle's manifest and refuses if the
+   bundle is missing or unreadable. Confirmation through a `discord.ui.View`
+   with fail-safe polarity: a timeout deletes nothing. `delete_messages` takes
+   messages under 14 days old in chunks of 100; older ones go one at a time
+   against a strict rate limit via `channel.get_partial_message(id).delete()`,
+   so it is a slow job that reports progress.
 
    Note that "remove all read messages" is not implementable: read state is
    per-user and Discord exposes none of it to bots.

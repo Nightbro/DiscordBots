@@ -148,9 +148,38 @@ Both are refused before anything is downloaded. Export a smaller range instead.
 
 ### Clearing a channel
 
-Not built yet. When it arrives it will delete only the messages a completed
-export actually saved, verified against that bundle's `manifest.json`, so
-nothing can be removed that is not already backed up.
+Add `--purge` to an export and the messages it saved are deleted from the
+channel afterwards:
+
+```
+!archive run last 500 --purge
+!archive run from <id> to <id> --purge
+```
+
+There is no separate purge command, on purpose. Deletion only ever happens as
+the tail of an export that has just succeeded, so nothing can be deleted that
+was not backed up moments earlier.
+
+**It asks first.** You get the channel, the message count and a reminder that it
+cannot be undone, with buttons to go ahead or keep them. Only whoever ran the
+command can answer. If you ignore it, nothing is deleted.
+
+What it will and will not delete:
+
+- Only the message ids written into that bundle's `manifest.json`, read back off
+  the disk — not whatever the bot happened to have in memory.
+- If the bundle has gone missing or will not open, it refuses and deletes
+  nothing.
+- Messages posted after the export are outside the range and are never touched.
+
+Needs **Manage Messages**, both for you and for the bot, and that is checked
+before the export starts rather than after.
+
+Be aware it can be slow. Discord only bulk-deletes messages under two weeks
+old; anything older goes one message at a time against a rate limit, so
+clearing an old channel can take a long while. Progress is reported as it goes.
+
+The export itself is never touched by a purge — that is the whole point.
 
 ---
 

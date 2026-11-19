@@ -57,10 +57,15 @@ def _channel(messages=(), name='general', channel_id=777000111, **perms):
     channel.name = name
     channel.mention = f'#{name}'
     channel.send = AsyncMock()
+    channel.delete_messages = AsyncMock()
+    channel.get_partial_message = MagicMock(
+        side_effect=lambda mid: MagicMock(id=mid, delete=AsyncMock())
+    )
 
     granted = {
         'view_channel': True, 'read_message_history': True,
         'send_messages': True, 'attach_files': True,
+        'manage_messages': True,
     }
     granted.update(perms)
     resolved = MagicMock(**granted)
@@ -86,7 +91,7 @@ def _channel(messages=(), name='general', channel_id=777000111, **perms):
     return channel
 
 
-def _ctx(channel, guild_id=123456789, filesize_limit=8 * 1024 * 1024):
+def _ctx(channel, guild_id=123456789, filesize_limit=8 * 1024 * 1024, can_purge=True):
     ctx = MagicMock()
     ctx.guild = MagicMock()
     ctx.guild.id = guild_id
@@ -94,11 +99,15 @@ def _ctx(channel, guild_id=123456789, filesize_limit=8 * 1024 * 1024):
     ctx.guild.me = MagicMock()
     ctx.guild.filesize_limit = filesize_limit
     ctx.channel = channel
-    ctx.author = MagicMock()
+    # spec=Member so the cog's isinstance check sees a real member and reads
+    # the permission rather than falling through to the owner check.
+    ctx.author = MagicMock(spec=discord.Member)
     ctx.author.id = 42
     ctx.author.display_name = 'Ivan'
+    ctx.author.guild_permissions = MagicMock(manage_messages=can_purge)
     progress = MagicMock()
     progress.edit = AsyncMock()
+    progress.delete = AsyncMock()
     ctx.send = AsyncMock(return_value=progress)
     ctx.progress = progress
     return ctx
@@ -217,12 +226,32 @@ async def test_run_without_a_range_refuses(mock_bot):
     assert 'Nothing exported' in _final_embed(ctx).title
 
 
-async def test_run_with_purge_is_refused_until_it_is_built(mock_bot):
-    cog, ctx = _cog(mock_bot), _ctx(_channel())
-    await cog.archive_run.callback(cog, ctx, channel=None, options='last 5 --purge')
+async def test_run_with_purge_needs_manage_messages_from_the_caller(mock_bot):
+    mock_bot.is_owner = AsyncMock(return_value=False)
+    channel = _channel([_message(1001)])
+    cog, ctx = _cog(mock_bot), _ctx(channel, can_purge=False)
+    await cog.archive_run.callback(cog, ctx, channel=channel, options='last 5 --purge')
     embed = _final_embed(ctx)
     assert 'Nothing exported' in embed.title
-    assert 'not built yet' in embed.description
+    assert 'Manage Messages' in embed.description
+    channel.history.assert_not_called()
+
+
+async def test_run_with_purge_needs_manage_messages_from_the_bot(mock_bot):
+    """Checked before the export, not after — nobody should wait out a long
+    read only to be told the channel cannot be cleared."""
+    channel = _channel([_message(1001)], manage_messages=False)
+    cog, ctx = _cog(mock_bot), _ctx(channel)
+    await cog.archive_run.callback(cog, ctx, channel=channel, options='last 5 --purge')
+    assert 'Manage Messages' in _final_embed(ctx).description
+    channel.history.assert_not_called()
+
+
+async def test_export_without_purge_does_not_need_manage_messages(mock_bot, guild_id):
+    channel = _channel([_message(1001)], manage_messages=False)
+    cog, ctx = _cog(mock_bot), _ctx(channel, guild_id=guild_id)
+    await cog.archive_run.callback(cog, ctx, channel=channel, options='last 5')
+    assert archive.get_record(guild_id, channel.id) is not None
 
 
 async def test_run_without_read_history_permission_refuses(mock_bot):
@@ -480,3 +509,221 @@ async def test_seed_defaults_to_the_current_channel(mock_bot):
     cog, ctx = _cog(mock_bot), _ctx(channel)
     await cog.archive_seed.callback(cog, ctx, count=1, channel=None)
     assert channel.send.await_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Clearing a channel
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _no_delete_delay(monkeypatch):
+    monkeypatch.setattr('cogs.archive._SLOW_DELETE_DELAY', 0)
+
+
+def _recent_id(seconds_ago: int = 60) -> int:
+    """A snowflake young enough for Discord's bulk-delete window."""
+    millis = (datetime.now(timezone.utc).timestamp() - seconds_ago) * 1000
+    return int(millis - archive.DISCORD_EPOCH_MS) << 22
+
+
+def _decide(monkeypatch, confirmed: bool) -> None:
+    """Replace the confirmation with one that has already been answered."""
+    from cogs.archive import _PurgeConfirm
+
+    class _Decided(_PurgeConfirm):
+        def __init__(self, user_id):
+            super().__init__(user_id)
+            self.confirmed = confirmed
+            self.stop()  # so wait() returns at once
+
+    monkeypatch.setattr('cogs.archive._PurgeConfirm', _Decided)
+
+
+async def _export_and_purge(mock_bot, messages, guild_id, monkeypatch, confirmed=True):
+    _decide(monkeypatch, confirmed)
+    channel = _channel(messages)
+    cog, ctx = _cog(mock_bot), _ctx(channel, guild_id=guild_id)
+    await cog.archive_run.callback(cog, ctx, channel=channel, options='last 50 --purge')
+    return ctx, channel
+
+
+async def test_purge_deletes_exactly_the_exported_ids(mock_bot, guild_id, monkeypatch):
+    ids = [_recent_id(300), _recent_id(200), _recent_id(100)]
+    _, channel = await _export_and_purge(
+        mock_bot, [_message(i) for i in ids], guild_id, monkeypatch
+    )
+    channel.delete_messages.assert_awaited_once()
+    passed = [obj.id for obj in channel.delete_messages.await_args.args[0]]
+    assert passed == ids
+
+
+async def test_purge_leaves_the_bundle_in_place(mock_bot, guild_id, monkeypatch):
+    await _export_and_purge(
+        mock_bot, [_message(_recent_id())], guild_id, monkeypatch
+    )
+    assert _bundle_of(guild_id).exists()
+
+
+async def test_purge_records_that_it_happened(mock_bot, guild_id, monkeypatch):
+    _, channel = await _export_and_purge(
+        mock_bot, [_message(_recent_id()), _message(_recent_id(30))], guild_id, monkeypatch
+    )
+    record = archive.get_record(guild_id, channel.id)
+    assert record['purged_at'] is not None
+    assert record['purged_count'] == 2
+
+
+async def test_purge_reports_what_it_deleted(mock_bot, guild_id, monkeypatch):
+    ctx, _ = await _export_and_purge(
+        mock_bot, [_message(_recent_id())], guild_id, monkeypatch
+    )
+    titles = [c.kwargs['embed'].title for c in ctx.send.await_args_list if c.kwargs.get('embed')]
+    edits = [c.kwargs['embed'].title for c in ctx.progress.edit.await_args_list]
+    assert any('Cleared' in t for t in titles + edits)
+
+
+async def test_declining_deletes_nothing(mock_bot, guild_id, monkeypatch):
+    _, channel = await _export_and_purge(
+        mock_bot, [_message(_recent_id())], guild_id, monkeypatch, confirmed=False
+    )
+    channel.delete_messages.assert_not_awaited()
+    channel.get_partial_message.assert_not_called()
+
+
+async def test_declining_says_the_export_is_still_there(mock_bot, guild_id, monkeypatch):
+    ctx, _ = await _export_and_purge(
+        mock_bot, [_message(_recent_id())], guild_id, monkeypatch, confirmed=False
+    )
+    titles = [c.kwargs['embed'].title for c in ctx.send.await_args_list if c.kwargs.get('embed')]
+    assert any('Channel kept' in t for t in titles)
+    assert archive.get_record(guild_id, ctx.channel.id)['purged_at'] is None
+
+
+async def test_a_confirmation_timeout_deletes_nothing(mock_bot, guild_id, monkeypatch):
+    """Fail-safe: the real view is never answered, so the deadline expires."""
+    monkeypatch.setattr('cogs.archive.ARCHIVE_CONFIRM_SECS', 0.01)
+    channel = _channel([_message(_recent_id())])
+    cog, ctx = _cog(mock_bot), _ctx(channel, guild_id=guild_id)
+    await cog.archive_run.callback(cog, ctx, channel=channel, options='last 5 --purge')
+    channel.delete_messages.assert_not_awaited()
+    assert archive.get_record(guild_id, channel.id)['purged_at'] is None
+
+
+async def test_old_messages_are_deleted_one_at_a_time(mock_bot, guild_id, monkeypatch):
+    """Discord refuses to bulk-delete anything over two weeks old."""
+    old = [1001, 1002]  # tiny snowflakes are, by definition, from 2015
+    _, channel = await _export_and_purge(
+        mock_bot, [_message(i) for i in old], guild_id, monkeypatch
+    )
+    channel.delete_messages.assert_not_awaited()
+    assert [c.args[0] for c in channel.get_partial_message.call_args_list] == old
+
+
+async def test_a_mixed_range_uses_both_paths(mock_bot, guild_id, monkeypatch):
+    recent, old = _recent_id(), 1001
+    _, channel = await _export_and_purge(
+        mock_bot, [_message(old), _message(recent)], guild_id, monkeypatch
+    )
+    assert [o.id for o in channel.delete_messages.await_args.args[0]] == [recent]
+    assert [c.args[0] for c in channel.get_partial_message.call_args_list] == [old]
+
+
+async def test_already_deleted_messages_count_as_done(mock_bot, guild_id, monkeypatch):
+    channel = _channel([_message(_recent_id())])
+    channel.delete_messages = AsyncMock(
+        side_effect=discord.NotFound(MagicMock(status=404), 'gone')
+    )
+    _decide(monkeypatch, True)
+    cog, ctx = _cog(mock_bot), _ctx(channel, guild_id=guild_id)
+    await cog.archive_run.callback(cog, ctx, channel=channel, options='last 5 --purge')
+    assert archive.get_record(guild_id, channel.id)['purged_count'] == 1
+
+
+async def test_a_failed_delete_is_reported_as_partial(mock_bot, guild_id, monkeypatch):
+    channel = _channel([_message(_recent_id())])
+    channel.delete_messages = AsyncMock(
+        side_effect=discord.HTTPException(MagicMock(status=500), 'boom')
+    )
+    _decide(monkeypatch, True)
+    cog, ctx = _cog(mock_bot), _ctx(channel, guild_id=guild_id)
+    await cog.archive_run.callback(cog, ctx, channel=channel, options='last 5 --purge')
+    edits = [c.kwargs['embed'] for c in ctx.progress.edit.await_args_list]
+    titles = [c.kwargs['embed'].title for c in ctx.send.await_args_list if c.kwargs.get('embed')]
+    assert any('Partly cleared' in e.title for e in edits) or any('Partly' in t for t in titles)
+
+
+# --- the interlock ---------------------------------------------------------
+
+async def test_purge_refuses_when_the_bundle_is_gone(mock_bot, tmp_path):
+    """The backup on disk is the only thing that authorises a deletion."""
+    channel = _channel()
+    cog, ctx = _cog(mock_bot), _ctx(channel)
+    with pytest.raises(ArchiveError, match='is gone'):
+        await cog._purge(ctx, channel, tmp_path / 'never-written.zip')
+    channel.delete_messages.assert_not_awaited()
+
+
+async def test_purge_refuses_when_the_bundle_is_unreadable(mock_bot, tmp_path):
+    broken = tmp_path / 'broken.zip'
+    broken.write_text('not a zip', encoding='utf-8')
+    channel = _channel()
+    cog, ctx = _cog(mock_bot), _ctx(channel)
+    with pytest.raises(ArchiveError, match='could not be read'):
+        await cog._purge(ctx, channel, broken)
+    channel.delete_messages.assert_not_awaited()
+
+
+async def test_purge_reads_its_targets_from_the_bundle_not_memory(mock_bot, guild_id,
+                                                                  monkeypatch):
+    """Rewriting the manifest changes what gets deleted — proving the bundle,
+    not the in-memory export, is the authority."""
+    _decide(monkeypatch, True)
+    channel = _channel([_message(_recent_id())])
+    cog, ctx = _cog(mock_bot), _ctx(channel, guild_id=guild_id)
+    await cog.archive_run.callback(cog, ctx, channel=channel, options='last 5')
+
+    bundle = _bundle_of(guild_id)
+    substitute = _recent_id(500)
+    monkeypatch.setattr(
+        'utils.archive.read_manifest',
+        lambda _path: {'message_ids': [substitute]},
+    )
+    await cog._purge(ctx, channel, bundle)
+    assert [o.id for o in channel.delete_messages.await_args.args[0]] == [substitute]
+
+
+async def test_an_empty_manifest_deletes_nothing(mock_bot, tmp_path, monkeypatch):
+    channel = _channel()
+    cog, ctx = _cog(mock_bot), _ctx(channel)
+    monkeypatch.setattr('utils.archive.read_manifest', lambda _p: {'message_ids': []})
+    await cog._purge(ctx, channel, tmp_path / 'whatever.zip')
+    channel.delete_messages.assert_not_awaited()
+
+
+# --- the confirmation view -------------------------------------------------
+
+async def test_only_the_invoker_can_confirm():
+    from cogs.archive import _PurgeConfirm
+
+    view = _PurgeConfirm(42)
+    outsider = MagicMock()
+    outsider.user.id = 99
+    outsider.response.send_message = AsyncMock()
+    assert await view.interaction_check(outsider) is False
+    outsider.response.send_message.assert_awaited_once()
+
+
+async def test_the_invoker_passes_the_check():
+    from cogs.archive import _PurgeConfirm
+
+    view = _PurgeConfirm(42)
+    owner = MagicMock()
+    owner.user.id = 42
+    assert await view.interaction_check(owner) is True
+
+
+def test_the_view_starts_unconfirmed():
+    """Nothing is deleted unless somebody actively says so."""
+    from cogs.archive import _PurgeConfirm
+
+    assert _PurgeConfirm(42).confirmed is False

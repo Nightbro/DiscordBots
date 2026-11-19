@@ -16,7 +16,7 @@ Updating it is mandatory whenever a command is added, removed or renamed.
 | Per-server settings | **Shipped** |
 | Channel archive — export | **Shipped** |
 | Channel archive — PDF and Word | **Shipped** |
-| Channel archive — clearing a channel | Planned |
+| Channel archive — clearing a channel | **Shipped** |
 | Announcements and reminders | Planned |
 | Character builder | Planned |
 | Session notes | Planned |
@@ -73,6 +73,7 @@ Exports a channel's history into one zip that opens in a browser.
 | `!archive run last <n>` | Export the most recent n messages |
 | `!archive run from <id> [to <id>]` | Export between two messages, inclusive |
 | `!archive run #channel …` | Export a channel other than the current one |
+| `!archive run … --purge` | Export, then delete exactly what was exported |
 | `!archive status [#channel]` | What has been exported from this server |
 | `!archive` | The same summary |
 | `!archive seed <count>` | *(owner)* Post numbered test messages for a safe trial |
@@ -106,6 +107,31 @@ Exports a channel's history into one zip that opens in a browser.
 - A single unreachable attachment is logged and skipped rather than failing the
   whole export.
 
+#### Clearing a channel
+
+`--purge` deletes the messages the export just saved. It is an option on the
+export, never a command of its own, so nothing can be deleted that was not
+backed up moments earlier.
+
+- Needs **Manage Messages**, from both the caller and the bot, checked *before*
+  the export runs rather than after it.
+- The ids to delete are read back out of the bundle's `manifest.json` on disk.
+  A missing, corrupt or manifest-less bundle refuses outright — the in-memory
+  export is never trusted for this.
+- Confirms first, with the channel, the count and that it cannot be undone.
+  Only whoever ran the export can confirm. **Doing nothing deletes nothing**:
+  a timeout or a decline leaves the channel alone and the export in place.
+- Messages under 14 days old go through bulk deletion in batches of 100;
+  anything older must be deleted one at a time against a strict rate limit, so
+  a long history is a slow job that reports progress as it goes.
+- A message already gone counts as deleted. One that refuses to delete is
+  reported as a partial result — it stays in the channel, and in the backup.
+- The bundle is never touched by a purge. That is the point of it.
+
+Note that "remove all read messages" is not implementable: read state is
+per-user and Discord exposes none of it to bots. The exported set is the unit of
+deletion instead.
+
 ### Housekeeping
 
 | Command | Feature |
@@ -126,22 +152,6 @@ Exports a channel's history into one zip that opens in a browser.
 Listed here so the roadmap lives beside the feature list. Most carry no
 commands yet, by design — see `ARCHITECTURE.md` for the open design questions
 each one holds.
-
-### Clearing an archived channel
-
-Deleting the messages a completed export saved, as an option on the export
-itself rather than a command of its own, so nothing can be deleted that was not
-just backed up. The set to delete is read from that bundle's `manifest.json`,
-so a missing or unreadable backup refuses outright.
-
-Two Discord constraints shape it: bulk deletion only accepts messages under 14
-days old, 100 at a time, and everything older must go one at a time against a
-strict rate limit — so clearing a long history is a slow job that reports
-progress. Nothing deleted can be recovered, so it will confirm first and a
-timeout will delete nothing.
-
-Note that "remove all read messages" is not implementable as such: read state
-is per-user and Discord does not expose it to bots at all.
 
 ### Chronicle of Darkness dice
 

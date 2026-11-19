@@ -26,6 +26,15 @@ from utils.persistence import ArchiveConfig
 MANIFEST_NAME = 'manifest.json'
 MANIFEST_VERSION = 1
 
+# Discord's own epoch, 2015-01-01. A snowflake's top 42 bits are milliseconds
+# since then, so a message's age is derivable from its id alone — no API call.
+DISCORD_EPOCH_MS = 1420070400000
+
+# Discord refuses to bulk-delete anything older than two weeks, and takes at
+# most 100 ids at a time. Everything older goes one message per request.
+BULK_DELETE_MAX_AGE_DAYS = 14
+BULK_DELETE_CHUNK = 100
+
 IMAGES_DIR = 'images'
 FILES_DIR = 'files'
 
@@ -308,6 +317,38 @@ def mark_purged(guild_id: int, channel_id: int, deleted: int) -> None:
     record['purged_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
     record['purged_count'] = deleted
     cfg.set(str(guild_id), guild)
+
+
+# ---------------------------------------------------------------------------
+# Deletion arithmetic — pure, so the risky part is testable without Discord
+# ---------------------------------------------------------------------------
+
+def snowflake_time(message_id: int) -> datetime:
+    """When a message id was minted."""
+    millis = (message_id >> 22) + DISCORD_EPOCH_MS
+    return datetime.fromtimestamp(millis / 1000, tz=timezone.utc)
+
+
+def split_by_age(ids: list[int], now: datetime | None = None) -> tuple[list[int], list[int]]:
+    """Split ids into (bulk-deletable, one-at-a-time).
+
+    Anything within Discord's two-week window can go through bulk delete; the
+    rest has to be deleted individually, which is far slower.
+    """
+    moment = now or datetime.now(timezone.utc)
+    cutoff = moment.timestamp() - BULK_DELETE_MAX_AGE_DAYS * 86400
+    recent: list[int] = []
+    old: list[int] = []
+    for message_id in ids:
+        (recent if snowflake_time(message_id).timestamp() > cutoff else old).append(message_id)
+    return recent, old
+
+
+def chunked(ids: list[int], size: int = BULK_DELETE_CHUNK) -> list[list[int]]:
+    """Split ids into batches Discord will accept in one call."""
+    if size < 1:
+        raise ValueError('chunk size must be at least 1')
+    return [ids[i:i + size] for i in range(0, len(ids), size)]
 
 
 def guild_dir(guild_id: int) -> Path:

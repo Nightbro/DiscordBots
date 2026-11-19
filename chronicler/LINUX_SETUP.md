@@ -33,12 +33,15 @@ drifts out of step with the list silently.
 | Embed Links | Every reply is an embed |
 | Read Message History | `!` prefix commands, and reading a channel for an export |
 | Attach Files | Delivering an archive bundle into the channel |
-| Manage Messages | **Not yet** — only when clearing an archived channel lands |
+| Manage Messages | Clearing a channel with `!archive run … --purge` |
 
 Chronicler needs no voice permissions. It never joins a voice channel.
 
-Keep Manage Messages **off** until the clearing feature exists. There is no
-reason to hold a deletion permission the bot cannot use.
+**Manage Messages is optional.** Everything except `--purge` works without it,
+and an export refuses up front if you ask to purge while it is missing. If you
+never intend to clear channels, leave it off — there is no reason to grant a
+deletion permission you do not want used. Both the bot *and* whoever runs the
+command need it.
 
 ### Privileged intents
 
@@ -231,3 +234,6 @@ Chronicler is deployed and verified, then it gets retired.
 | Export says it needs Read Message History | Missing from the invite, or denied per-channel |
 | Bundle not attached to the reply | Larger than the server's upload limit; collect it from the reported path |
 | `!archive seed` does nothing | Owner-only — `OWNER_ID` must match your user id |
+| `--purge` refused before exporting | Manage Messages missing, from the bot or from you |
+| A purge left messages behind | Reported as partly cleared; the log says which failed and why |
+| Clearing an old channel is very slow | Messages over 14 days old delete one at a time; this is a Discord limit |

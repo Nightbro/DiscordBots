@@ -2,7 +2,7 @@
 
 import json
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -279,6 +279,92 @@ def test_mark_purged_updates_the_record(tmp_path, guild_id):
 def test_mark_purged_on_an_unknown_channel_is_a_no_op(guild_id):
     archive.mark_purged(guild_id, 404, 5)
     assert archive.get_record(guild_id, 404) is None
+
+
+# ---------------------------------------------------------------------------
+# Deletion arithmetic
+# ---------------------------------------------------------------------------
+
+def _id_at(moment: datetime) -> int:
+    """The snowflake a message posted at `moment` would carry."""
+    return int(moment.timestamp() * 1000 - archive.DISCORD_EPOCH_MS) << 22
+
+
+def test_snowflake_zero_is_the_discord_epoch():
+    assert archive.snowflake_time(0) == datetime(2015, 1, 1, tzinfo=timezone.utc)
+
+
+def test_snowflake_time_round_trips():
+    moment = datetime(2026, 11, 19, 12, 0, tzinfo=timezone.utc)
+    assert abs((archive.snowflake_time(_id_at(moment)) - moment).total_seconds()) < 1
+
+
+def test_split_by_age_keeps_recent_messages_for_bulk_delete():
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=timezone.utc)
+    recent = _id_at(now - timedelta(days=1))
+    recent_ids, old_ids = archive.split_by_age([recent], now=now)
+    assert recent_ids == [recent]
+    assert old_ids == []
+
+
+def test_split_by_age_sends_old_messages_down_the_slow_path():
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=timezone.utc)
+    old = _id_at(now - timedelta(days=30))
+    recent_ids, old_ids = archive.split_by_age([old], now=now)
+    assert recent_ids == []
+    assert old_ids == [old]
+
+
+def test_split_by_age_puts_the_boundary_at_fourteen_days():
+    """Discord's bulk endpoint refuses anything older, so the split must match."""
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=timezone.utc)
+    just_inside = _id_at(now - timedelta(days=13, hours=23))
+    just_outside = _id_at(now - timedelta(days=14, hours=1))
+    recent_ids, old_ids = archive.split_by_age([just_inside, just_outside], now=now)
+    assert recent_ids == [just_inside]
+    assert old_ids == [just_outside]
+
+
+def test_split_by_age_preserves_order_within_each_group():
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=timezone.utc)
+    ids = [
+        _id_at(now - timedelta(days=1)),
+        _id_at(now - timedelta(days=40)),
+        _id_at(now - timedelta(days=2)),
+        _id_at(now - timedelta(days=30)),
+    ]
+    recent_ids, old_ids = archive.split_by_age(ids, now=now)
+    assert recent_ids == [ids[0], ids[2]]
+    assert old_ids == [ids[1], ids[3]]
+
+
+def test_split_by_age_of_nothing():
+    assert archive.split_by_age([]) == ([], [])
+
+
+def test_chunked_respects_the_bulk_limit():
+    ids = list(range(250))
+    batches = archive.chunked(ids)
+    assert [len(b) for b in batches] == [100, 100, 50]
+    assert [i for b in batches for i in b] == ids
+
+
+def test_chunked_on_an_exact_multiple():
+    assert [len(b) for b in archive.chunked(list(range(200)))] == [100, 100]
+
+
+def test_chunked_of_nothing():
+    assert archive.chunked([]) == []
+
+
+def test_chunked_never_exceeds_discords_maximum():
+    for batch in archive.chunked(list(range(1000))):
+        assert len(batch) <= archive.BULK_DELETE_CHUNK
+
+
+def test_chunked_rejects_a_nonsense_size():
+    with pytest.raises(ValueError):
+        archive.chunked([1, 2, 3], size=0)
 
 
 def test_guild_dir_is_created_under_the_archive_dir(guild_id):
