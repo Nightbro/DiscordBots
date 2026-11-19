@@ -425,7 +425,13 @@ night-roller already omits it.
 **Every deploy restarts the process.** Anything time-sensitive must survive a
 restart on disk.
 
-See `LINUX_SETUP.md`.
+**Chronicler needs Python 3.11+**, unlike the other two bots — `fpdf2` and
+`Pillow` require it. `requirements.txt` pins minimums so an older interpreter
+fails at install rather than resolving to releases missing the APIs used here,
+and `run.sh` checks before building the virtualenv.
+
+See `LINUX_SETUP.md` — the portal walkthrough, the permission set, the Pi
+deployment, and section 6 for moving it to another host.
 
 ---
 
@@ -498,8 +504,16 @@ list self-enforcing rather than a promise.
 
    Note that "remove all read messages" is not implementable: read state is
    per-user and Discord exposes none of it to bots.
-5. **Discord application and deployment** — create the app, set permissions
-   and the invite URL, deploy to the Pi, document moving it to another server.
+5. **Discord application and deployment** — documented in `LINUX_SETUP.md`:
+   the portal walkthrough, the exact permission set and invite URLs, the Pi
+   deployment and a runbook for any other host. Creating the application and
+   pasting a token are the only steps left, and both need the owner.
+
+   Note the dependency floor this introduced: `fpdf2` and `Pillow` both require
+   **Python 3.11**, where Echo and Night Roller run on 3.8. A Pi happily
+   running those two may still refuse Chronicler. `requirements.txt` pins
+   minimums so that fails loudly at install, and `run.sh` checks the version
+   before it builds a virtualenv.
 6. **Chronicle of Darkness dice** — a third roll system: 10-again (and
    9-/8-again), rote rerolls, chance die, exceptional success at 5+.
 7. **Announcements and reminders** — the only greenfield architecture here.

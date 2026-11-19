@@ -105,6 +105,10 @@ change. This is mandatory, not optional.
 - Document rendering must stay pure-Python (`fpdf2`, `python-docx`, `Pillow`). Do not
   introduce a dependency needing system libraries: the Pi deploy only runs
   `pip install -r requirements.txt` and cannot `apt install` anything.
+- Chronicler needs **Python 3.11+** because of those two libraries, where echo-bot and
+  night-roller run on 3.8. Pin minimum versions in `requirements.txt` for anything with
+  a Python floor, so an old interpreter fails at install rather than silently resolving
+  to a release missing the APIs in use.
 
 ## Bots in this repo
 | Folder | Description | Status |

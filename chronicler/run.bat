@@ -7,8 +7,24 @@ echo       Chronicler Discord Bot Launcher
 echo ============================================
 echo.
 
-:: -- Step 1: Set up Virtual Environment -------
-echo [1/2] Setting up virtual environment...
+:: -- Step 1: Check Python ---------------------
+:: fpdf2 and Pillow both require 3.11. Catch it here rather than letting it
+:: surface as an opaque pip resolution error several steps later.
+echo [1/3] Checking Python version...
+python -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"
+if %errorlevel% neq 0 (
+    echo [ERROR] Chronicler needs Python 3.11 or newer.
+    python --version
+    echo         The PDF and image libraries require it.
+    echo         See LINUX_SETUP.md section 6.2 for the options.
+    pause
+    exit /b 1
+)
+echo Python version is fine.
+echo.
+
+:: -- Step 2: Set up Virtual Environment -------
+echo [2/3] Setting up virtual environment...
 if not exist "venv\" (
     echo Creating virtual environment...
     python -m venv venv
@@ -38,8 +54,8 @@ if %errorlevel% neq 0 (
 echo Dependencies ready!
 echo.
 
-:: -- Step 2: Check .env token -----------------
-echo [2/2] Checking configuration...
+:: -- Step 3: Check .env token -----------------
+echo [3/3] Checking configuration...
 if not exist ".env" (
     echo [ERROR] .env file not found!
     echo.

@@ -3,14 +3,50 @@
 Keep this file current. Whenever a feature needs a new Discord permission or a
 new piece of configuration, it is recorded here in the same change.
 
-> **Status:** no Discord application exists for Chronicler yet, so it is not
-> deployed anywhere. The permissions below are what it will need; the steps for
-> creating the application and deploying to the Pi are written out but have not
-> been walked through.
+> **Status:** the application has not been created yet. Sections 1 and 2 are the
+> steps to do that, written out exactly; nothing below has been walked through
+> on a live application.
 
 ---
 
-## 1. Permissions the bot needs
+## 1. Creating the Discord application
+
+Only you can do this — it needs your Discord login, and the token must never be
+pasted anywhere but `.env` on the machine that runs the bot.
+
+**1.1** Go to the [Developer Portal](https://discord.com/developers/applications)
+and click **New Application**. Name it `Chronicler`.
+
+**1.2** On **General Information**, copy the **Application ID**. That is the
+`client_id` the invite URL needs. Keep the tab open.
+
+**1.3** Open the **Bot** tab. Set the username and avatar if you want them
+different from the application name.
+
+**1.4** Still on **Bot**, under **Privileged Gateway Intents**, turn on
+**Message Content Intent**. Leave Server Members and Presence off — Chronicler
+uses neither. Save.
+
+Without Message Content the bot connects but sees empty message bodies, so `!`
+commands silently do nothing and exports come out blank.
+
+**1.5** Check two switches on the same page:
+
+| Switch | Set it to | Why |
+|---|---|---|
+| **Public Bot** | **Off** | Only you can add it to servers. Turn it on only if you want strangers inviting it |
+| **Requires OAuth2 Code Grant** | **Off** | If this is on, the invite link fails with a confusing error. It is the most common setup mistake |
+
+**1.6** Click **Reset Token**, then **Copy**. Discord shows it once and never
+again — if you lose it, reset it again. Paste it straight into `.env` on the
+machine that will run the bot (section 3). Do not commit it, paste it into a
+chat, or send it to anybody, including me.
+
+**1.7** Generate the invite URL — section 2.
+
+---
+
+## 2. Permissions the bot needs
 
 Set these under **OAuth2 → URL Generator** in the
 [Developer Portal](https://discord.com/developers/applications). Tick the
@@ -61,15 +97,44 @@ itself) added to that channel's permission overwrites with View Channel and Read
 Message History. The export refuses with a clear message naming what is missing
 rather than failing halfway.
 
-### After generating the URL
+### The invite URL
 
-Paste the generated invite URL into `invite_url` in `config.yaml`. Until it is
-set, DMing the bot `join` replies that there is no link yet instead of sending a
-broken one.
+Go to **OAuth2 → URL Generator**, tick `bot` and `applications.commands`, then
+tick the permissions from the table above. Discord builds the URL at the bottom
+of the page; that is the one to use.
+
+To check what it produced, or to skip the clicking, these are the same URLs with
+the permission numbers already worked out. Replace `YOUR_APPLICATION_ID` with
+the ID from step 1.2:
+
+**With** Manage Messages — exports and channel clearing:
+
+```
+https://discord.com/oauth2/authorize?client_id=YOUR_APPLICATION_ID&permissions=125952&integration_type=0&scope=bot+applications.commands
+```
+
+**Without** Manage Messages — exports only, no deletion possible:
+
+```
+https://discord.com/oauth2/authorize?client_id=YOUR_APPLICATION_ID&permissions=117760&integration_type=0&scope=bot+applications.commands
+```
+
+If the generator gives you a different number, it has included something extra.
+Compare the ticked boxes against the table rather than trusting the number — and
+for reference, `night-roller` currently requests `2815284491020352`, which grants
+it thread management, pinning and `mention_everyone` that it has never used.
+Chronicler deliberately asks for six permissions and no more.
+
+Paste the finished URL into `invite_url` in `config.yaml` and commit that. Until
+it is set, DMing the bot `join` replies that there is no link yet rather than
+sending a broken one. The URL contains no secret — only the token does.
+
+Open the URL, pick the server, and confirm. You need **Manage Server** on that
+server to add a bot to it.
 
 ---
 
-## 2. Configuration
+## 3. Configuration
 
 ### .env — secrets only, never committed
 
@@ -143,7 +208,7 @@ cannot leak placeholder content into an export.
 
 ---
 
-## 3. Running it
+## 4. Running it
 
 The test suite needs no token:
 
@@ -161,9 +226,21 @@ needed and the deploy can install everything itself.
 
 ---
 
-## 4. Deploying to the Raspberry Pi
+## 5. Deploying to the Raspberry Pi
 
 Assumes the repo at `/home/pi/DiscordBots` and the other bots already running.
+For any other machine, see section 6 instead.
+
+**Check the Pi's Python first.** Chronicler needs 3.11+, where Echo and Night
+Roller do not, so a Pi that happily runs those two may still refuse this one:
+
+```bash
+python3 --version
+```
+
+Bookworm ships 3.11 and is fine. Bullseye ships 3.9 and is not — `pip install`
+will stop with "no matching distribution found for fpdf2". See section 6.2 for
+what to do about that.
 
 ```bash
 cd /home/pi/DiscordBots/chronicler
@@ -213,9 +290,127 @@ runner is down:
 */5 * * * * /home/pi/DiscordBots/chronicler/auto_update.sh >> /home/pi/chronicler-update.log 2>&1
 ```
 
+Use one or the other. Both together means a push triggers the runner while cron
+also notices the new commit, and the bot restarts twice.
+
 ---
 
-## 5. Note on Night Roller
+## 6. Deploying to a different server
+
+Nothing here is Pi-specific except hardcoded paths and a username. Three files
+assume `pi` and `/home/pi/DiscordBots`, and all three need editing for another
+machine.
+
+### 6.1 What to change
+
+| File | Line | Change it to |
+|---|---|---|
+| `chronicler.service` | `User=pi` | the account that will run the bot |
+| `chronicler.service` | `WorkingDirectory=` | where the repo is checked out |
+| `chronicler.service` | `ExecStart=` | the same path, plus `/venv/bin/python bot.py` |
+| `chronicler.service` | `EnvironmentFile=` | the same path, plus `/.env` |
+| `auto_update.sh` | `sudo systemctl restart chronicler` | only if you rename the service |
+| `.github/workflows/deploy-chronicler.yml` | `~/DiscordBots` | the checkout path on that machine |
+
+The unit file is committed as the Pi's version. If the new machine is permanent,
+copy it to something like `chronicler-vps.service` rather than editing the
+committed one, so the two deployments do not fight over the same file.
+
+### 6.2 Requirements on the host
+
+| Needs | Why |
+|---|---|
+| **Python 3.11 or newer** | `fpdf2` and `Pillow` both require it — see below |
+| `python3-venv` | `run.sh` builds a virtualenv |
+| `git` | The updater pulls |
+| systemd | Only for the service; `./run.sh` works without it |
+| `fonts-dejavu-core` | Optional — only so PDF exports render non-Latin text |
+
+No `apt` packages are needed for the Python dependencies themselves. Every one
+is a pure-Python wheel, which is exactly why `fpdf2` was chosen over WeasyPrint.
+
+**Check the interpreter before anything else:**
+
+```bash
+python3 --version
+```
+
+Chronicler needs **3.11+**, which is a higher bar than Echo or Night Roller —
+both of those run on anything from 3.8. The floor comes from `fpdf2` and
+`Pillow`, not from the code. Raspberry Pi OS **Bookworm** ships Python 3.11;
+**Bullseye** ships 3.9 and will not do.
+
+`requirements.txt` pins minimum versions on purpose, so a too-old interpreter
+fails at install with a plain "no matching distribution" rather than quietly
+installing ancient releases that lack the APIs used here.
+
+If the host is stuck on an older Python, the options are: upgrade the OS,
+install a newer Python alongside (`pyenv`, or deadsnakes on Ubuntu) and point
+`run.sh` at it, or run Chronicler somewhere else. There is no version of this
+that works on 3.9.
+
+### 6.3 Steps
+
+```bash
+git clone https://github.com/Nightbro/DiscordBots.git
+cd DiscordBots/chronicler
+cp .env.example .env && nano .env        # paste the token
+./run.sh                                 # builds the venv, installs, starts
+```
+
+If it starts cleanly, stop it and install the service with your edited unit:
+
+```bash
+sudo cp chronicler.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now chronicler
+systemctl status chronicler
+```
+
+### 6.4 Keeping it updated
+
+Pick one of three, in descending order of effort:
+
+**A self-hosted Actions runner**, like the Pi has. Best if you push often.
+Register it from the repository's **Settings → Actions → Runners**, then add a
+second workflow pointing at that machine's path. The existing workflow targets
+whichever runner picks the job up, so **two runners on one repository will
+fight** over it — give the new one a label and filter on it with
+`runs-on: [self-hosted, your-label]`.
+
+**Cron**, with `auto_update.sh`. No GitHub configuration at all, updates within
+the polling interval. This is the better choice for a machine you do not control
+the repository settings of.
+
+**By hand**, when you deploy rarely:
+
+```bash
+cd /path/to/DiscordBots && git pull
+cd chronicler && source venv/bin/activate && pip install -q -r requirements.txt
+sudo systemctl restart chronicler
+```
+
+### 6.5 Two things that bite
+
+**The bot token is per application, not per machine.** Running the same token in
+two places at once makes Discord disconnect both in a loop. To move the bot,
+stop it on the old machine *first*. To run a second instance deliberately — a
+staging copy — create a second application with its own token.
+
+**`data/` does not travel with git.** It is gitignored, so a new machine starts
+with no per-server settings and no export bundles. Copy `data/` across manually
+if you want to keep them:
+
+```bash
+rsync -av /home/pi/DiscordBots/chronicler/data/ newhost:/path/DiscordBots/chronicler/data/
+```
+
+Export bundles are the only copy of anything that has been purged from a
+channel, so move them before decommissioning a machine.
+
+---
+
+## 7. Note on Night Roller
 
 Chronicler supersedes Night Roller and answers the same `!roll`. Do not add both
 to one server — they will both reply. Night Roller keeps running until
@@ -223,10 +418,15 @@ Chronicler is deployed and verified, then it gets retired.
 
 ---
 
-## 6. Troubleshooting
+## 8. Troubleshooting
 
 | Symptom | Cause |
 |---|---|
+| `no matching distribution found for fpdf2` | Python older than 3.11 — see section 6.2 |
+| The invite link errors instead of asking which server | **Requires OAuth2 Code Grant** is on; turn it off (step 1.5) |
+| Bot is online but `!` commands do nothing | **Message Content Intent** is off (step 1.4) |
+| Exports come out with empty message bodies | Same — Message Content Intent |
+| Bot connects and disconnects in a loop | The same token is running somewhere else too; stop one of them |
 | `DISCORD_TOKEN not set in .env` | No `.env`, or the variable is empty |
 | Slash commands missing | No `DEV_GUILD_ID`; wait, or run `!sync` |
 | `!version` shows an old hash | The restart did not take — check `systemctl status` |

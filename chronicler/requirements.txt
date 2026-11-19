@@ -4,10 +4,15 @@ certifi
 pyyaml
 
 # Channel archive: transcript rendering. All pure-Python wheels — no system
-# packages, so the Pi deploy bootstraps itself with pip alone.
-fpdf2
-python-docx
-Pillow
+# packages, so the deploy bootstraps itself with pip alone.
+#
+# Minimums are pinned deliberately. fpdf2 and Pillow both require Python 3.11,
+# so on an older interpreter pip would otherwise resolve to ancient versions
+# that silently lack the APIs used here (fpdf2's new_x/new_y among them). With
+# these floors it fails loudly instead, which is the error you want.
+fpdf2>=2.8
+python-docx>=1.1
+Pillow>=10.0
 
 # Dev / testing
 pytest
