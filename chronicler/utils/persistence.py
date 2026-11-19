@@ -82,3 +82,16 @@ class GuildConfig(BaseConfig):
         # utils.config.GUILD_CONFIG_FILE.
         from utils.config import GUILD_CONFIG_FILE
         self.path = GUILD_CONFIG_FILE
+
+
+class ArchiveConfig(BaseConfig):
+    """Channel export records, persisted to archive_config.json.
+
+    This is the audit trail of what was exported. It is deliberately *not* the
+    authority on what may be deleted — that lives in each bundle's own
+    manifest, so nothing can be purged unless the backup holding it is present.
+    """
+
+    def __init__(self) -> None:
+        from utils.config import ARCHIVE_CONFIG_FILE
+        self.path = ARCHIVE_CONFIG_FILE

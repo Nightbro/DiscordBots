@@ -26,3 +26,21 @@ dice:
   max_sides: 10000            # largest die allowed
   max_groups: 25              # most dice groups in one expression
   show_rolls: true            # list individual die results in the embed
+
+archive:
+  # Hard ceilings. An export over either is refused before anything downloads.
+  max_messages: 20000         # most messages in one export
+  max_bundle_mb: 1024         # most attachment bytes in one export
+  # Images are stored in the bundle exactly as uploaded. This only sets how
+  # wide they are *displayed* in index.html.
+  image_width: 480
+  # PDF presentation. Images are downscaled in memory to this width before
+  # being embedded, so the PDF does not carry full-resolution originals.
+  pdf_image_width_mm: 120
+  pdf_font_size: 10
+  # A bundle may be the only remaining copy of a purged channel, so age-based
+  # deletion is opt-in. 0 = never delete a bundle automatically.
+  retention_days: 0
+  # Seconds the delete confirmation stays live. A timeout deletes nothing.
+  confirm_secs: 60
+  progress_every: 250         # edit the progress message every N messages

@@ -12,6 +12,7 @@ with open(_HERE / 'config.yaml', encoding='utf-8') as _f:
 
 _bot = _cfg['bot']
 _dice = _cfg['dice']
+_archive = _cfg['archive']
 
 # Bot identity
 BOT_NAME: str = _bot['name']
@@ -49,14 +50,27 @@ MAX_SIDES: int = _dice['max_sides']
 MAX_GROUPS: int = _dice['max_groups']
 SHOW_ROLLS: bool = _dice['show_rolls']
 
+# Channel archive settings
+ARCHIVE_MAX_MESSAGES: int = _archive['max_messages']
+ARCHIVE_MAX_BUNDLE_MB: int = _archive['max_bundle_mb']
+ARCHIVE_IMAGE_WIDTH: int = _archive['image_width']
+ARCHIVE_PDF_IMAGE_WIDTH_MM: int = _archive['pdf_image_width_mm']
+ARCHIVE_PDF_FONT_SIZE: int = _archive['pdf_font_size']
+ARCHIVE_RETENTION_DAYS: int = _archive['retention_days']
+ARCHIVE_CONFIRM_SECS: int = _archive['confirm_secs']
+ARCHIVE_PROGRESS_EVERY: int = _archive['progress_every']
+
 # Paths — every runtime path hangs off BASE_DIR. Nothing in cogs/ may build a
 # data path of its own; add a constant here instead.
 BASE_DIR: Path = _HERE
 DATA_DIR: Path = BASE_DIR / 'data'
 LOGS_DIR: Path = DATA_DIR / 'logs'
+ASSETS_DIR: Path = BASE_DIR / 'assets'
+ARCHIVE_DIR: Path = DATA_DIR / 'archive'
 GUILD_CONFIG_FILE: Path = DATA_DIR / 'guild_config.json'
+ARCHIVE_CONFIG_FILE: Path = DATA_DIR / 'archive_config.json'
 
 # Directories are created on import; JSON files are created lazily on first
 # save, so a fresh install starts with none of them.
-for _d in (LOGS_DIR,):
+for _d in (LOGS_DIR, ARCHIVE_DIR):
     _d.mkdir(parents=True, exist_ok=True)

@@ -3,6 +3,12 @@ python-dotenv
 certifi
 pyyaml
 
+# Channel archive: transcript rendering. All pure-Python wheels — no system
+# packages, so the Pi deploy bootstraps itself with pip alone.
+fpdf2
+python-docx
+Pillow
+
 # Dev / testing
 pytest
 pytest-asyncio

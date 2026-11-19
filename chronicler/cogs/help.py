@@ -24,6 +24,7 @@ notes to come.
 
 **Pages**
 `rolling` — rolling dice, advantage, success pools
+`archive` — exporting a channel to a readable bundle
 `settings` — per-server configuration
 
 Use `{p}help rolling` or `{p}help settings`, or the buttons below.
@@ -53,6 +54,32 @@ DM me the word `join` and I will send the invite link.
 `{p}roll 6d10 (7)` — same, with explicit dice
 
 {system_note}
+""",
+    },
+    'archive': {
+        'title': '{bot} — Channel archive',
+        'body': """
+Exports a channel's messages, images and files into one zip you can open in a
+browser. Needs **Manage Server**.
+
+`{p}archive run last 500` — export the most recent 500 messages
+`{p}archive run from <message_id>` — export from that message onwards
+`{p}archive run from <id> to <id>` — export between two messages
+`{p}archive run #other last 200` — export a different channel
+`{p}archive status` — what has been exported from this server
+`{p}archive` — the same summary
+
+**A range is always required.** There is no default, on purpose.
+
+The bundle holds `index.html` to read it, the images and files exactly as they
+were uploaded, and a `manifest.json` listing every message id. Images are saved
+locally rather than linked, because Discord's own links expire after a day.
+
+It is always saved on the host machine, and also attached here when it is small
+enough for this server's upload limit.
+
+`{p}archive seed <count>` — owner only, posts numbered test messages so an
+export can be tried against a throwaway channel.
 """,
     },
     'settings': {

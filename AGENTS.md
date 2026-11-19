@@ -17,6 +17,10 @@
 ### echo-bot
 - Whenever a command is added, removed, or renamed: update `echo-bot/help.md`.
 - Help updates are mandatory, not optional.
+- Enforced: `echo-bot/tests/test_help_cog.py` fails if a command is missing from
+  the `!help` pages or `help.md`, or if either names a command that no longer
+  exists. Doc examples that merely look like commands go in its
+  `_TRIGGER_EXAMPLES` allowlist.
 
 ### night-roller
 - Whenever a command is added, removed, or renamed: update `night-roller/help.md`.
@@ -33,17 +37,19 @@ Each bot keeps a `FEATURES.md` in its folder — the always-current list of what
 bot does. Whenever a command is added, removed, or renamed, update it in the same
 change. This is mandatory, not optional.
 
-### chronicler
-- `chronicler/FEATURES.md` exists and is **test-enforced** by
-  `chronicler/tests/test_help_cog.py`, in both directions: no undocumented command,
-  no documented command that no longer exists.
+### chronicler / echo-bot
+- `chronicler/FEATURES.md` and `echo-bot/FEATURES.md` both exist and are
+  **test-enforced** by each bot's `tests/test_help_cog.py`, in both directions:
+  no undocumented command, no documented command that no longer exists.
+- The stale-command check scans the **whole file**, including `## Planned` and
+  `## Withdrawn`. So a planned feature may be described in prose but must not be
+  written as a `!command` until that command exists.
 
-### echo-bot / night-roller
-- Neither has a `FEATURES.md` yet; their feature lists currently live in the root
-  `README.md`. Write one when next working in either folder, following
-  `chronicler/FEATURES.md` as the pattern.
-- Until then, keep the `### Features` list in the root `README.md` current for those
-  two bots.
+### night-roller
+- Has no `FEATURES.md`, and its `help.md` is unguarded — nothing tests that it
+  matches the real command set, so it may already have drifted. It is being
+  retired, so this is left as is; write one only if that changes.
+- Until then, keep its `### Features` list in the root `README.md` current.
 
 ## Tests
 
@@ -87,14 +93,22 @@ change. This is mandatory, not optional.
 - All Discord embeds must use `MessageWriter` — never build `discord.Embed` inline in cogs.
 - All dice logic lives in `utils/dice.py` and stays free of Discord types **and of
   rendering** — turning a result into text belongs in `utils/format.py`.
+- Archive logic lives in `utils/archive.py` and `utils/transcript.py`, free of Discord
+  types. The cog fetches history, downloads attachments, zips and sends.
 - Character, note and reminder logic follows the same split: pure modules in `utils/`,
   with cogs only parsing input and presenting results.
 - Persisted data goes through `utils/persistence.py`, which writes atomically. Do not
   write JSON directly from a cog.
+- **Never delete a Discord message except against a manifest read out of an export
+  bundle that exists on disk.** The audit trail in `data/archive_config.json` is not
+  sufficient authority — if the backup is gone, refuse.
+- Document rendering must stay pure-Python (`fpdf2`, `python-docx`, `Pillow`). Do not
+  introduce a dependency needing system libraries: the Pi deploy only runs
+  `pip install -r requirements.txt` and cannot `apt install` anything.
 
 ## Bots in this repo
 | Folder | Description | Status |
 |---|---|---|
 | `echo-bot/` | Echo — audio, soundboard, intros, TTS, future voice listen | **Active** |
 | `night-roller/` | Night Roller — D&D dice roller (`!roll`) | **Superseded** by Chronicler; stays until Chronicler ships, then retired |
-| `chronicler/` | Chronicler — tabletop chronicle keeper: dice, plus planned announcements, character builder and session notes | **Active** — dice built, not yet deployed |
+| `chronicler/` | Chronicler — tabletop chronicle keeper: dice and channel archiving, plus planned announcements, character builder and session notes | **Active** — dice and archive export built, not yet deployed |

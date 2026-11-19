@@ -76,6 +76,71 @@ scored, so it needs its own system rather than another difficulty number.
 
 ---
 
+## Channel archive
+
+Exports a channel's history into a single zip you can open in a browser. Needs
+the **Manage Server** permission.
+
+| Command | What it does |
+|---|---|
+| `!archive run last 500` | Export the most recent 500 messages |
+| `!archive run from <message_id>` | Export from that message onwards |
+| `!archive run from <id> to <id>` | Export between two messages, inclusive |
+| `!archive run #other last 200` | Export a channel other than this one |
+| `!archive status` | What has been exported from this server |
+| `!archive status #channel` | Narrow that to one channel |
+| `!archive` | The same summary |
+| `!archive seed <count>` | *(owner)* Post numbered test messages |
+
+### The range is always required
+
+There is no default range, deliberately. An export that guesses its own bounds
+is one that could later delete the wrong messages.
+
+Message ids come from right-clicking a message and choosing **Copy Message ID**
+(Discord needs Developer Mode enabled under Settings → Advanced).
+
+### What the bundle contains
+
+```
+index.html      open this
+style.css       edit it if you want it to look different
+manifest.json   every exported message id, the range, who ran it
+images/         image attachments, exactly as uploaded
+files/          every other attachment, exactly as uploaded
+```
+
+Images are **saved into the bundle**, not linked back to Discord — Discord's
+attachment links are signed and stop working after about a day, so a linked
+export would rot.
+
+Non-image attachments are kept too. Exporting only images would quietly lose
+anything else that had been shared.
+
+### Where it ends up
+
+Always written to the host machine under `data/archive/<server id>/`, and the
+bot tells you the full path. If the zip is small enough for the server's upload
+limit it is attached to the reply as well; a large one is not, because Discord
+would reject it.
+
+### Limits
+
+| Limit | Default |
+|---|---|
+| Messages in one export | 20000 |
+| Attachment bytes in one export | 1024 MB |
+
+Both are refused before anything is downloaded. Export a smaller range instead.
+
+### Clearing a channel
+
+Not built yet. When it arrives it will delete only the messages a completed
+export actually saved, verified against that bundle's `manifest.json`, so
+nothing can be removed that is not already backed up.
+
+---
+
 ## Server settings
 
 These need the **Manage Server** permission. Alias: `!settings`.

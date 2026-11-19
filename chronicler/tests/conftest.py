@@ -18,6 +18,19 @@ def isolated_guild_config(tmp_path, monkeypatch):
     yield
 
 
+@pytest.fixture(autouse=True)
+def isolated_archive_store(tmp_path, monkeypatch):
+    """Point the archive record and bundle directory at temp paths.
+
+    Both are read late — ArchiveConfig reads ARCHIVE_CONFIG_FILE at
+    construction, and archive.guild_dir imports ARCHIVE_DIR when called — so
+    patching the module attributes keeps every test out of the real data/ dir.
+    """
+    monkeypatch.setattr(utils.config, 'ARCHIVE_CONFIG_FILE', tmp_path / 'archive_config.json')
+    monkeypatch.setattr(utils.config, 'ARCHIVE_DIR', tmp_path / 'archive')
+    yield
+
+
 @pytest.fixture
 def guild_id() -> int:
     return 123456789

@@ -2,7 +2,7 @@
 
 **Applies to:** the Discord bots **Echo** (`echo-bot`), **Night Roller** (`night-roller`) and **Chronicler** (`chronicler`), together "the Bots".
 
-**Last updated:** 2026-11-14
+**Last updated:** 2026-11-19
 
 **Contact:** `<CONTACT — replace with the email or Discord handle you want users to reach you at>`
 
@@ -12,7 +12,9 @@
 
 The Bots are self-hosted hobby projects run by a private individual ("the Operator") on a Raspberry Pi at a private residence. There is no cloud database, no analytics, no advertising, and no third-party tracking. Nothing is sold, rented, or shared for marketing.
 
-The Bots store the minimum needed to work: server settings, the audio you deliberately upload, and short-lived operational logs. **Neither Bot records voice channels or listens to what you say.**
+The Bots store the minimum needed to work: server settings, the audio you deliberately upload, and short-lived operational logs. **No Bot records voice channels or listens to what you say.**
+
+One exception is deliberate and worth stating up front: **Chronicler can export a channel's history on request of a server manager**, which copies messages, images and files — including other members' — onto the Operator's machine. Section 2 describes exactly what that stores and Section 6 how long it is kept.
 
 ## 2. What is stored
 
@@ -44,9 +46,28 @@ Night Roller keeps **no roll history and no user records**. Individual rolls are
 | Discord **server (guild) IDs** | `data/guild_config.json` | Keep per-server roll settings: scoring system, default die, difficulty, botch rule |
 | **Operational logs** | `data/logs/` | Diagnose errors and crashes |
 
-Chronicler currently does the same as Night Roller, whose dice it has absorbed: per-server settings and logs, nothing else. Individual rolls are not recorded.
+| **Channel exports** | `data/archive/<server id>/` | Archive a channel's history into a zip that can be read offline |
+| **Export records** | `data/archive_config.json` | Remember what was exported, by whom, and when |
 
-Its planned features — announcements and reminders, a character builder, and session notes — **will** store content you write, attributable to your user ID. None of that exists yet. This policy will be updated before those features are released, and this paragraph is here so the change is not a surprise.
+Individual rolls are not recorded.
+
+#### What a channel export contains
+
+A member with the **Manage Server** permission can ask Chronicler to export a range of messages from a channel. The resulting zip holds, for every message in that range:
+
+- the message text
+- the author's display name and Discord user ID
+- the timestamp, and whether the message had been edited
+- every attachment — images and any other file — **exactly as uploaded**
+- a list of the exported message IDs
+
+**This includes other members' messages and files, not only those of the person who ran the export.** They did not individually consent to it; the server manager who ran it decided on the server's behalf, in the same way they could already scroll up or copy the channel by hand.
+
+The zip is written to the Operator's machine. If it is small enough it is also posted back into the Discord channel, where Discord then hosts it under its own policy.
+
+A planned feature will delete the messages an export saved, from the channel. That removes them from Discord; it does not remove them from the exported zip, which is the point of taking the backup.
+
+Exports are not automatic. Nothing is exported unless somebody runs the command.
 
 ### What logs contain
 
@@ -55,7 +76,7 @@ Logs may record a Discord username, a server ID, the command that was run (inclu
 ## 3. What is *not* stored
 
 - **Voice audio.** Neither Bot records, saves, or transcribes anything spoken in a voice channel. Echo joins voice channels only to *play* audio. Its `!listen` command is an unimplemented placeholder that does nothing but reply with a message.
-- **Message content**, other than the text of the command you send to the Bot itself.
+- **Message content**, other than the text of the command you send to the Bot itself — **except** in a Chronicler channel export, which stores message content by design. See Section 2. No Bot stores message content at any other time, and none of them reads or retains messages in the background.
 - Passwords, payment details, email addresses, IP addresses, or Discord tokens belonging to users.
 - Anything about servers the Bots are not a member of.
 
@@ -92,6 +113,8 @@ The Operator has no control over these services and does not receive personal da
 | Night Roller — per-server settings | Until reset with `!config reset`, or deleted by the Operator |
 | Chronicler — logs | Rotating files capped at 2 MB with 3 backups; the oldest are overwritten automatically. No age-based purge |
 | Chronicler — per-server settings | Until reset with `!config reset`, or deleted by the Operator |
+| Chronicler — channel export bundles | **Indefinitely, until deleted by the Operator.** There is no automatic expiry, on purpose: an export may be the only remaining copy of a channel that has since been cleared, so deleting backups by age has to be a deliberate decision rather than a default |
+| Chronicler — export records | Until deleted by the Operator |
 
 Data is not automatically erased when a Bot is removed from a server — ask the Operator if you want it wiped immediately.
 
@@ -104,6 +127,8 @@ You can delete most of your own data directly, without asking anyone:
 | Your personal intro sound | `!intro clear @you` |
 | A soundboard sound | `!soundboard remove <name>` |
 | A saved playlist | `!playlist delete <name>` |
+
+**Channel exports cannot be edited by a command.** They are files on the Operator's machine, and a zip of a channel cannot have one person's messages pulled out of it selectively. If you want your messages removed from an export, or an export deleted entirely, contact the Operator — it is handled by hand. If the export has already been posted into a Discord channel, ask a server admin to delete that message too; the Operator cannot remove a copy that other people have downloaded.
 
 For anything else — including a full erasure of every record tied to your user ID or your server — contact the Operator using the address at the top of this document. Requests are handled manually and honoured as promptly as reasonably possible.
 

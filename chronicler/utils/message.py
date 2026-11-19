@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import discord
 
 from utils import format as fmt
@@ -119,6 +121,55 @@ class MessageWriter:
         lines.append('')
         lines.append(f'Change with `{prefix}config system|die|difficulty|ones <value>`')
         e.description = '\n'.join(lines)
+        return e
+
+    @staticmethod
+    def archive_card(manifest: dict, bundle: Path, *, uploaded: bool, limit: int) -> discord.Embed:
+        """The result of one export."""
+        e = _embed(_GREEN)
+        e.title = f'📦 Exported #{manifest["channel_name"]}'
+        size_mb = (bundle.stat().st_size / 1024 / 1024) if bundle.exists() else 0
+        lines = [
+            f'**{manifest["message_count"]}** messages, '
+            f'**{manifest["attachment_count"]}** attachments',
+            f'**Bundle:** `{bundle.name}` ({size_mb:.1f} MB)',
+            f'**Saved on the host:** `{bundle}`',
+        ]
+        first, last = manifest.get('first_message_id'), manifest.get('last_message_id')
+        if first and last:
+            lines.append(f'**Range:** `{first}` → `{last}`')
+        lines.append('')
+        if uploaded:
+            lines.append('Attached below.')
+        else:
+            limit_mb = limit / 1024 / 1024
+            lines.append(
+                f'Too big to attach here (this server allows {limit_mb:.0f} MB), '
+                f'so collect it from the path above.'
+            )
+        e.description = '\n'.join(lines)
+        return e
+
+    @staticmethod
+    def archive_status(records: dict, prefix: str = '!') -> discord.Embed:
+        """What has been exported from this server."""
+        if not records:
+            return MessageWriter.info(
+                'Nothing exported yet',
+                f'Export a range with `{prefix}archive run last 500`.',
+            )
+        e = _embed()
+        e.title = '📦 Exports from this server'
+        lines = []
+        for record in records.values():
+            state = 'cleared' if record.get('purged_at') else 'kept'
+            lines.append(
+                f'**#{record["channel_name"]}** — {record["message_count"]} messages, '
+                f'{record["attachment_count"]} attachments\n'
+                f'`{record["bundle"]}` · {record["generated_at"]} · '
+                f'by {record["exported_by_name"]} · channel {state}'
+            )
+        e.description = '\n\n'.join(lines)
         return e
 
     @staticmethod

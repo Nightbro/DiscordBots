@@ -53,6 +53,9 @@ No Discord application exists for it yet, so it is not deployed. See [`chronicle
 #### Features
 - `!roll` with full dice expressions, advantage/disadvantage and free-text labels, ported from Night Roller
 - Success-counting dice pools: `!roll 5 (6)`, or automatic scoring in World of Darkness servers
+- `!archive run` exports a channel's messages, images and files to a zip that opens in a browser
+- Exports keep attachments exactly as uploaded and reference them locally, since Discord's own links expire within a day
+- Every export carries a manifest of the message IDs it saved — the interlock for clearing a channel safely
 - Per-server settings via `!config` — roll system, default die, difficulty, botch rule
 - Paginated `!help` that adapts to the server's roll system
 - A feature list and command reference that the test suite refuses to let drift

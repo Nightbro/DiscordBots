@@ -2,7 +2,7 @@
 
 **Applies to:** the Discord bots **Echo** (`echo-bot`), **Night Roller** (`night-roller`) and **Chronicler** (`chronicler`), together "the Bots".
 
-**Last updated:** 2026-11-14
+**Last updated:** 2026-11-19
 
 **Contact:** `<CONTACT — replace with the email or Discord handle you want users to reach you at>`
 
@@ -18,7 +18,7 @@ The Bots are free, non-commercial hobby projects, self-hosted by a private indiv
 
 - **Echo** plays audio in voice channels: music from links or search, per-user intro sounds, a soundboard, and text-to-speech.
 - **Night Roller** rolls dice for tabletop games. It is superseded by Chronicler and will be retired.
-- **Chronicler** keeps a tabletop chronicle: dice today, with announcements, a character builder and session notes planned.
+- **Chronicler** keeps a tabletop chronicle: dice, and exporting a channel's history to a readable archive. Announcements, a character builder and session notes are planned.
 
 Source code is public at <https://github.com/Nightbro/DiscordBots>.
 
@@ -40,9 +40,17 @@ Server administrators are responsible for how the Bots are used in their servers
 
 ## 5. Content you provide
 
-Some features accept content from you — uploaded audio files for intro sounds and the soundboard, links to play, and text to be spoken aloud. You keep ownership of anything you provide. You are responsible for having the right to use it, and you grant the Operator the limited permission needed to store and play it back for the feature to work.
+Some features accept content from you — uploaded audio files for intro sounds and the soundboard, links to play, text to be spoken aloud, and the messages and files captured by a Chronicler channel export. You keep ownership of anything you provide. You are responsible for having the right to use it, and you grant the Operator the limited permission needed to store it and play or render it back for the feature to work.
 
 The Operator may remove any content from the Bots' storage at any time, for any reason, without notice.
+
+### Running a channel export
+
+A Chronicler export copies a channel's messages, images and files — **including other members' content** — onto the Operator's machine, and can post the result back into Discord. Anyone with the **Manage Server** permission can run one.
+
+If you run an export, you are responsible for it: for having the authority to copy that channel, for telling your members if your rules or local law require it, and for what you then do with the archive. A planned feature will also delete the exported messages from the channel, which cannot be undone. Do not run an export on a channel you do not administer.
+
+The Operator provides the tool and holds the resulting files, but does not decide what gets exported or when.
 
 ## 6. Availability
 

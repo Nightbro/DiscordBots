@@ -45,6 +45,7 @@ chronicler/
 ├── cogs/                    # Thin: parse input, present results
 │   ├── __init__.py
 │   ├── roll.py              # RollCog: !roll — input splitting, pools, advantage
+│   ├── archive.py           # ArchiveCog: !archive — export a channel, clear it
 │   ├── settings.py          # SettingsCog: !config — per-guild system/die/difficulty
 │   ├── help.py              # HelpCog: !help — paginated pages, adapts to the system
 │   ├── invite.py            # InviteCog: DM "join" -> invite URL (on_message listener)
@@ -57,10 +58,14 @@ chronicler/
 │   ├── guild_config.py      # Per-guild settings + validated setters
 │   ├── dice.py              # Dice grammar and scoring — no strings for humans
 │   ├── format.py            # Renders a RollResult as text (Discord markdown)
+│   ├── archive.py           # Export model, manifest, limits, export records
+│   ├── transcript.py        # Renders a Transcript to HTML (PDF/DOCX to come)
 │   └── message.py           # MessageWriter: every embed the bot sends
 │
 ├── data/
 │   ├── guild_config.json    # Per-guild settings (gitignored)
+│   ├── archive_config.json  # Export audit trail (gitignored)
+│   ├── archive/<guild_id>/  # Export bundles (gitignored)
 │   └── logs/                # Rotating log files (gitignored, .gitkeep only)
 │
 └── tests/
@@ -70,6 +75,9 @@ chronicler/
     ├── test_dice.py         # Grammar, limits, keep modes
     ├── test_successes.py    # Hit counting, the botch rule, outcomes
     ├── test_format.py       # Breakdowns, notation, the code-span rule
+    ├── test_archive.py      # Model, manifest interlock, export records
+    ├── test_transcript.py   # HTML rendering and escaping
+    ├── test_archive_cog.py  # Option parsing, permission gates, a real export
     ├── test_guild_config.py
     ├── test_message.py
     ├── test_roll_cog.py
@@ -177,6 +185,50 @@ for rolls too large to print.
 Discord renders nothing inside a code span, so a bolded breakdown has to go
 out bare or readers see literal `**`.
 
+### utils/archive.py — the export model and the deletion interlock
+
+Data only: `ArchivedAttachment`, `ArchivedMessage`, `Transcript`, `RangeSpec`,
+plus names (`safe_name`, `stored_name`, `bundle_name`), the pre-flight limits
+(`check_message_count`, `check_attachment_bytes`) and the export records. No
+Discord types and no rendering.
+
+`ArchiveError` carries a message shown to the user verbatim, the same
+convention as `SettingError`. Chronicler has no i18n, so echo-bot's
+machine-readable `code:arg` payloads would buy nothing here.
+
+**The manifest is the safety interlock for deletion, and this is the central
+design decision of the feature.** `build_manifest` records *every* exported
+message id — not a start/end range — and it is written **inside the bundle**.
+So clearing a channel can only ever delete ids that a specific, present,
+readable backup says it saved. A message that failed to export cannot be caught
+up in a range. `read_manifest` therefore turns every failure mode (missing
+bundle, not a zip, no manifest, bad JSON, wrong shape) into an explicit refusal
+whose message ends with "Nothing was deleted" — there is a test asserting that
+wording, because it is the reassurance the user needs at exactly that moment.
+
+`archive_config.json` is an audit trail only. It is deliberately **not** the
+authority on what may be deleted; that authority lives in the bundle.
+
+`RangeSpec` holds **inclusive** bounds as the user typed them. Discord's
+`after`/`before` are exclusive, so the cog offsets by one when calling
+`history()`; snowflakes are unique integers, so `id-1` and `id+1` are safe
+exclusive bounds that can neither skip nor duplicate a real message.
+
+### utils/transcript.py — rendering an export
+
+`render_html(transcript)` builds the whole `index.html`, with `STYLE_CSS`
+shipped alongside as an editable file. Every piece of message text, author name
+and filename goes through `html.escape` — an export is untrusted input written
+to a file somebody will open in a browser.
+
+Images are referenced **relatively** (`images/…`), never by their Discord URL.
+Discord's attachment links are signed and expire after about a day, so a linked
+export is unreadable almost immediately. They are stored at full size and sized
+down only for display, by width attribute and CSS.
+
+Each format renders from the model independently; nothing here parses another
+format's output. That is why there is no HTML-to-PDF step — see Build Phases.
+
 ### utils/persistence.py + utils/guild_config.py
 
 `BaseConfig` is a JSON-dict wrapper with no caching: every call re-reads the
@@ -241,6 +293,30 @@ orchestration — parse, validate, resolve, roll, log, one `ctx.send`.
 
 In a WoD server a bare pool is auto-scored against the server difficulty;
 explicit notation like `2d6+3d8` is left summing unless `(n)` is given.
+
+### cogs/archive.py
+
+`cog_check` requires a guild and Manage Server (or the owner) — an export
+exposes a channel's entire history. `!archive seed` is additionally owner-only.
+
+Parsing lives in module-level pure functions above the class, like `roll.py`:
+`parse_options` turns the command text into `(RangeSpec, purge)`, and
+`missing_permissions` reports which of a needed set the bot lacks in a channel.
+
+**A range is always required.** There is no default, deliberately: an export
+that guesses its own bounds is one that could later delete the wrong messages.
+
+The export runs in order — read history (reporting progress on a throttle),
+check the count and byte limits *before downloading anything*, save attachments
+into a temp directory, render, zip, then record. Zipping runs through
+`run_in_executor` since it blocks. A single unreachable attachment is logged and
+skipped: one dead CDN link must not sink an export of thousands of messages, and
+the message still counts as exported.
+
+The bundle is **always** written to the host, and additionally attached to the
+reply only when it fits `guild.filesize_limit` and the bot has Attach Files.
+This is the one place in the repo that sends a `discord.File`; the accompanying
+embed still comes from `MessageWriter`.
 
 ### cogs/settings.py
 
@@ -359,22 +435,46 @@ list self-enforcing rather than a promise.
 
 1. **Skeleton + dice** — done. Spine, config, persistence, embeds, dice
    ported, settings/help/dev/invite, full test suite, docs, CI workflow.
-2. **Discord application and deployment** — create the app, set permissions
+2. **Channel archive, export** — done. `!archive run` / `status` / `seed`,
+   the bundle format, the manifest interlock, the pre-flight limits.
+3. **Archive transcripts as PDF and Word** — `transcript.pdf` and
+   `transcript.docx` in the bundle, rendered from the same model as the HTML
+   rather than converted from it. Messages only, no structure.
+
+   Rendering is pure-Python (`fpdf2`, `python-docx`, `Pillow`) on purpose.
+   WeasyPrint would give better fidelity but needs Pango, cairo and
+   GDK-PixBuf as native libraries — a GTK install on a Windows dev machine and
+   an `apt install` on the Pi, which `deploy-chronicler.yml` cannot perform
+   since it only runs `pip install`. A Word→PDF chain was rejected for the same
+   reason: it would need LibreOffice headless on the Pi.
+4. **Clearing an archived channel** — `--purge` on a completed export, never a
+   command of its own, so nothing can be deleted that was not just backed up.
+   Reads its target ids from the bundle's manifest and refuses if the bundle is
+   missing or unreadable. Confirmation through a `discord.ui.View` with
+   fail-safe polarity: a timeout deletes nothing. `bulk_delete` takes messages
+   under 14 days old in chunks of 100; older ones go one at a time against a
+   strict rate limit via `channel.get_partial_message(id).delete()`, so it is a
+   slow job that reports progress.
+
+   Note that "remove all read messages" is not implementable: read state is
+   per-user and Discord exposes none of it to bots.
+5. **Discord application and deployment** — create the app, set permissions
    and the invite URL, deploy to the Pi, document moving it to another server.
-3. **Chronicle of Darkness dice** — a third roll system: 10-again (and
+6. **Chronicle of Darkness dice** — a third roll system: 10-again (and
    9-/8-again), rote rerolls, chance die, exceptional success at 5+.
-4. **Announcements and reminders** — the only greenfield architecture here.
+7. **Announcements and reminders** — the only greenfield architecture here.
    Needs persisted due times reconciled on `on_ready`, a decided answer for
    reminders missed while the bot was down, per-guild channel targeting, and a
    timezone. `echo-bot/utils/devlog.py` has the task-lifecycle idiom and
    `echo-bot/utils/intro_config.py` the `MON-FRI`/`WEEKEND` day vocabulary.
-5. **Character builder** — CofD sheets per user per server.
-6. **Session notes** — timestamped entries per server.
+8. **Character builder** — CofD sheets per user per server.
+9. **Session notes** — timestamped entries per server.
 
-Phases 5 and 6 introduce user-authored free text retained indefinitely, which
+Phases 8 and 9 introduce user-authored free text retained indefinitely, which
 is a new data category for this repo. Retention and deletion must be decided
 with the storage, and the root `PRIVACY_POLICY.md` and `TERMS_OF_SERVICE.md`
-updated when they land.
+updated when they land. The channel archive got there first — an export already
+stores other members' messages and files, and the policy was updated for it.
 
 ---
 
@@ -386,6 +486,10 @@ updated when they land.
 - All embeds come from `MessageWriter` — never build `discord.Embed` in a cog.
 - Dice logic stays in `utils/dice.py`, free of Discord types *and* of
   rendering; rendering goes in `utils/format.py`.
+- Archive logic stays in `utils/archive.py` and `utils/transcript.py`, free of
+  Discord types. The cog fetches history, downloads, zips and sends.
+- Nothing may delete a message except against a manifest read out of a bundle
+  that exists. The audit trail in `archive_config.json` is not good enough.
 - Character, note and reminder logic will follow the same rule: pure modules
   in `utils/`, cogs only parse and present.
 - Every change ships with tests. Run `python -m pytest` from `chronicler/`
