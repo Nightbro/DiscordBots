@@ -218,6 +218,12 @@ Dodaj `all` (samo vlasnik bota) da dobijaš i greške koje nisu vezane ni za jed
   on_owner_dm: "Dobijaćeš sve greške, sa svih servera, u ovim porukama."
   off_owner_dm: "Više ne šaljem greške ovde."
   test_sent: "Probni unos je zabeležen — trebalo bi da stigne za nekoliko sekundi."
+  tail_title: "Log tail"
+  tail_no_files: "No log files found in `data/logs/`."
+  tail_empty: "No `{level}` records found in `{file}`."
+  tail_header: "Last {count} `{level}` record(s) from `{file}`"
+  tail_invalid_level: "Invalid log level"
+  tail_valid_levels: "Valid: `critical` · `error` · `warning` · `info` · `debug` · `all`"
 
 listener:
   not_implemented: "Glasovno slušanje još nije implementirano."

@@ -202,6 +202,14 @@ Forward this server's errors (WARNING and above, with a short traceback) to a ch
 
 Settings are stored in `data/devlog_config.json` and survive restarts.
 
+**Owner-only log access:**
+
+| Command | Description |
+|---|---|
+| `!devlog tail` | Show last 50 ERROR+ records from the current error log |
+| `!devlog tail <level>` | Level filter: `critical`, `error` (default), `warning`, `info`, `debug`, `all` |
+| `!devlog tail <level> <n>` | Show last N records (max 500); if output fits it appears inline, otherwise uploaded as a file |
+
 ---
 
 ## Dev (owner only)

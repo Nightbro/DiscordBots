@@ -221,6 +221,12 @@ Add `all` (bot owner only) to also get errors not tied to any server."
   on_owner_dm: "You'll get every error, from every server, in this DM."
   off_owner_dm: "Stopped sending errors to this DM."
   test_sent: "Test entry logged — it should arrive within a few seconds."
+  tail_title: "Log tail"
+  tail_no_files: "No log files found in `data/logs/`."
+  tail_empty: "No `{level}` records found in `{file}`."
+  tail_header: "Last {count} `{level}` record(s) from `{file}`"
+  tail_invalid_level: "Invalid log level"
+  tail_valid_levels: "Valid: `critical` · `error` · `warning` · `info` · `debug` · `all`"
 
 listener:
   not_implemented: "Voice listening is not yet implemented."

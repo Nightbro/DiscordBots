@@ -164,3 +164,87 @@ async def test_dm_non_owner_rejected(cog, mock_bot, dm_ctx):
     embed = await run(cog, dm_ctx, 'here')
     assert 'owner' in embed.title
     assert devlog.get_owner_dm() is None
+
+
+# ---------------------------------------------------------------------------
+# !devlog tail
+# ---------------------------------------------------------------------------
+
+_TS = '2024-01-15 12:00:00'
+
+
+def _error_log(tmp_path, lines: list[str]) -> None:
+    log_file = tmp_path / 'errors_20240115_120000.log'
+    log_file.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+
+
+def _log_line(level: str, msg: str) -> str:
+    return f'{_TS} [{level.ljust(8)}] utils.test: {msg}'
+
+
+async def test_tail_non_owner_is_silent(cog, gctx, tmp_path):
+    cog.bot.is_owner = AsyncMock(return_value=False)
+    with patch('utils.config.LOGS_DIR', tmp_path), \
+         patch('utils.config.BOT_NAME', 'echo'):
+        await cog.devlog_tail.callback(cog, gctx, level='error', n=50)
+    gctx.send.assert_not_awaited()
+
+
+async def test_tail_no_files_shows_info(cog, gctx, tmp_path):
+    with patch('utils.config.LOGS_DIR', tmp_path), \
+         patch('utils.config.BOT_NAME', 'echo'):
+        await cog.devlog_tail.callback(cog, gctx, level='error', n=50)
+    embed = gctx.send.await_args.kwargs['embed']
+    assert 'ℹ' in embed.title
+
+
+async def test_tail_invalid_level_shows_error(cog, gctx, tmp_path):
+    _error_log(tmp_path, [_log_line('ERROR', 'boom')])
+    with patch('utils.config.LOGS_DIR', tmp_path), \
+         patch('utils.config.BOT_NAME', 'echo'):
+        await cog.devlog_tail.callback(cog, gctx, level='banana', n=50)
+    embed = gctx.send.await_args.kwargs['embed']
+    assert '❌' in embed.title
+
+
+async def test_tail_returns_records_as_embed(cog, gctx, tmp_path):
+    _error_log(tmp_path, [
+        _log_line('ERROR', 'first failure'),
+        _log_line('ERROR', 'second failure'),
+    ])
+    with patch('utils.config.LOGS_DIR', tmp_path), \
+         patch('utils.config.BOT_NAME', 'echo'):
+        await cog.devlog_tail.callback(cog, gctx, level='error', n=50)
+    embed = gctx.send.await_args.kwargs['embed']
+    assert 'first failure' in embed.description
+    assert 'second failure' in embed.description
+
+
+async def test_tail_empty_result_shows_info(cog, gctx, tmp_path):
+    _error_log(tmp_path, [_log_line('WARNING', 'just a warning')])
+    with patch('utils.config.LOGS_DIR', tmp_path), \
+         patch('utils.config.BOT_NAME', 'echo'):
+        await cog.devlog_tail.callback(cog, gctx, level='critical', n=50)
+    embed = gctx.send.await_args.kwargs['embed']
+    assert 'ℹ' in embed.title
+
+
+async def test_tail_large_output_uploads_file(cog, gctx, tmp_path):
+    # 200 error records will exceed the 3800-char embed limit
+    lines = [_log_line('ERROR', 'x' * 30 + f' record {i}') for i in range(200)]
+    _error_log(tmp_path, lines)
+    with patch('utils.config.LOGS_DIR', tmp_path), \
+         patch('utils.config.BOT_NAME', 'echo'):
+        await cog.devlog_tail.callback(cog, gctx, level='error', n=200)
+    call_kwargs = gctx.send.await_args.kwargs
+    assert 'file' in call_kwargs
+    assert isinstance(call_kwargs['file'], MagicMock.__class__) or hasattr(call_kwargs['file'], 'fp')
+
+
+async def test_tail_numeric_first_arg_treated_as_n(cog, gctx, tmp_path):
+    _error_log(tmp_path, [_log_line('ERROR', 'err')])
+    with patch('utils.config.LOGS_DIR', tmp_path), \
+         patch('utils.config.BOT_NAME', 'echo'):
+        await cog.devlog_tail.callback(cog, gctx, level='10', n=50)
+    # Should succeed (level defaulted to 'error', n=10)
+    gctx.send.assert_awaited_once()

@@ -122,9 +122,12 @@ outside this repo.
 |---|---|
 | `!devlog here\|dm\|off\|test` | Forward this server's errors to a channel or DM |
 | `!devlog here all` | *(owner)* Include errors not tied to any server |
+| `!devlog tail [level] [n]` | *(owner)* Show last N log records at or above level; inline embed or file upload |
 
 - Each server opts in separately and sees only its own errors, batched and
   rate-limited. This is how the voice-server DNS failure on the Pi was found.
+- `!devlog tail` levels: `critical`, `error` (default), `warning`, `info`, `debug`, `all`. Reads the
+  errors-only log for WARNING+ levels; the full debug log for INFO/DEBUG/all.
 
 ### Help and housekeeping
 

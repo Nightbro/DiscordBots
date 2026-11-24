@@ -24,9 +24,11 @@ from __future__ import annotations
 import asyncio
 import contextvars
 import logging
+import re
 import threading
 import traceback
 from collections import deque
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from utils.persistence import DevlogConfig
@@ -215,3 +217,73 @@ class DevlogHandler(logging.Handler):
 
 
 handler = DevlogHandler()
+
+
+# ---------------------------------------------------------------------------
+# Log file tail
+# ---------------------------------------------------------------------------
+
+_LOG_HEADER_RE = re.compile(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \[')
+
+# Maps level keyword → set of level names that satisfy "at or above this level".
+_LEVEL_FILTER: dict[str, frozenset[str]] = {
+    'critical': frozenset({'CRITICAL'}),
+    'error':    frozenset({'ERROR', 'CRITICAL'}),
+    'warning':  frozenset({'WARNING', 'ERROR', 'CRITICAL'}),
+    'warn':     frozenset({'WARNING', 'ERROR', 'CRITICAL'}),
+    'info':     frozenset({'INFO', 'WARNING', 'ERROR', 'CRITICAL'}),
+    'debug':    frozenset({'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}),
+    'all':      frozenset({'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}),
+}
+
+VALID_LEVELS: frozenset[str] = frozenset(_LEVEL_FILTER)
+
+
+def tail_log(level: str = 'error', n: int = 50) -> tuple[list[str], Path | None]:
+    """Return the last *n* log records at or above *level*.
+
+    Uses the errors-only log for WARNING/ERROR/CRITICAL (smaller, faster);
+    falls back to the full debug log for INFO/DEBUG/all.
+
+    Returns ``(records, source_file)``.  ``records`` is empty when nothing
+    matches or the log directory has no files; ``source_file`` is ``None``
+    when no log file was found at all.
+    """
+    from utils.config import LOGS_DIR, BOT_NAME
+
+    levels = _LEVEL_FILTER.get(level.lower(), _LEVEL_FILTER['error'])
+    # Errors-only log has WARNING+ — sufficient for warning/error/critical.
+    errors_only = levels <= frozenset({'WARNING', 'ERROR', 'CRITICAL'})
+    prefix = 'errors_' if errors_only else f'{BOT_NAME.lower()}_'
+
+    files = sorted(LOGS_DIR.glob(f'{prefix}*.log'), key=lambda p: p.stat().st_mtime)
+    if not files:
+        return [], None
+
+    log_file = files[-1]
+    try:
+        text = log_file.read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return [], None
+
+    # Group lines into records; each record starts with a timestamp header.
+    records: list[str] = []
+    current: list[str] = []
+    for line in text.splitlines():
+        if _LOG_HEADER_RE.match(line):
+            if current:
+                records.append('\n'.join(current))
+            current = [line]
+        elif current:
+            current.append(line)
+    if current:
+        records.append('\n'.join(current))
+
+    filtered = [r for r in records if _record_matches(r, levels)]
+    return filtered[-n:], log_file
+
+
+def _record_matches(record: str, levels: frozenset[str]) -> bool:
+    # Level appears in the header line, e.g. "... [ERROR   ] ..."
+    header = record.split('\n', 1)[0]
+    return any(f'[{lvl}' in header for lvl in levels)

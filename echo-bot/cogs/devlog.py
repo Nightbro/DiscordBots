@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import logging
 
 import discord
@@ -22,7 +23,7 @@ class DevlogCog(commands.Cog, name='Devlog'):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @commands.command(name='devlog')
+    @commands.group(name='devlog', invoke_without_command=True)
     async def devlog_cmd(self, ctx: commands.Context, action: str = '', scope: str = '') -> None:
         """!devlog [here|dm|off|test] [all]"""
         action, scope = action.lower(), scope.lower()
@@ -92,6 +93,51 @@ class DevlogCog(commands.Cog, name='Devlog'):
             await self._send_test(ctx)
         else:
             await ctx.send(embed=MessageWriter.error(t('devlog.usage_title'), t('devlog.usage')))
+
+    @devlog_cmd.command(name='tail', hidden=True)
+    async def devlog_tail(self, ctx: commands.Context, level: str = 'error', n: int = 50) -> None:
+        """!devlog tail [level] [n] — owner-only: show the last N log records at or above level."""
+        if not await self.bot.is_owner(ctx.author):
+            return
+        gid = ctx.guild.id if ctx.guild else 0
+        n = max(1, min(n, 500))
+
+        # Allow "!devlog tail 50" (number only, no level keyword)
+        if level.isdigit():
+            n = int(level)
+            level = 'error'
+
+        if level not in devlog.VALID_LEVELS:
+            await ctx.send(embed=MessageWriter.error(
+                t('devlog.tail_invalid_level', gid),
+                t('devlog.tail_valid_levels', gid),
+            ))
+            return
+
+        records, log_file = devlog.tail_log(level, n)
+
+        if log_file is None:
+            await ctx.send(embed=MessageWriter.info(t('devlog.tail_title', gid), t('devlog.tail_no_files', gid)))
+            return
+        if not records:
+            await ctx.send(embed=MessageWriter.info(
+                t('devlog.tail_title', gid),
+                t('devlog.tail_empty', gid, level=level.upper(), file=log_file.name),
+            ))
+            return
+
+        full_text = '\n---\n'.join(records)
+        header = t('devlog.tail_header', gid, count=len(records), level=level.upper(), file=log_file.name)
+
+        if len(full_text) <= 3800:
+            embed = MessageWriter.log_tail(t('devlog.tail_title', gid), records)
+            embed.description = f'{header}\n{embed.description}'
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send(
+                embed=MessageWriter.info(t('devlog.tail_title', gid), header),
+                file=discord.File(io.BytesIO(full_text.encode('utf-8')), filename=log_file.name),
+            )
 
     async def _send_test(self, ctx: commands.Context) -> None:
         gid = ctx.guild.id if ctx.guild else 0

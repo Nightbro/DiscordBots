@@ -224,3 +224,115 @@ async def test_handler_emit_from_other_thread_wakes_sender():
                 break
     h._task.cancel()
     assert 'from player thread' in user.send.await_args.kwargs['embed'].description
+
+
+# ---------------------------------------------------------------------------
+# tail_log
+# ---------------------------------------------------------------------------
+
+_TS = '2024-01-15 12:00:00'
+
+def _log_line(level: str, msg: str) -> str:
+    pad = level.ljust(8)
+    return f'{_TS} [{pad}] utils.test: {msg}'
+
+
+def _write_log(path, lines: list[str]) -> None:
+    path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+
+
+def test_tail_log_no_files_returns_empty(tmp_path):
+    with patch('utils.config.LOGS_DIR', tmp_path), \
+         patch('utils.config.BOT_NAME', 'echo'):
+        records, f = devlog.tail_log()
+    assert records == []
+    assert f is None
+
+
+def test_tail_log_reads_errors_log_for_error_level(tmp_path):
+    errors_log = tmp_path / 'errors_20240115_120000.log'
+    _write_log(errors_log, [
+        _log_line('ERROR', 'something failed'),
+        _log_line('WARNING', 'just a warning'),
+    ])
+    with patch('utils.config.LOGS_DIR', tmp_path), \
+         patch('utils.config.BOT_NAME', 'echo'):
+        records, f = devlog.tail_log('error')
+    assert f == errors_log
+    assert len(records) == 1
+    assert 'something failed' in records[0]
+
+
+def test_tail_log_warning_includes_warnings(tmp_path):
+    errors_log = tmp_path / 'errors_20240115_120000.log'
+    _write_log(errors_log, [
+        _log_line('ERROR', 'err'),
+        _log_line('WARNING', 'warn'),
+        _log_line('CRITICAL', 'crit'),
+    ])
+    with patch('utils.config.LOGS_DIR', tmp_path), \
+         patch('utils.config.BOT_NAME', 'echo'):
+        records, _ = devlog.tail_log('warning')
+    assert len(records) == 3
+
+
+def test_tail_log_critical_only(tmp_path):
+    errors_log = tmp_path / 'errors_20240115_120000.log'
+    _write_log(errors_log, [
+        _log_line('ERROR', 'err'),
+        _log_line('CRITICAL', 'crit'),
+    ])
+    with patch('utils.config.LOGS_DIR', tmp_path), \
+         patch('utils.config.BOT_NAME', 'echo'):
+        records, _ = devlog.tail_log('critical')
+    assert len(records) == 1
+    assert 'crit' in records[0]
+
+
+def test_tail_log_caps_to_n(tmp_path):
+    errors_log = tmp_path / 'errors_20240115_120000.log'
+    lines = [_log_line('ERROR', f'err {i}') for i in range(10)]
+    _write_log(errors_log, lines)
+    with patch('utils.config.LOGS_DIR', tmp_path), \
+         patch('utils.config.BOT_NAME', 'echo'):
+        records, _ = devlog.tail_log('error', n=3)
+    assert len(records) == 3
+    assert 'err 9' in records[-1]
+
+
+def test_tail_log_includes_traceback_continuation(tmp_path):
+    errors_log = tmp_path / 'errors_20240115_120000.log'
+    _write_log(errors_log, [
+        _log_line('ERROR', 'crash'),
+        'Traceback (most recent call last):',
+        '  File "foo.py", line 1',
+        'ValueError: bad',
+    ])
+    with patch('utils.config.LOGS_DIR', tmp_path), \
+         patch('utils.config.BOT_NAME', 'echo'):
+        records, _ = devlog.tail_log('error')
+    assert len(records) == 1
+    assert 'ValueError' in records[0]
+
+
+def test_tail_log_all_uses_full_log(tmp_path):
+    full_log = tmp_path / 'echo_20240115_120000.log'
+    _write_log(full_log, [
+        _log_line('DEBUG', 'debug msg'),
+        _log_line('INFO', 'info msg'),
+    ])
+    with patch('utils.config.LOGS_DIR', tmp_path), \
+         patch('utils.config.BOT_NAME', 'echo'):
+        records, f = devlog.tail_log('all')
+    assert f == full_log
+    assert len(records) == 2
+
+
+def test_tail_log_empty_matching(tmp_path):
+    errors_log = tmp_path / 'errors_20240115_120000.log'
+    _write_log(errors_log, [_log_line('WARNING', 'just a warn')])
+    with patch('utils.config.LOGS_DIR', tmp_path), \
+         patch('utils.config.BOT_NAME', 'echo'):
+        records, f = devlog.tail_log('critical')
+    assert records == []
+    assert f == errors_log  # file exists, just no matching records

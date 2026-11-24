@@ -50,6 +50,25 @@ class MessageWriter:
         return e
 
     @staticmethod
+    def log_tail(title: str, records: list[str], suppressed: int = 0) -> discord.Embed:
+        """Log-tail result: records formatted as code blocks in an info embed."""
+        e = _embed()
+        e.title = f'📋 {title}'
+        parts: list[str] = []
+        used = 0
+        for i, record in enumerate(records):
+            block = f'```\n{record.replace("```", "`​``")}\n```'
+            if used + len(block) > 3800:
+                suppressed += len(records) - i
+                break
+            parts.append(block)
+            used += len(block)
+        if suppressed:
+            parts.append(f'…and {suppressed} more — download the file for the full log.')
+        e.description = '\n'.join(parts)
+        return e
+
+    @staticmethod
     def info(title: str, description: str = '') -> discord.Embed:
         e = _embed()
         e.title = f'ℹ️ {title}'

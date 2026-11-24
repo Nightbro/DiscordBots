@@ -508,6 +508,8 @@ Owner-only (checked via `bot.owner_id` from `OWNER_ID` env var). Prefix commands
 
 `!devlog [here|dm|off|test] [all]` — prefix only. Turns on per-server error forwarding. Requires **Manage Server** (or bot owner); `all` and DM use are owner-only. In a DM with the bot, `!devlog here` subscribes the owner to every record from every server (`owner_dm`).
 
+`!devlog tail [level] [n]` — owner-only subcommand. Reads the last *n* (default 50, max 500) log records at or above *level* (`critical`, `error` (default), `warning`, `info`, `debug`, `all`) from `data/logs/`. Uses the errors-only log for WARNING+ levels; falls back to the full debug log for INFO/DEBUG/all. Output fits in an embed (≤ 3800 chars) or is uploaded as a `.log` file attachment.
+
 ### `utils/devlog.py` — Dev log
 
 - `current_guild` ContextVar — set in `bot.py` (`on_message`, `on_voice_state_update`, `before_invoke`) and in `VoiceStreamer.play_next` / `interrupt`. Code on FFmpeg player threads passes `extra={'guild_id': ...}` instead.
