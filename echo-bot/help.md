@@ -43,6 +43,8 @@ Songs uploaded to the bot and kept on the server, so nothing depends on an outsi
 | `!library` | `!lib` | Browse the library: numbered list, a dropdown to play, page buttons |
 | `!library <name\|#N>` | `!lib` | Play a track straight away |
 | `!lib play <name\|#N>` | — | Same, spelled out |
+| `!lib radio` | — | Shuffle all library tracks into the queue and start playing |
+| `!lib radio all` | — | Same, also includes the downloads cache |
 | `!lib remove <name\|#N>` | `!lib delete` | Remove a track and delete its file |
 | `!lib rename <name\|#N> <new name>` | — | Rename a track |
 | `!lib info <name\|#N>` | — | Length, size, who added it, play count |

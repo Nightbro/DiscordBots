@@ -26,7 +26,7 @@ echo-bot/
 ├── cogs/                     # Feature cogs — one per domain
 │   ├── __init__.py
 │   ├── music.py              # Playback: YouTube, search, queue, playlists, library-first !play
-│   ├── library.py            # !save / !download / !library: per-guild uploaded track library
+│   ├── library.py            # !save / !download / !library / !lib radio: per-guild uploaded track library
 │   ├── intros.py             # Per-user/bot join sounds with schedule support
 │   ├── soundboard.py         # Reaction-based soundboard panel + quick trigger
 │   ├── tts.py                # edge-tts voice output, per-guild voice setting
@@ -445,6 +445,8 @@ Per-guild library of uploaded tracks — the dependable alternative to third-par
 | `!download play <url\|search>` | — | Same as `!download`, then queues the track for immediate playback |
 | `!library [query]` | `!lib` | Numbered list + dropdown picker + page buttons. With a name or `#N`, plays immediately. |
 | `!lib play <query>` | — | Play an uploaded track by name or `#N` |
+| `!lib radio` | — | Shuffle all library tracks into the queue and start playing; replaces existing queued tracks |
+| `!lib radio all` | — | Same, plus any audio files in `data/downloads/` (excludes `notify_*.mp3` TTS temp files) |
 | `!lib remove <query>` | `!lib delete` | Remove a track by name or `#N` |
 | `!lib rename <query> <new name>` | — | Rename a track |
 | `!lib info <query>` | — | Show details: duration, size, who added it, play count |

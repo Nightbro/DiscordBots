@@ -64,6 +64,8 @@ help:
       `{prefix}download play <url|pretraga>` — preuzmi, sačuvaj i pusti odmah
       `{prefix}library` — pregledaj: numerisana lista, meni za puštanje, strane
       `{prefix}library <ime|#N>` (ili `{prefix}lib play <ime|#N>`) — pusti otpremljenu pesmu
+      `{prefix}lib radio` — pomešaj sve pesme iz biblioteke u red i pusti
+      `{prefix}lib radio all` — isto, uključuje i keš preuzimanja
       `{prefix}lib remove <ime|#N>` — ukloni pesmu
       `{prefix}lib rename <ime|#N> <novo ime>` — preimenuj pesmu
       `{prefix}lib info <ime|#N>` — dužina, veličina, ko je dodao, broj puštanja

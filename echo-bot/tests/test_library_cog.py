@@ -459,3 +459,116 @@ async def test_download_confirm_view_on_use_library_plays(cog, lctx, tmp_path, w
     with patch.object(LibraryCog, 'play_slug', new=AsyncMock(return_value=True)) as mock_play:
         await view._on_use_library(interaction)
     mock_play.assert_awaited_once_with(lctx, 'test-song')
+
+
+# ---------------------------------------------------------------------------
+# !lib radio / !lib radio all
+# ---------------------------------------------------------------------------
+
+def _streamer_mock():
+    """Return a MagicMock that looks like a VoiceStreamer with a real queue."""
+    import collections
+    streamer = MagicMock()
+    streamer.queue = collections.deque()
+    streamer.is_playing = False
+    streamer.is_paused = False
+    streamer.join = AsyncMock()
+    streamer.play_next = AsyncMock()
+    return streamer
+
+
+async def test_radio_requires_voice(cog, lctx, write_off):
+    _add(123456789, 'Track A')
+    lctx.author.voice = None
+    with patch('cogs.library.VoiceStreamer') as MockStreamer:
+        MockStreamer.return_value = _streamer_mock()
+        await cog.library_radio.callback(cog, lctx)
+    MockStreamer.return_value.join.assert_not_awaited()
+
+
+async def test_radio_empty_library_reports_error(cog, lctx, write_off):
+    with patch('cogs.library.VoiceStreamer') as MockStreamer:
+        MockStreamer.return_value = _streamer_mock()
+        await cog.library_radio.callback(cog, lctx)
+    MockStreamer.return_value.play_next.assert_not_awaited()
+
+
+async def test_radio_loads_library_tracks_into_queue(cog, lctx, write_off):
+    _add(123456789, 'Alpha')
+    _add(123456789, 'Beta')
+    _add(123456789, 'Gamma')
+    streamer = _streamer_mock()
+    with patch('cogs.library.VoiceStreamer', return_value=streamer):
+        await cog.library_radio.callback(cog, lctx)
+    assert len(streamer.queue) == 3
+    titles = {t.title for t in streamer.queue}
+    assert titles == {'Alpha', 'Beta', 'Gamma'}
+    streamer.play_next.assert_awaited_once()
+
+
+async def test_radio_clears_existing_queue(cog, lctx, write_off):
+    import collections
+    _add(123456789, 'New Track')
+    streamer = _streamer_mock()
+    streamer.queue.extend([MagicMock(), MagicMock(), MagicMock()])
+    with patch('cogs.library.VoiceStreamer', return_value=streamer):
+        await cog.library_radio.callback(cog, lctx)
+    assert len(streamer.queue) == 1
+    assert streamer.queue[0].title == 'New Track'
+
+
+async def test_radio_does_not_call_play_next_when_already_playing(cog, lctx, write_off):
+    _add(123456789, 'Song')
+    streamer = _streamer_mock()
+    streamer.is_playing = True
+    with patch('cogs.library.VoiceStreamer', return_value=streamer):
+        await cog.library_radio.callback(cog, lctx)
+    streamer.play_next.assert_not_awaited()
+
+
+async def test_radio_caps_queue_at_max(cog, lctx, write_off):
+    for i in range(5):
+        _add(123456789, f'Track {i:02d}')
+    streamer = _streamer_mock()
+    with patch('cogs.library.VoiceStreamer', return_value=streamer), \
+         patch('cogs.library.MAX_QUEUE', 3):
+        await cog.library_radio.callback(cog, lctx)
+    assert len(streamer.queue) == 3
+
+
+async def test_radio_all_includes_cache_tracks(cog, lctx, tmp_path, write_off):
+    _add(123456789, 'Library Track')
+    cache_file = tmp_path / 'yt_id_xyz.mp3'
+    cache_file.write_bytes(b'x' * 1024)
+    streamer = _streamer_mock()
+    with patch('cogs.library.VoiceStreamer', return_value=streamer), \
+         patch('cogs.library.DOWNLOADS_DIR', tmp_path):
+        await cog.library_radio_all.callback(cog, lctx)
+    titles = {t.title for t in streamer.queue}
+    assert 'Library Track' in titles
+    assert 'yt_id_xyz' in titles
+    assert len(streamer.queue) == 2
+
+
+async def test_radio_all_empty_reports_error(cog, lctx, tmp_path, write_off):
+    streamer = _streamer_mock()
+    with patch('cogs.library.VoiceStreamer', return_value=streamer), \
+         patch('cogs.library.DOWNLOADS_DIR', tmp_path):
+        await cog.library_radio_all.callback(cog, lctx)
+    streamer.play_next.assert_not_awaited()
+
+
+def test_cache_tracks_skips_tts_files(tmp_path):
+    (tmp_path / 'song.mp3').write_bytes(b'x')
+    (tmp_path / 'notify_intro.mp3').write_bytes(b'x')
+    (tmp_path / 'other.txt').write_bytes(b'x')
+    with patch('cogs.library.DOWNLOADS_DIR', tmp_path):
+        tracks = LibraryCog._cache_tracks()
+    assert len(tracks) == 1
+    assert tracks[0].title == 'song'
+
+
+def test_cache_tracks_returns_empty_when_dir_missing(tmp_path):
+    with patch('cogs.library.DOWNLOADS_DIR', tmp_path / 'nonexistent'):
+        tracks = LibraryCog._cache_tracks()
+    assert tracks == []

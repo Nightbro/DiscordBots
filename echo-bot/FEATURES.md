@@ -54,6 +54,8 @@ outside this repo.
 | `!download <url\|search>`, `!download play` | Download from YouTube and save to library; prompts when a similar track exists |
 | `!library` | Browse: numbered list, dropdown picker, page buttons |
 | `!library <name\|#N>`, `!lib play` | Play an uploaded track |
+| `!lib radio` | Shuffle all library tracks into the queue and start playing |
+| `!lib radio all` | Same, also includes the downloads cache |
 | `!lib remove`, `!lib rename`, `!lib info` | Manage entries |
 
 - One library per server; no server sees another's uploads.

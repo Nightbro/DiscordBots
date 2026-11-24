@@ -179,6 +179,11 @@ Play it with `!play {title}` or `!lib play #{index}`."
   download_saved: "Downloaded **{title}**"
   download_saved_hint: "`#{index}` in the library · {duration} · {size} MB
 Play it with `!play {title}` or `!lib play #{index}`."
+  radio_empty: "Nothing in the library to play."
+  radio_empty_all: "No tracks found in the library or downloads cache."
+  radio_started: "Library radio"
+  radio_started_hint: "Shuffled {count} tracks into the queue."
+  radio_started_all_hint: "Shuffled {count} tracks into the queue (library + downloads cache)."
   removed: "Removed **{title}** from the library."
   renamed: "Renamed **{old}** to **{new}**."
   info: "Length: {duration}

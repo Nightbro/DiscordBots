@@ -463,6 +463,8 @@ sequenceDiagram
           <tr><td><code>!download play &lt;url|search&gt;</code></td><td class="al">—</td><td>Same as <code>!download</code>, then queues the track for immediate playback.</td></tr>
           <tr><td><code>!library [query]</code></td><td class="al">!lib</td><td>Browse library with dropdown picker + page buttons. With a name or <code>#N</code>, plays that track immediately.</td></tr>
           <tr><td><code>!library play &lt;query&gt;</code></td><td class="al">!lib play</td><td>Play a track by name or <code>#N</code>.</td></tr>
+          <tr><td><code>!lib radio</code></td><td class="al">—</td><td>Shuffle all library tracks into the queue and start playing. Replaces any existing queued tracks.</td></tr>
+          <tr><td><code>!lib radio all</code></td><td class="al">—</td><td>Same, also includes audio files from <code>data/downloads/</code> (excludes TTS temp files starting with <code>notify_</code>).</td></tr>
           <tr><td><code>!library remove &lt;query&gt;</code></td><td class="al">!lib delete</td><td>Remove a track by name or <code>#N</code>.</td></tr>
           <tr><td><code>!library rename &lt;query&gt; &lt;new name&gt;</code></td><td class="al">!lib rename</td><td>Rename a track.</td></tr>
           <tr><td><code>!library info &lt;query&gt;</code></td><td class="al">!lib info</td><td>Show details: duration, size, who added it, play count.</td></tr>

@@ -64,6 +64,8 @@ help:
       `{prefix}download play <url|search>` — download, save, then play immediately
       `{prefix}library` — browse: numbered list, dropdown to play, page buttons
       `{prefix}library <name|#N>` (or `{prefix}lib play <name|#N>`) — play an uploaded track
+      `{prefix}lib radio` — shuffle all library tracks into the queue and start playing
+      `{prefix}lib radio all` — same, also includes the downloads cache
       `{prefix}lib remove <name|#N>` — remove a track
       `{prefix}lib rename <name|#N> <new name>` — rename a track
       `{prefix}lib info <name|#N>` — length, size, who added it, play count

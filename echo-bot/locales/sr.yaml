@@ -176,6 +176,11 @@ Pusti sa `!play {title}` ili `!lib play #{index}`."
   download_saved: "Preuzeto **{title}**"
   download_saved_hint: "`#{index}` u biblioteci · {duration} · {size} MB
 Pusti sa `!play {title}` ili `!lib play #{index}`."
+  radio_empty: "Nema pesama u biblioteci za puštanje."
+  radio_empty_all: "Nema pesama u biblioteci ni u keš folderu."
+  radio_started: "Radio biblioteke"
+  radio_started_hint: "Pomešano {count} pesama u red."
+  radio_started_all_hint: "Pomešano {count} pesama u red (biblioteka + keš preuzimanja)."
   removed: "**{title}** je uklonjeno iz biblioteke."
   renamed: "**{old}** je preimenovano u **{new}**."
   info: "Dužina: {duration}

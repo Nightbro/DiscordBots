@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import random
 import shutil
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from discord.ext import commands
 
 from utils import library
 from utils.audio import AUDIO_EXTS, AudioFileManager
+from utils.config import DOWNLOADS_DIR, MAX_QUEUE
 from utils.downloader import Downloader
 from utils.guild_state import Track
 from utils.i18n import t
@@ -334,6 +336,16 @@ class LibraryCog(commands.Cog, name='Library'):
         log.info('Library: %s removed "%s" in guild %s', ctx.author, meta['title'], gid)
         await notifier.success(ctx, t('library.removed', gid, title=meta['title']))
 
+    @library_cmd.group(name='radio', invoke_without_command=True)
+    async def library_radio(self, ctx: commands.Context) -> None:
+        """Shuffle all library tracks into the queue and start playing."""
+        await self._do_radio(ctx, include_cache=False)
+
+    @library_radio.command(name='all')
+    async def library_radio_all(self, ctx: commands.Context) -> None:
+        """Shuffle library tracks + downloads cache into the queue and start playing."""
+        await self._do_radio(ctx, include_cache=True)
+
     @library_cmd.command(name='rename')
     async def library_rename(self, ctx: commands.Context, query: str, *, new_title: str) -> None:
         """Rename a library track: !lib rename #3 New Name"""
@@ -516,6 +528,68 @@ class LibraryCog(commands.Cog, name='Library'):
 
         if play_after:
             await self.play_slug(ctx, slug)
+
+    async def _do_radio(self, ctx: commands.Context, include_cache: bool) -> None:
+        """Shared logic for !lib radio and !lib radio all."""
+        gid = ctx.guild.id
+        notifier = self._notifier(ctx)
+
+        if ctx.author.voice is None:
+            await notifier.error(ctx, t('common.error_no_voice', gid))
+            return
+
+        tracks: list[Track] = [
+            track for slug, _ in library.track_list(gid)
+            if (track := library.to_track(gid, slug)) is not None
+        ]
+        if include_cache:
+            tracks.extend(self._cache_tracks())
+
+        if not tracks:
+            key = 'library.radio_empty_all' if include_cache else 'library.radio_empty'
+            await notifier.error(ctx, t(key, gid))
+            return
+
+        random.shuffle(tracks)
+
+        streamer = VoiceStreamer(self.bot, gid)
+        await streamer.join(ctx.author.voice.channel)
+
+        # Replace the queued tracks with the shuffled radio set.
+        streamer.queue.clear()
+        added = 0
+        for track in tracks:
+            if added >= MAX_QUEUE:
+                break
+            track.requester = ctx.author
+            streamer.queue.append(track)
+            added += 1
+
+        if not streamer.is_playing and not streamer.is_paused:
+            await streamer.play_next()
+
+        log.info('Library: %s started radio (cache=%s, %d tracks) in guild %s',
+                 ctx.author, include_cache, added, gid)
+        hint_key = 'library.radio_started_all_hint' if include_cache else 'library.radio_started_hint'
+        await notifier.success(
+            ctx,
+            t('library.radio_started', gid),
+            t(hint_key, gid, count=added),
+        )
+
+    @staticmethod
+    def _cache_tracks() -> list[Track]:
+        """Tracks from the downloads cache (yt-dlp files, skipping TTS temp files)."""
+        tracks = []
+        if not DOWNLOADS_DIR.exists():
+            return tracks
+        for path in DOWNLOADS_DIR.iterdir():
+            if path.suffix.lower() not in AUDIO_EXTS:
+                continue
+            if path.stem.startswith('notify_'):
+                continue
+            tracks.append(Track(title=path.stem, url=str(path), file_path=path))
+        return tracks
 
     @staticmethod
     async def _find_attachment(ctx: commands.Context) -> discord.Attachment | None:
