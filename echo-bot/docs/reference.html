@@ -1,0 +1,819 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Echo Bot Reference</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+
+<style>
+/* Layout: dark sidebar + content */
+:root {
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --surface-hover: #f0f3fb;
+  --code-bg: #ebecf6;
+  --sb: #181b2e;
+  --sb-fg: #9ba3c0;
+  --sb-hover: #21253a;
+  --fg: #131629;
+  --fg-muted: #677090;
+  --accent: #5865f2;
+  --border: #dde1f0;
+  --r: 6px;
+  --c-music:   #3b82f6;
+  --c-sb:      #8b5cf6;
+  --c-intro:   #ec4899;
+  --c-tts:     #06b6d4;
+  --c-lib:     #10b981;
+  --c-help:    #6366f1;
+  --c-set:     #64748b;
+  --c-dev:     #f59e0b;
+  --c-dlog:    #ef4444;
+  --c-lst:     #9ca3af;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0e1a; --surface: #131627; --surface-hover: #1a1e30;
+    --code-bg: #191d30; --sb: #09091a; --sb-fg: #8891aa;
+    --sb-hover: #131527; --fg: #dde2f4; --fg-muted: #7a84a0; --border: #21263d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c0e1a; --surface: #131627; --surface-hover: #1a1e30;
+  --code-bg: #191d30; --sb: #09091a; --sb-fg: #8891aa;
+  --sb-hover: #131527; --fg: #dde2f4; --fg-muted: #7a84a0; --border: #21263d;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 14px;
+  line-height: 1.65;
+  padding-left: max(0px, env(safe-area-inset-left, 0px));
+  padding-right: max(0px, env(safe-area-inset-right, 0px));
+}
+
+.layout { display: flex; min-height: 100vh; }
+
+/* Sidebar */
+.sb {
+  width: 208px; flex-shrink: 0; background: var(--sb);
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: #2a2f45 transparent;
+}
+.sb-head {
+  padding: 1.25rem 1.25rem 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  margin-bottom: 0.5rem;
+}
+.sb-title {
+  font-family: 'JetBrains Mono', monospace; font-weight: 500;
+  font-size: 15px; color: #fff; letter-spacing: -0.02em;
+}
+.sb-sub { font-size: 11px; color: rgba(255,255,255,0.3); margin-top: 2px; }
+.sb-grp {
+  padding: 0.9rem 1.25rem 0.2rem;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: rgba(255,255,255,0.25);
+}
+.sb nav a {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 1.25rem; font-size: 12.5px; color: var(--sb-fg);
+  text-decoration: none; transition: background 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+.sb nav a:hover { background: var(--sb-hover); color: #d4d8f0; }
+.sb nav a.active { color: #c7ccff; }
+.dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+
+/* Content */
+.main {
+  flex: 1; min-width: 0;
+  padding: 2.5rem max(1.5rem, env(safe-area-inset-right, 0px)) 5rem max(1.5rem, env(safe-area-inset-left, 0px));
+  max-width: 860px;
+}
+section { margin-bottom: 3.5rem; scroll-margin-top: 20px; }
+
+h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.2; margin-bottom: 0.4rem; text-wrap: balance; }
+h2 { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.9rem; margin-top: 2rem; text-wrap: balance; }
+h3 { font-size: 13px; font-weight: 600; margin-bottom: 0.5rem; margin-top: 1.5rem; text-wrap: balance; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+p { margin-bottom: 0.75rem; color: var(--fg-muted); max-width: 68ch; }
+a { color: var(--accent); }
+
+/* Stats */
+.stats { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1.25rem 0; }
+.stat {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 0.7rem 1.1rem; min-width: 100px;
+}
+.stat-n { font-size: 22px; font-weight: 700; letter-spacing: -0.04em; color: var(--accent); font-variant-numeric: tabular-nums; }
+.stat-l { font-size: 11px; color: var(--fg-muted); margin-top: 1px; }
+
+/* Cog header */
+.cog-header { display: flex; align-items: center; gap: 10px; margin-bottom: 0.6rem; flex-wrap: wrap; }
+.cog-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 9px 2px 7px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+}
+
+/* Tables */
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 1.25rem; }
+.tbl th {
+  text-align: left; padding: 6px 10px;
+  background: var(--surface); border-bottom: 2px solid var(--border);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--fg-muted);
+}
+.tbl td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr:hover td { background: var(--surface-hover); }
+.al { font-size: 11px; color: var(--fg-muted); font-family: 'JetBrains Mono', monospace; }
+
+code {
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  background: var(--code-bg); padding: 1px 5px; border-radius: 3px; color: var(--accent);
+}
+.tbl td:first-child code { font-size: 12.5px; font-weight: 500; }
+
+/* Diagram */
+.diagram {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 1.25rem 1rem; overflow-x: auto; margin: 1rem 0;
+}
+
+/* Drift */
+.drift { margin-bottom: 6px; }
+.drift-item {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 9px 12px; margin-bottom: 5px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid #f59e0b; border-radius: var(--r); font-size: 13px;
+}
+.drift-icon { flex-shrink: 0; margin-top: 1px; }
+
+/* Mobile */
+@media (max-width: 680px) {
+  .layout { flex-direction: column; }
+  .sb { width: 100%; height: auto; position: static; overflow: visible; padding-bottom: 0.5rem; }
+  .sb nav { display: flex; flex-wrap: wrap; padding: 0 0.5rem 0.5rem; }
+  .sb nav a { padding: 4px 8px; font-size: 12px; }
+  .sb-grp { display: none; }
+  .main { padding: 1.5rem 1rem 3rem; max-width: 100%; }
+  h1 { font-size: 20px; }
+  .stats { gap: 0.5rem; }
+  .stat { min-width: 80px; padding: 0.6rem 0.9rem; }
+  .tbl { font-size: 12px; }
+}
+</style>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sb">
+    <div class="sb-head">
+      <div class="sb-title">Echo Bot</div>
+      <div class="sb-sub">Project Reference</div>
+    </div>
+    <div class="sb-grp">Overview</div>
+    <nav>
+      <a href="#overview"><span class="dot" style="background:#5865f2"></span> Overview</a>
+      <a href="#architecture"><span class="dot" style="background:#818cf8"></span> Architecture</a>
+    </nav>
+    <div class="sb-grp">Cogs</div>
+    <nav>
+      <a href="#music"><span class="dot" style="background:var(--c-music)"></span> Music</a>
+      <a href="#soundboard"><span class="dot" style="background:var(--c-sb)"></span> Soundboard</a>
+      <a href="#intros"><span class="dot" style="background:var(--c-intro)"></span> Intros</a>
+      <a href="#tts"><span class="dot" style="background:var(--c-tts)"></span> TTS</a>
+      <a href="#library"><span class="dot" style="background:var(--c-lib)"></span> Library</a>
+      <a href="#help"><span class="dot" style="background:var(--c-help)"></span> Help</a>
+      <a href="#settings"><span class="dot" style="background:var(--c-set)"></span> Settings</a>
+      <a href="#dev"><span class="dot" style="background:var(--c-dev)"></span> Dev</a>
+      <a href="#devlog"><span class="dot" style="background:var(--c-dlog)"></span> Devlog</a>
+      <a href="#listener"><span class="dot" style="background:var(--c-lst)"></span> Listener</a>
+    </nav>
+    <div class="sb-grp">Reference</div>
+    <nav>
+      <a href="#utilities"><span class="dot" style="background:#94a3b8"></span> Utilities</a>
+      <a href="#drift"><span class="dot" style="background:#f59e0b"></span> Drift Notes</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+    <!-- Overview -->
+    <section id="overview">
+      <h1>Echo Bot Reference</h1>
+      <p>Discord bot for server audio — music playback, soundboard, per-user intro sounds, and TTS voice output. Runs on Raspberry Pi via PM2. Supports both <code>!</code> prefix and <code>/</code> slash commands via discord.py hybrid commands.</p>
+
+      <div class="stats">
+        <div class="stat"><div class="stat-n">10</div><div class="stat-l">Cogs loaded</div></div>
+        <div class="stat"><div class="stat-n">~59</div><div class="stat-l">Commands</div></div>
+        <div class="stat"><div class="stat-n">17</div><div class="stat-l">Util modules</div></div>
+        <div class="stat"><div class="stat-n">2</div><div class="stat-l">Locales (en, sr)</div></div>
+      </div>
+
+      <table class="tbl">
+        <thead><tr><th>Cog</th><th>File</th><th>Purpose</th><th>Access</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="cog-badge" style="color:var(--c-music);background:rgba(59,130,246,0.12)"><span class="dot" style="background:var(--c-music)"></span>Music</span></td>
+            <td><code>cogs/music.py</code></td><td>YouTube/Suno playback, queue, playlists</td><td>Everyone</td>
+          </tr>
+          <tr>
+            <td><span class="cog-badge" style="color:var(--c-sb);background:rgba(139,92,246,0.12)"><span class="dot" style="background:var(--c-sb)"></span>Soundboard</span></td>
+            <td><code>cogs/soundboard.py</code></td><td>Uploaded SFX sounds, reaction panel, quick trigger</td><td>Everyone</td>
+          </tr>
+          <tr>
+            <td><span class="cog-badge" style="color:var(--c-intro);background:rgba(236,72,153,0.12)"><span class="dot" style="background:var(--c-intro)"></span>Intros</span></td>
+            <td><code>cogs/intros.py</code></td><td>Per-user/bot join sounds with day schedules</td><td>Everyone</td>
+          </tr>
+          <tr>
+            <td><span class="cog-badge" style="color:var(--c-tts);background:rgba(6,182,212,0.12)"><span class="dot" style="background:var(--c-tts)"></span>TTS</span></td>
+            <td><code>cogs/tts.py</code></td><td>Text-to-speech via edge-tts</td><td>Everyone</td>
+          </tr>
+          <tr>
+            <td><span class="cog-badge" style="color:var(--c-lib);background:rgba(16,185,129,0.12)"><span class="dot" style="background:var(--c-lib)"></span>Library</span></td>
+            <td><code>cogs/library.py</code></td><td>Per-guild uploaded track library</td><td>Everyone</td>
+          </tr>
+          <tr>
+            <td><span class="cog-badge" style="color:var(--c-help);background:rgba(99,102,241,0.12)"><span class="dot" style="background:var(--c-help)"></span>Help</span></td>
+            <td><code>cogs/help.py</code></td><td>Paginated help (8 pages, i18n-driven)</td><td>Everyone</td>
+          </tr>
+          <tr>
+            <td><span class="cog-badge" style="color:var(--c-set);background:rgba(100,116,139,0.12)"><span class="dot" style="background:var(--c-set)"></span>Settings</span></td>
+            <td><code>cogs/settings.py</code></td><td>Per-guild feature toggles and language</td><td>Manage Server</td>
+          </tr>
+          <tr>
+            <td><span class="cog-badge" style="color:var(--c-dev);background:rgba(245,158,11,0.12)"><span class="dot" style="background:var(--c-dev)"></span>Dev</span></td>
+            <td><code>cogs/dev.py</code></td><td>Reload, restart, sync, status</td><td>Owner only</td>
+          </tr>
+          <tr>
+            <td><span class="cog-badge" style="color:var(--c-dlog);background:rgba(239,68,68,0.12)"><span class="dot" style="background:var(--c-dlog)"></span>Devlog</span></td>
+            <td><code>cogs/devlog.py</code></td><td>Forward bot errors to channel or DM</td><td>Manage Server</td>
+          </tr>
+          <tr>
+            <td><span class="cog-badge" style="color:var(--c-lst);background:rgba(156,163,175,0.12)"><span class="dot" style="background:var(--c-lst)"></span>Listener</span></td>
+            <td><code>cogs/listener.py</code></td><td>Voice receive stub — STT not implemented</td><td>Everyone</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Architecture -->
+    <section id="architecture">
+      <h2>Architecture</h2>
+      <p>Three-layer design. Cogs handle Discord protocol. Utils contain all logic (no Discord types leak in). Data persists to JSON and audio files. Rule: cogs never touch <code>discord.VoiceClient</code>, <code>discord.Embed</code>, or JSON directly.</p>
+
+      <div class="diagram">
+        <pre class="mermaid">
+graph TD
+    bot([bot.py · entry point])
+
+    subgraph CG[" Cogs "]
+      direction LR
+      M[Music] ~~~ SB[Soundboard] ~~~ IT[Intros] ~~~ TTS[TTS]
+      LB[Library] ~~~ H[Help] ~~~ S[Settings] ~~~ D[Dev]
+    end
+
+    subgraph UG[" Core Utils "]
+      VS[VoiceStreamer]
+      DW[Downloader]
+      NF[Notifier]
+      MW[MessageWriter]
+      GS[GuildState]
+    end
+
+    subgraph CF[" Config & Persistence "]
+      GC[GuildConfig]
+      BC[BaseConfig]
+      I18[i18n]
+    end
+
+    subgraph DA[" Data "]
+      J[(JSON files)]
+      A[(Audio files)]
+      L[(Log files)]
+    end
+
+    bot --> CG
+    M & SB & IT & TTS & LB --> VS
+    M & IT --> DW
+    CG --> NF
+    NF --> MW
+    VS --> GS
+    S --> GC
+    TTS & IT --> GC
+    BC --> J
+    GC --> BC
+    I18 --> GC
+    VS & LB & IT --> A
+    bot -.->|cleanup| L
+        </pre>
+      </div>
+
+      <h3>Typical command flow</h3>
+      <div class="diagram">
+        <pre class="mermaid">
+sequenceDiagram
+    participant U as User
+    participant C as Cog
+    participant N as Notifier
+    participant V as VoiceStreamer
+    participant D as Downloader
+
+    U->>C: !play lofi beats
+    C->>N: loading(ctx, "Resolving…")
+    C->>D: resolve("lofi beats")
+    D-->>C: Track{title, url, file_path}
+    C->>V: play(track)
+    V-->>C: queued / now playing
+    C->>N: track_card(ctx, embed)
+    N-->>U: send embed / TTS / react (per notify settings)
+        </pre>
+      </div>
+
+      <h3>Key design rules</h3>
+      <table class="tbl">
+        <thead><tr><th>What</th><th>Where it lives</th><th>What cogs do instead</th></tr></thead>
+        <tbody>
+          <tr><td>Voice playback</td><td><code>utils/voice.py · VoiceStreamer</code></td><td>Call <code>streamer.play()</code>, <code>.interrupt()</code>, etc.</td></tr>
+          <tr><td>Embed construction</td><td><code>utils/message.py · MessageWriter</code></td><td>Call <code>MessageWriter.success()</code>, <code>.track_card()</code>, etc.</td></tr>
+          <tr><td>Response delivery</td><td><code>utils/notifier.py · Notifier</code></td><td>Call <code>notifier.success()</code>, <code>.track_card()</code>, etc.</td></tr>
+          <tr><td>File paths</td><td><code>utils/config.py</code> constants</td><td>Import <code>SOUNDBOARD_DIR</code>, <code>INTRO_SOUNDS_DIR</code>, etc.</td></tr>
+          <tr><td>JSON persistence</td><td><code>utils/persistence.py · BaseConfig</code></td><td>Use <code>IntroConfig</code>, <code>SoundboardConfig</code>, <code>PlaylistConfig</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Music -->
+    <section id="music">
+      <div class="cog-header">
+        <span class="cog-badge" style="color:var(--c-music);background:rgba(59,130,246,0.14)"><span class="dot" style="background:var(--c-music)"></span>MusicCog</span>
+        <code>cogs/music.py</code>
+      </div>
+      <p>Hybrid commands (prefix + slash). Checks the guild's uploaded library before searching online. Playlists are per-bot-instance (not per-guild) stored in <code>data/playlists.json</code>.</p>
+      <table class="tbl">
+        <thead><tr><th>Command</th><th>Aliases</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>!play &lt;query&gt;</code></td><td class="al">!p</td><td>Queue a track (YouTube URL, Suno URL, or search term). Checks library first; shows a "switch to YouTube?" prompt for name matches.</td></tr>
+          <tr><td><code>!skip</code></td><td class="al">!s</td><td>Skip the current track.</td></tr>
+          <tr><td><code>!pause</code></td><td class="al">—</td><td>Pause playback.</td></tr>
+          <tr><td><code>!resume</code></td><td class="al">!unpause</td><td>Resume paused playback.</td></tr>
+          <tr><td><code>!stop</code></td><td class="al">—</td><td>Stop playback and clear the queue.</td></tr>
+          <tr><td><code>!replay</code></td><td class="al">!rp</td><td>Restart the current track from the beginning.</td></tr>
+          <tr><td><code>!nowplaying</code></td><td class="al">!np</td><td>Show the currently playing track card.</td></tr>
+          <tr><td><code>!queue [page]</code></td><td class="al">!q</td><td>Show the playback queue (10 per page).</td></tr>
+          <tr><td><code>!clear</code></td><td class="al">—</td><td>Clear the queue (keeps current track playing).</td></tr>
+          <tr><td><code>!remove &lt;pos&gt;</code></td><td class="al">!rm</td><td>Remove a track by queue position number.</td></tr>
+          <tr><td><code>!shuffle</code></td><td class="al">—</td><td>Shuffle the queue.</td></tr>
+          <tr><td><code>!join</code></td><td class="al">—</td><td>Join the caller's voice channel.</td></tr>
+          <tr><td><code>!leave</code></td><td class="al">!disconnect, !dc</td><td>Leave the voice channel and clear all state.</td></tr>
+          <tr><td><code>!playlist</code></td><td class="al">!pl</td><td>Playlist group — bare invocation shows subcommand hint.</td></tr>
+          <tr><td><code>!playlist save &lt;name&gt;</code></td><td class="al">—</td><td>Save current queue + playing track as a named playlist.</td></tr>
+          <tr><td><code>!playlist load &lt;name&gt;</code></td><td class="al">—</td><td>Load a playlist into the queue.</td></tr>
+          <tr><td><code>!playlist list</code></td><td class="al">—</td><td>List all saved playlists with track counts.</td></tr>
+          <tr><td><code>!playlist delete &lt;name&gt;</code></td><td class="al">—</td><td>Delete a playlist.</td></tr>
+          <tr><td><code>!playlist show &lt;name&gt;</code></td><td class="al">—</td><td>Show contents of a playlist (up to 20 tracks).</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Soundboard -->
+    <section id="soundboard">
+      <div class="cog-header">
+        <span class="cog-badge" style="color:var(--c-sb);background:rgba(139,92,246,0.14)"><span class="dot" style="background:var(--c-sb)"></span>SoundboardCog</span>
+        <code>cogs/soundboard.py</code>
+      </div>
+      <p>Upload audio SFX to a shared soundboard. Each sound has a name, an emoji (for the reaction panel), and a short trigger. Quick trigger: <code>!shortname</code> in chat plays a sound without using a subcommand — intercepted via <code>on_message</code> before registered commands.</p>
+      <table class="tbl">
+        <thead><tr><th>Command</th><th>Aliases</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>!sb add &lt;name&gt; [💥] [| short]</code></td><td class="al">!soundboard add</td><td>Add a sound (attach audio file). Name may contain spaces. Emoji and short trigger are optional — both are auto-assigned if omitted.</td></tr>
+          <tr><td><code>!sb remove &lt;name&gt;</code></td><td class="al">!soundboard remove</td><td>Remove a sound and delete its audio file.</td></tr>
+          <tr><td><code>!sb play &lt;name&gt;</code></td><td class="al">!soundboard play</td><td>Play a sound in your voice channel.</td></tr>
+          <tr><td><code>!sb short &lt;name&gt; &lt;new_short&gt;</code></td><td class="al">!soundboard short</td><td>Change the short trigger. Last word is the new short; everything before is the sound name (no quotes needed for multi-word names).</td></tr>
+          <tr><td><code>!sb list</code></td><td class="al">!soundboard list</td><td>List all sounds with emojis and short triggers.</td></tr>
+          <tr><td><code>!sb panel</code></td><td class="al">!soundboard panel</td><td>Post a persistent reaction panel — react with an emoji to play that sound.</td></tr>
+          <tr><td><code>!&lt;name or short&gt;</code></td><td class="al">—</td><td><strong>Quick trigger</strong> via <code>on_message</code>. Tries full name first, then first word. Registered commands always take priority.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Intros -->
+    <section id="intros">
+      <div class="cog-header">
+        <span class="cog-badge" style="color:var(--c-intro);background:rgba(236,72,153,0.14)"><span class="dot" style="background:var(--c-intro)"></span>IntrosCog</span>
+        <code>cogs/intros.py</code>
+      </div>
+      <p>Plays audio when users join a voice channel. Three trigger types: <code>bot</code> (when Echo joins), <code>user</code> (any user joins), <code>@member</code> (a specific member). Supports day-of-week overrides. Plays via <code>VoiceStreamer.interrupt()</code> — pauses music, plays, resumes.</p>
+      <table class="tbl">
+        <thead><tr><th>Command</th><th>Trigger</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>!intro set &lt;trigger&gt; [url]</code></td><td class="al">bot / user / @mention</td><td>Set the default intro. Attach audio or provide a URL.</td></tr>
+          <tr><td><code>!intro schedule &lt;trigger&gt; &lt;days&gt; [url]</code></td><td class="al">bot / user / @mention</td><td>Day-specific override. Days: MON, SAT,SUN, MON-FRI, WEEKDAY, WEEKEND.</td></tr>
+          <tr><td><code>!intro unschedule &lt;trigger&gt; &lt;days&gt;</code></td><td class="al">—</td><td>Remove a day-specific override.</td></tr>
+          <tr><td><code>!intro clear &lt;trigger&gt;</code></td><td class="al">—</td><td>Remove all intros for a trigger (and delete audio files).</td></tr>
+          <tr><td><code>!intro rename &lt;trigger&gt; &lt;name&gt;</code></td><td class="al">—</td><td>Update the human-readable label for a trigger's default entry.</td></tr>
+          <tr><td><code>!intro list</code></td><td class="al">—</td><td>List all intro triggers for this server.</td></tr>
+          <tr><td><code>!intro show</code></td><td class="al">—</td><td>Show bot/user intro overview and global flags.</td></tr>
+          <tr><td><code>!intro trigger &lt;trigger&gt;</code></td><td class="al">bot / user / @mention</td><td>Manually play an intro sound.</td></tr>
+          <tr><td><code>!intro autojoin &lt;on|off&gt;</code></td><td class="al">—</td><td>Toggle bot auto-join when first user enters a voice channel.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- TTS -->
+    <section id="tts">
+      <div class="cog-header">
+        <span class="cog-badge" style="color:var(--c-tts);background:rgba(6,182,212,0.14)"><span class="dot" style="background:var(--c-tts)"></span>TTSCog</span>
+        <code>cogs/tts.py</code>
+      </div>
+      <p>Text-to-speech via <a href="https://github.com/rany2/edge-tts" target="_blank">edge-tts</a>. Per-guild voice and rate settings stored in <code>GuildConfig</code>. Audio synthesized to a temp file in <code>data/downloads/</code>, played via interrupt, then deleted.</p>
+      <table class="tbl">
+        <thead><tr><th>Command</th><th>Aliases</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>!say &lt;text&gt;</code></td><td class="al">—</td><td>Speak text in your voice channel.</td></tr>
+          <tr><td><code>!tts voice &lt;name&gt;</code></td><td class="al">—</td><td>Set the TTS voice for this server. Use <code>!tts voices</code> to see options.</td></tr>
+          <tr><td><code>!tts voices [locale]</code></td><td class="al">—</td><td>List available edge-tts voices, optionally filtered by locale prefix (e.g. <code>en</code>, <code>sr</code>). Shows first 20.</td></tr>
+          <tr><td><code>!tts rate &lt;value&gt;</code></td><td class="al">—</td><td>Set speech rate, e.g. <code>+10%</code>, <code>-20%</code>, <code>+0%</code>.</td></tr>
+          <tr><td><code>!tts stop</code></td><td class="al">—</td><td>Stop current TTS playback.</td></tr>
+          <tr><td><code>!tts show</code></td><td class="al">—</td><td>Show current TTS voice and rate for this server.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Library -->
+    <section id="library">
+      <div class="cog-header">
+        <span class="cog-badge" style="color:var(--c-lib);background:rgba(16,185,129,0.14)"><span class="dot" style="background:var(--c-lib)"></span>LibraryCog</span>
+        <code>cogs/library.py</code>
+      </div>
+      <p>Per-guild uploaded track library. <code>!play &lt;name&gt;</code> checks this before searching YouTube. Quota enforced per guild (configurable max tracks + max MB). Files stored in <code>data/library/&lt;guild_id&gt;/</code>.</p>
+      <table class="tbl">
+        <thead><tr><th>Command</th><th>Aliases</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>!save [name]</code></td><td class="al">!upload</td><td>Save an attached audio file. Name defaults to filename stem. Also works on a replied-to message.</td></tr>
+          <tr><td><code>!library [query]</code></td><td class="al">!lib</td><td>Browse library with dropdown picker + page buttons. With a name or <code>#N</code>, plays that track immediately.</td></tr>
+          <tr><td><code>!library play &lt;query&gt;</code></td><td class="al">!lib play</td><td>Play a track by name or <code>#N</code>.</td></tr>
+          <tr><td><code>!library remove &lt;query&gt;</code></td><td class="al">!lib delete</td><td>Remove a track by name or <code>#N</code>.</td></tr>
+          <tr><td><code>!library rename &lt;query&gt; &lt;new name&gt;</code></td><td class="al">!lib rename</td><td>Rename a track.</td></tr>
+          <tr><td><code>!library info &lt;query&gt;</code></td><td class="al">!lib info</td><td>Show details: duration, size, who added it, play count.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Help -->
+    <section id="help">
+      <div class="cog-header">
+        <span class="cog-badge" style="color:var(--c-help);background:rgba(99,102,241,0.14)"><span class="dot" style="background:var(--c-help)"></span>HelpCog</span>
+        <code>cogs/help.py</code>
+      </div>
+      <p>Paginated help driven by the i18n locale system. 8 pages: overview, music, library, queue, intros, soundboard, tts, settings. Content changes with the guild's locale.</p>
+      <table class="tbl">
+        <thead><tr><th>Command</th><th>Aliases</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>!help [section]</code></td><td class="al">!h</td><td>Show paginated help with Prev/Next buttons. Optional section jump: <code>music</code>, <code>queue</code>, <code>intros</code>, <code>soundboard</code>, <code>tts</code>, <code>settings</code>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Settings -->
+    <section id="settings">
+      <div class="cog-header">
+        <span class="cog-badge" style="color:var(--c-set);background:rgba(100,116,139,0.14)"><span class="dot" style="background:var(--c-set)"></span>SettingsCog</span>
+        <code>cogs/settings.py</code>
+      </div>
+      <p>Per-guild feature flags. Requires <strong>Manage Server</strong> permission. Settings persist in <code>GuildConfig</code> (JSON). All have sensible defaults in <code>config.yaml</code>.</p>
+
+      <h3>Toggle settings</h3>
+      <table class="tbl">
+        <thead><tr><th>Key</th><th>Default</th><th>What it controls</th></tr></thead>
+        <tbody>
+          <tr><td><code>auto_join</code></td><td>config.yaml</td><td>Bot joins voice when the first user enters a channel.</td></tr>
+          <tr><td><code>auto_leave</code></td><td>config.yaml</td><td>Bot leaves voice when the last user exits.</td></tr>
+          <tr><td><code>notify_write</code></td><td>true</td><td>Send a text embed for command responses.</td></tr>
+          <tr><td><code>notify_say</code></td><td>false</td><td>Speak command responses via TTS when in voice.</td></tr>
+          <tr><td><code>notify_song_text</code></td><td>true</td><td>Show track card embed when a song loads.</td></tr>
+          <tr><td><code>notify_song_voice</code></td><td>false</td><td>Speak the track title via TTS when a song loads.</td></tr>
+          <tr><td><code>notify_say_text</code></td><td>false</td><td>Send embed after <code>!say</code> (default: react only).</td></tr>
+          <tr><td><code>notify_say_voice</code></td><td>false</td><td>Speak the "Speaking." confirmation after <code>!say</code>.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Commands</h3>
+      <table class="tbl">
+        <thead><tr><th>Command</th><th>Aliases</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>!settings</code></td><td class="al">!config</td><td>Show all current settings for this server.</td></tr>
+          <tr><td><code>!settings set &lt;key&gt; &lt;true|false&gt;</code></td><td class="al">—</td><td>Set a toggle setting.</td></tr>
+          <tr><td><code>!settings reset &lt;key&gt;</code></td><td class="al">—</td><td>Reset any setting back to its global default.</td></tr>
+          <tr><td><code>!settings locale [code]</code></td><td class="al">!settings language</td><td>Set or show the display language (<code>en</code>, <code>sr</code>).</td></tr>
+          <tr><td><code>!settings voice_language [code]</code></td><td class="al">—</td><td>Set the TTS voice language prefix. Empty = use the full <code>tts_voice</code> setting.</td></tr>
+          <tr><td><code>!settings show</code></td><td class="al">—</td><td>Show current per-server settings (same as bare <code>!settings</code>).</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Dev -->
+    <section id="dev">
+      <div class="cog-header">
+        <span class="cog-badge" style="color:var(--c-dev);background:rgba(245,158,11,0.14)"><span class="dot" style="background:var(--c-dev)"></span>DevCog</span>
+        <code>cogs/dev.py</code>
+      </div>
+      <p>Owner-only commands checked via <code>bot.owner_id</code> (from <code>OWNER_ID</code> env var). Prefix commands only — never slash, to avoid accidental public exposure. <code>!version</code> is the one public exception.</p>
+      <table class="tbl">
+        <thead><tr><th>Command</th><th>Access</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>!reload &lt;cog&gt;</code></td><td>Owner</td><td>Hot-reload a cog and its util dependencies (no restart needed). Re-sync slash tree with <code>!sync</code> after if commands changed.</td></tr>
+          <tr><td><code>!restart</code></td><td>Owner</td><td>Graceful shutdown — PM2 auto-restarts the process.</td></tr>
+          <tr><td><code>!sync [guild_id]</code></td><td>Owner</td><td>Sync slash command tree globally or to a specific guild.</td></tr>
+          <tr><td><code>!status</code></td><td>Owner</td><td>Show active voice connections, guild count, loaded cogs, uptime.</td></tr>
+          <tr><td><code>!cogs</code></td><td>Owner</td><td>List all loaded extensions.</td></tr>
+          <tr><td><code>!version</code></td><td>Everyone</td><td>Show the running bot version from <code>config.yaml</code>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Devlog -->
+    <section id="devlog">
+      <div class="cog-header">
+        <span class="cog-badge" style="color:var(--c-dlog);background:rgba(239,68,68,0.14)"><span class="dot" style="background:var(--c-dlog)"></span>DevlogCog</span>
+        <code>cogs/devlog.py</code>
+      </div>
+      <p>Forwards WARNING-level+ log entries to a channel or DM. Per-guild opt-in. Batches entries (3s window, max 5 per message). The <code>current_guild</code> ContextVar is set on every event/command invocation so records are properly tagged.</p>
+      <table class="tbl">
+        <thead><tr><th>Invocation</th><th>Access</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td><code>!devlog here</code></td><td>Manage Server</td><td>Forward this server's errors to the current channel.</td></tr>
+          <tr><td><code>!devlog here all</code></td><td>Owner</td><td>Also include unscoped (no guild) errors.</td></tr>
+          <tr><td><code>!devlog dm</code></td><td>Manage Server</td><td>Forward this server's errors to your DMs.</td></tr>
+          <tr><td><code>!devlog off</code></td><td>Manage Server</td><td>Disable dev log for this server.</td></tr>
+          <tr><td><code>!devlog test</code></td><td>Manage Server</td><td>Emit a test log entry to verify routing.</td></tr>
+          <tr><td><code>!devlog here</code> (in DM)</td><td>Owner</td><td>Subscribe the owner DM to <em>all</em> servers' errors.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Listener -->
+    <section id="listener">
+      <div class="cog-header">
+        <span class="cog-badge" style="color:var(--c-lst);background:rgba(156,163,175,0.14)"><span class="dot" style="background:var(--c-lst)"></span>ListenerCog</span>
+        <code>cogs/listener.py</code>
+        <span style="font-size:11px;color:var(--fg-muted);padding:2px 7px;border:1px solid var(--border);border-radius:4px">STUB</span>
+      </div>
+      <p>Placeholder for future voice receive / STT integration. <code>GuildState</code> already reserves recording state fields. Planned integration point: faster-whisper.</p>
+      <table class="tbl">
+        <thead><tr><th>Command</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>!listen</code></td><td>Responds "voice listening not yet implemented". The command exists to reserve the name and document the integration point.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Utilities -->
+    <section id="utilities">
+      <h2>Utility Modules</h2>
+      <p>All logic lives in <code>utils/</code>. No Discord type should leak into utils. Cogs are thin protocol adapters: parse input, call utils, present results.</p>
+      <table class="tbl">
+        <thead><tr><th>Module</th><th>Key export</th><th>Responsibility</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>utils/voice.py</code></td>
+            <td><code>VoiceStreamer</code></td>
+            <td>All voice interactions: join, leave, play, skip, stop, pause, resume, interrupt. Auto-leave on empty channel. Cogs never touch <code>VoiceClient</code> directly.</td>
+          </tr>
+          <tr>
+            <td><code>utils/message.py</code></td>
+            <td><code>MessageWriter</code></td>
+            <td>Centralized embed builder: success/error/info/track_card/queue_page/soundboard_panel. Color injected from <code>config.COLOR</code>. No inline <code>discord.Embed()</code> in cogs.</td>
+          </tr>
+          <tr>
+            <td><code>utils/notifier.py</code></td>
+            <td><code>Notifier</code></td>
+            <td>Response delivery router. Routes to text embed, TTS, or react-only based on <code>notify_write</code> / <code>notify_say</code> per-guild settings.</td>
+          </tr>
+          <tr>
+            <td><code>utils/downloader.py</code></td>
+            <td><code>Downloader</code></td>
+            <td>Pluggable source handler: YouTube (yt-dlp), Suno (direct clip API → MP4 with AAC audio). Routes on URL pattern or falls back to YouTube search. Caches downloads.</td>
+          </tr>
+          <tr>
+            <td><code>utils/guild_state.py</code></td>
+            <td><code>GuildState</code>, <code>Track</code></td>
+            <td>Typed per-guild runtime state: queue, voice_client, current_track, interrupted_track, TTS queue. Created on first access via <code>bot.get_guild_state()</code>.</td>
+          </tr>
+          <tr>
+            <td><code>utils/guild_config.py</code></td>
+            <td>Module functions</td>
+            <td>Per-guild persisted settings: auto_join, auto_leave, notify_*, locale, voice_language, TTS voice/rate. JSON-backed via <code>BaseConfig</code>.</td>
+          </tr>
+          <tr>
+            <td><code>utils/persistence.py</code></td>
+            <td><code>BaseConfig</code>, <code>PlaylistConfig</code></td>
+            <td>Atomic JSON load/save base class. <code>PlaylistConfig</code>, <code>IntroConfig</code>, and <code>SoundboardConfig</code> inherit from it. Atomic write (write temp + rename).</td>
+          </tr>
+          <tr>
+            <td><code>utils/i18n.py</code></td>
+            <td><code>t(key, guild_id, **kw)</code></td>
+            <td>Locale lookup with keyword interpolation. Reads locale YAML files from <code>locales/</code>. Per-guild locale resolved from <code>GuildConfig</code>. Fallback to <code>en</code>. Supported: <code>en</code>, <code>sr</code>.</td>
+          </tr>
+          <tr>
+            <td><code>utils/audio.py</code></td>
+            <td><code>AudioFileManager</code></td>
+            <td>Validate extension against <code>AUDIO_EXTS</code>, receive Discord attachment, save to disk. Shared by Intros, Soundboard, and Library cogs.</td>
+          </tr>
+          <tr>
+            <td><code>utils/library.py</code></td>
+            <td>Module functions</td>
+            <td>Per-guild uploaded track library: slugify, quota check (tracks + MB), probe_duration via ffprobe, find/resolve/track_list. Metadata in <code>library_config.json</code>.</td>
+          </tr>
+          <tr>
+            <td><code>utils/intro_config.py</code></td>
+            <td>Module functions</td>
+            <td>Per-guild intro assignments: default entries and day-specific schedule overrides. Resolves best file for a trigger + current day of week.</td>
+          </tr>
+          <tr>
+            <td><code>utils/soundboard_config.py</code></td>
+            <td>Module functions</td>
+            <td>Soundboard metadata: add/remove/find/get sounds, emoji pool management, short trigger lookups. Schema: <code>{name: {emoji, file, short}}</code>.</td>
+          </tr>
+          <tr>
+            <td><code>utils/reactions.py</code></td>
+            <td><code>ReactionHandler</code></td>
+            <td>Yes/no confirm flow and reaction panel dispatcher. Extracted from 40+ lines of copy-paste in music-bot.</td>
+          </tr>
+          <tr>
+            <td><code>utils/devlog.py</code></td>
+            <td><code>DevlogHandler</code>, <code>GuildContextFilter</code></td>
+            <td>Logging handler routing WARNING+ records to per-guild targets. ContextVar-tagged by guild. Batches to avoid spam. Not hot-reloadable (ContextVar split).</td>
+          </tr>
+          <tr>
+            <td><code>utils/cleanup.py</code></td>
+            <td><code>purge_old_files()</code></td>
+            <td>Deletes files older than 7 days from <code>data/logs/</code> and <code>data/downloads/</code> on bot startup.</td>
+          </tr>
+          <tr>
+            <td><code>utils/shutdown.py</code></td>
+            <td>Helpers</td>
+            <td>Graceful shutdown utilities for PM2-managed restart cycle.</td>
+          </tr>
+          <tr>
+            <td><code>utils/config.py</code></td>
+            <td>Constants</td>
+            <td>Loads <code>config.yaml</code> at import. Exposes all typed path constants, timeouts, limits, feature flags, and <code>VERSION</code>. All <code>DATA_DIR</code>-derived paths are created on import.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Drift -->
+    <section id="drift">
+      <h2>Architecture Drift</h2>
+      <p>Items present in the codebase but <strong>absent from or outdated in <code>ARCHITECTURE.md</code></strong>. Useful for the cleanup pass — these are things to either remove or document.</p>
+
+      <div class="drift-item">
+        <span class="drift-icon">📄</span>
+        <div><strong><code>cogs/help.py</code> — HelpCog</strong> entirely absent from ARCHITECTURE.md. Paginated help with 8 i18n-driven sections, Prev/Next buttons. <code>!help</code> and <code>!h</code>.</div>
+      </div>
+      <div class="drift-item">
+        <span class="drift-icon">📄</span>
+        <div><strong><code>cogs/settings.py</code> — SettingsCog</strong> entirely absent. Manages 8 toggle settings + locale + voice_language per guild. <code>!settings</code> / <code>!config</code>.</div>
+      </div>
+      <div class="drift-item">
+        <span class="drift-icon">🔧</span>
+        <div><strong><code>utils/guild_config.py</code></strong> not mentioned. This is the JSON-backed per-guild settings store that underpins <code>Settings</code>, <code>TTS</code>, and <code>Notifier</code>. Central to the bot's runtime configuration.</div>
+      </div>
+      <div class="drift-item">
+        <span class="drift-icon">🔧</span>
+        <div><strong><code>utils/notifier.py</code> — Notifier</strong> not in ARCHITECTURE.md. Routes command responses to text/TTS/react-only based on <code>notify_*</code> settings. All cogs use it instead of <code>ctx.send()</code>.</div>
+      </div>
+      <div class="drift-item">
+        <span class="drift-icon">🔧</span>
+        <div><strong><code>utils/i18n.py</code></strong> not documented. Full localization system with per-guild locale resolved from <code>GuildConfig</code>. YAML locale files in <code>locales/</code> and <code>locales/banners/</code>. Supported: <code>en</code>, <code>sr</code>.</div>
+      </div>
+      <div class="drift-item">
+        <span class="drift-icon">🔧</span>
+        <div><strong><code>utils/cleanup.py</code></strong> and <strong><code>utils/shutdown.py</code></strong> not mentioned in architecture. Both are used by <code>bot.py</code>.</div>
+      </div>
+      <div class="drift-item">
+        <span class="drift-icon">⚠️</span>
+        <div><strong>MusicCog undocumented commands:</strong> <code>!replay</code>/<code>!rp</code>, <code>!nowplaying</code>/<code>!np</code>, <code>!remove</code>/<code>!rm</code>, <code>!shuffle</code> — all missing from the ARCHITECTURE.md command table.</div>
+      </div>
+      <div class="drift-item">
+        <span class="drift-icon">⚠️</span>
+        <div><strong>TTSCog:</strong> <code>!tts show</code> command missing from ARCHITECTURE.md.</div>
+      </div>
+      <div class="drift-item">
+        <span class="drift-icon">⚠️</span>
+        <div><strong>ARCHITECTURE.md still mentions "music-bot is frozen"</strong> in the Rules section and refers to it as a sibling bot — this is stale since music-bot was superseded and the main branch no longer has that context.</div>
+      </div>
+      <div class="drift-item">
+        <span class="drift-icon">⚠️</span>
+        <div><strong>Build phases table</strong> in ARCHITECTURE.md still shows all phases as "Planned" — the bot is fully built and deployed; this section should be removed or converted to a changelog.</div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+// Active sidebar link tracking on scroll
+const sections = document.querySelectorAll('section[id]');
+const links = document.querySelectorAll('.sb nav a[href^="#"]');
+
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const id = '#' + e.target.id;
+      links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === id));
+    }
+  });
+}, { threshold: 0.1, rootMargin: '-5% 0px -80% 0px' });
+
+sections.forEach(s => obs.observe(s));
+</script>
+
+<!--claude-mermaid-runtime-begin:3477-->
+<style>.mermaid-diagram{margin-block:4px}.mermaid-diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
+<script src="/_runtime/mermaid-11.16.1.min.js"></script>
+<script>(function(){
+var CFG={"palettes":{"light":{"surface":"#f4efe4","text":"#42392e","line":"#8a7f6d","border":"#7a6c52","bg":"#fffdf8"},"dark":{"surface":"#262b34","text":"#f2f3f5","line":"#a8adb8","border":"#9aa4b8","bg":"#1f232b"}}};
+if(typeof mermaid==='undefined')return;
+var pres=Array.prototype.slice.call(document.querySelectorAll('pre.mermaid')).filter(function(p){if(p.hasAttribute('data-claude-mermaid-claimed'))return false;p.setAttribute('data-claude-mermaid-claimed','1');return true;});
+if(!pres.length)return;
+var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+var root=document.documentElement;
+var items=pres.map(function(pre){
+var mount=document.createElement('div');mount.className='mermaid-diagram';
+return {pre:pre,mount:mount,src:pre.textContent||''};
+});
+var seq=0;
+var renderGen=0;
+var lastKey='';
+function pageBg(fallback){
+var els=[document.body,document.documentElement];
+for(var i=0;i<els.length;i++){
+var c=els[i]&&getComputedStyle(els[i]).backgroundColor;
+if(c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)')return c;
+}
+return fallback;
+}
+function render(){
+var theme=root.getAttribute('data-theme');
+var dark=theme==='dark'||(!!(mq&&mq.matches)&&theme!=='light');
+var pal=dark?CFG.palettes.dark:CFG.palettes.light;
+var bg=pageBg(pal.bg);
+var key=(dark?'d':'l')+'|'+bg;
+if(key===lastKey)return;
+lastKey=key;
+var gen=++renderGen;
+var font=getComputedStyle(document.body).fontFamily||'sans-serif';
+var nat={useMaxWidth:false};
+mermaid.initialize({
+startOnLoad:false,securityLevel:'strict',theme:'base',
+flowchart:nat,sequence:nat,er:nat,state:nat,class:nat,pie:nat,
+gantt:nat,journey:nat,timeline:nat,gitGraph:nat,mindmap:nat,xyChart:nat,
+quadrantChart:nat,sankey:nat,c4:nat,requirement:nat,block:nat,
+packet:nat,kanban:nat,architecture:nat,radar:nat,
+themeVariables:{background:bg,mainBkg:pal.surface,primaryColor:pal.surface,
+primaryTextColor:pal.text,lineColor:pal.line,primaryBorderColor:pal.border,
+nodeBorder:pal.border,clusterBorder:pal.border,edgeLabelBackground:bg,
+clusterBkg:'rgba(127,127,127,0.07)',titleColor:pal.text,
+darkMode:dark,rowOdd:bg,rowEven:'rgba(127,127,127,0.07)',
+attributeBackgroundColorOdd:bg,attributeBackgroundColorEven:'rgba(127,127,127,0.07)',
+fontSize:'16px',fontFamily:font},
+themeCSS:'.node rect, .node circle, .node polygon, .node path, .cluster rect { stroke-width: 2px; }'
+});
+items.forEach(function(it){
+var id='claude-mermaid-'+seq++;
+mermaid.render(id,it.src).then(function(r){
+if(gen!==renderGen)return;
+var prev=it.pre.previousElementSibling;
+if(prev&&prev.className==='mermaid-diagram'&&prev!==it.mount)return;
+it.mount.innerHTML=r.svg;
+if(!it.mount.parentNode)it.pre.parentNode.insertBefore(it.mount,it.pre);
+it.pre.style.display='none';
+},function(){
+var scratch=document.getElementById(id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+scratch=document.getElementById('d'+id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+if(gen!==renderGen)return;
+if(it.mount.parentNode)it.mount.parentNode.removeChild(it.mount);
+it.pre.style.display='';
+});
+});
+}
+render();
+if(mq&&mq.addEventListener)mq.addEventListener('change',render);
+if(typeof MutationObserver!=='undefined')new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['data-theme']});
+})();</script>
+<!--claude-mermaid-runtime-end-->
+
+</body></html>
