@@ -675,48 +675,8 @@ sequenceDiagram
     <!-- Drift -->
     <section id="drift">
       <h2>Architecture Drift</h2>
-      <p>Items present in the codebase but <strong>absent from or outdated in <code>ARCHITECTURE.md</code></strong>. Useful for the cleanup pass — these are things to either remove or document.</p>
-
-      <div class="drift-item">
-        <span class="drift-icon">📄</span>
-        <div><strong><code>cogs/help.py</code> — HelpCog</strong> entirely absent from ARCHITECTURE.md. Paginated help with 8 i18n-driven sections, Prev/Next buttons. <code>!help</code> and <code>!h</code>.</div>
-      </div>
-      <div class="drift-item">
-        <span class="drift-icon">📄</span>
-        <div><strong><code>cogs/settings.py</code> — SettingsCog</strong> entirely absent. Manages 8 toggle settings + locale + voice_language per guild. <code>!settings</code> / <code>!config</code>.</div>
-      </div>
-      <div class="drift-item">
-        <span class="drift-icon">🔧</span>
-        <div><strong><code>utils/guild_config.py</code></strong> not mentioned. This is the JSON-backed per-guild settings store that underpins <code>Settings</code>, <code>TTS</code>, and <code>Notifier</code>. Central to the bot's runtime configuration.</div>
-      </div>
-      <div class="drift-item">
-        <span class="drift-icon">🔧</span>
-        <div><strong><code>utils/notifier.py</code> — Notifier</strong> not in ARCHITECTURE.md. Routes command responses to text/TTS/react-only based on <code>notify_*</code> settings. All cogs use it instead of <code>ctx.send()</code>.</div>
-      </div>
-      <div class="drift-item">
-        <span class="drift-icon">🔧</span>
-        <div><strong><code>utils/i18n.py</code></strong> not documented. Full localization system with per-guild locale resolved from <code>GuildConfig</code>. YAML locale files in <code>locales/</code> and <code>locales/banners/</code>. Supported: <code>en</code>, <code>sr</code>.</div>
-      </div>
-      <div class="drift-item">
-        <span class="drift-icon">🔧</span>
-        <div><strong><code>utils/cleanup.py</code></strong> and <strong><code>utils/shutdown.py</code></strong> not mentioned in architecture. Both are used by <code>bot.py</code>.</div>
-      </div>
-      <div class="drift-item">
-        <span class="drift-icon">⚠️</span>
-        <div><strong>MusicCog undocumented commands:</strong> <code>!replay</code>/<code>!rp</code>, <code>!nowplaying</code>/<code>!np</code>, <code>!remove</code>/<code>!rm</code>, <code>!shuffle</code> — all missing from the ARCHITECTURE.md command table.</div>
-      </div>
-      <div class="drift-item">
-        <span class="drift-icon">⚠️</span>
-        <div><strong>TTSCog:</strong> <code>!tts show</code> command missing from ARCHITECTURE.md.</div>
-      </div>
-      <div class="drift-item">
-        <span class="drift-icon">⚠️</span>
-        <div><strong>ARCHITECTURE.md still mentions "music-bot is frozen"</strong> in the Rules section and refers to it as a sibling bot — this is stale since music-bot was superseded and the main branch no longer has that context.</div>
-      </div>
-      <div class="drift-item">
-        <span class="drift-icon">⚠️</span>
-        <div><strong>Build phases table</strong> in ARCHITECTURE.md still shows all phases as "Planned" — the bot is fully built and deployed; this section should be removed or converted to a changelog.</div>
-      </div>
+      <p>Items present in the codebase but <strong>absent from or outdated in <code>ARCHITECTURE.md</code></strong>. Add new items here as they are discovered; remove them once the architecture doc is updated.</p>
+      <p style="color:var(--fg-muted);font-style:italic">No known drift — all items resolved in Nov 2026.</p>
     </section>
 
   </main>
