@@ -26,7 +26,7 @@ echo-bot/
 ├── cogs/                     # Feature cogs — one per domain
 │   ├── __init__.py
 │   ├── music.py              # Playback: YouTube, search, queue, playlists, library-first !play
-│   ├── library.py            # !save / !library: per-guild uploaded track library
+│   ├── library.py            # !save / !download / !library: per-guild uploaded track library
 │   ├── intros.py             # Per-user/bot join sounds with schedule support
 │   ├── soundboard.py         # Reaction-based soundboard panel + quick trigger
 │   ├── tts.py                # edge-tts voice output, per-guild voice setting
@@ -441,6 +441,8 @@ Per-guild library of uploaded tracks — the dependable alternative to third-par
 | Command | Aliases | Description |
 |---|---|---|
 | `!save [name]` | `!upload` | Store the attached (or replied-to) audio file; name defaults to the filename |
+| `!download <url\|search>` | `!dl` | Resolve via YouTube, check library for a similar title, then download and save. Shows a two-button confirmation view if a similar track already exists. |
+| `!download play <url\|search>` | — | Same as `!download`, then queues the track for immediate playback |
 | `!library [query]` | `!lib` | Numbered list + dropdown picker + page buttons. With a name or `#N`, plays immediately. |
 | `!lib play <query>` | — | Play an uploaded track by name or `#N` |
 | `!lib remove <query>` | `!lib delete` | Remove a track by name or `#N` |
@@ -455,6 +457,7 @@ Per-guild library of uploaded tracks — the dependable alternative to third-par
 - `slugify` gives the filesystem/command-safe key; `track_list` sorts by title and defines the `#N` numbering, so no per-channel selection state is stored.
 - `find`/`find_all` match exact slug or title first, then partial titles; `resolve` also accepts `#N`.
 - `check_quota` enforces `LIBRARY_MAX_TRACKS` and `LIBRARY_MAX_TOTAL_MB` per guild; `probe_duration` shells out to ffprobe and degrades to `None` when unavailable.
+- `add_track` registers an already-saved file. `!save` saves an attachment directly; `!download` calls `Downloader.resolve/download` then `shutil.copy2` from `data/downloads/` into `LIBRARY_DIR/<guild_id>/`.
 - No Discord types — cogs own all presentation.
 
 ### `cogs/help.py` — HelpCog

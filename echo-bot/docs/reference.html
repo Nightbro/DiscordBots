@@ -459,6 +459,8 @@ sequenceDiagram
         <thead><tr><th>Command</th><th>Aliases</th><th>Description</th></tr></thead>
         <tbody>
           <tr><td><code>!save [name]</code></td><td class="al">!upload</td><td>Save an attached audio file. Name defaults to filename stem. Also works on a replied-to message.</td></tr>
+          <tr><td><code>!download &lt;url|search&gt;</code></td><td class="al">!dl</td><td>Resolve via YouTube, check for a similar track already in the library, then download and save. A two-button confirmation view appears when a match is found.</td></tr>
+          <tr><td><code>!download play &lt;url|search&gt;</code></td><td class="al">—</td><td>Same as <code>!download</code>, then queues the track for immediate playback.</td></tr>
           <tr><td><code>!library [query]</code></td><td class="al">!lib</td><td>Browse library with dropdown picker + page buttons. With a name or <code>#N</code>, plays that track immediately.</td></tr>
           <tr><td><code>!library play &lt;query&gt;</code></td><td class="al">!lib play</td><td>Play a track by name or <code>#N</code>.</td></tr>
           <tr><td><code>!library remove &lt;query&gt;</code></td><td class="al">!lib delete</td><td>Remove a track by name or <code>#N</code>.</td></tr>
