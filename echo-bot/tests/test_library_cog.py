@@ -3,7 +3,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 
-from cogs.library import LibraryCog, _LibraryView, _list_embed
+from cogs.library import LibraryCog, _DownloadConfirmView, _LibraryView, _list_embed
+from utils.guild_state import Track
 from utils import library
 
 
@@ -331,3 +332,130 @@ def test_view_has_page_buttons_only_when_needed(cog):
     assert len(buttons) == 2
     assert buttons[0].disabled is True   # first page: ◀ disabled
     assert buttons[1].disabled is False
+
+
+# ---------------------------------------------------------------------------
+# !download / !download play
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def write_off(monkeypatch):
+    """Disable the write notifier so loading messages are not created.
+
+    Without this, notifier.loading() calls ctx.send() and returns a MagicMock;
+    the cog then awaits loading.edit(), which works at runtime (real discord.Message)
+    but would need an AsyncMock in tests.  With write_off, loading() returns None,
+    success/error fall back to reactions (try/except so they're silent), and
+    any confirmation view is sent via ctx.send() where tests can inspect it.
+    """
+    monkeypatch.setattr('utils.notifier.get_notify_write', lambda gid: False)
+
+
+def _dl_track(title: str = 'Test Song', duration: int = 180) -> Track:
+    return Track(title=title, url='https://yt.be/x', duration=duration, source_id='abc123')
+
+
+async def _run_download(cog, ctx, tmp_path, query='Test Song', play_after=False, duration=180):
+    track = _dl_track(title=query, duration=duration)
+    dl_file = tmp_path / 'abc123.mp3'
+    dl_file.write_bytes(b'x' * 1024)
+    with patch('cogs.library.Downloader.resolve', new=AsyncMock(return_value=track)), \
+         patch('cogs.library.Downloader.download', new=AsyncMock(return_value=dl_file)), \
+         patch('utils.library.probe_duration', new=AsyncMock(return_value=duration)):
+        if play_after:
+            await cog.download_play.callback(cog, ctx, query=query)
+        else:
+            await cog.download_cmd.callback(cog, ctx, query=query)
+
+
+async def test_download_saves_track_to_library(cog, lctx, tmp_path, write_off):
+    await _run_download(cog, lctx, tmp_path)
+    meta = library.get_track(123456789, 'test-song')
+    assert meta is not None
+    assert meta['title'] == 'Test Song'
+    assert library.track_path(123456789, 'test-song').exists()
+
+
+async def test_download_no_query_shows_error(cog, lctx, write_off):
+    await cog.download_cmd.callback(cog, lctx, query='')
+    assert library.track_list(123456789) == []
+
+
+async def test_download_resolve_failure_reports_error(cog, lctx, write_off):
+    with patch('cogs.library.Downloader.resolve', new=AsyncMock(side_effect=ValueError('no results'))):
+        await cog.download_cmd.callback(cog, lctx, query='impossible query')
+    assert library.track_list(123456789) == []
+
+
+async def test_download_similar_match_shows_confirmation_view(cog, lctx, tmp_path, write_off):
+    _add(123456789, 'Test Song')
+    track = _dl_track('Test Song')
+    with patch('cogs.library.Downloader.resolve', new=AsyncMock(return_value=track)):
+        await cog.download_cmd.callback(cog, lctx, query='Test Song')
+    # With write_off, loading=None → confirmation sent via ctx.send(view=...)
+    view = lctx.send.await_args.kwargs.get('view')
+    assert isinstance(view, _DownloadConfirmView)
+    assert len(library.track_list(123456789)) == 1
+
+
+async def test_download_respects_track_count_limit(cog, lctx, tmp_path, write_off):
+    with patch('utils.library.LIBRARY_MAX_TRACKS', 1):
+        _add(123456789, 'Existing')
+        await _run_download(cog, lctx, tmp_path)
+    assert len(library.track_list(123456789)) == 1
+
+
+async def test_download_respects_storage_limit(cog, lctx, tmp_path, write_off):
+    with patch('utils.library.LIBRARY_MAX_TOTAL_MB', 0):
+        await _run_download(cog, lctx, tmp_path)
+    assert library.track_list(123456789) == []
+
+
+async def test_download_adds_suffix_on_slug_collision(cog, lctx, tmp_path, write_off):
+    _add(123456789, 'Test Song')
+    track = _dl_track('Test Song')
+    dl_file = tmp_path / 'abc123.mp3'
+    dl_file.write_bytes(b'x' * 1024)
+    with patch('cogs.library.Downloader.resolve', new=AsyncMock(return_value=track)), \
+         patch('cogs.library.Downloader.download', new=AsyncMock(return_value=dl_file)), \
+         patch('utils.library.probe_duration', new=AsyncMock(return_value=60)), \
+         patch('utils.library.find_all', return_value=[]):
+        await cog.download_cmd.callback(cog, lctx, query='Test Song')
+    # Original slug taken → suffix appended
+    assert library.get_track(123456789, 'test-song-2') is not None
+
+
+async def test_download_play_saves_and_queues_track(cog, lctx, tmp_path, write_off):
+    with patch.object(LibraryCog, 'play_slug', new=AsyncMock(return_value=True)) as mock_play:
+        await _run_download(cog, lctx, tmp_path, play_after=True)
+    meta = library.get_track(123456789, 'test-song')
+    assert meta is not None
+    mock_play.assert_awaited_once()
+
+
+async def test_download_confirm_view_on_download_saves_track(cog, lctx, tmp_path, write_off):
+    _add(123456789, 'Test Song')
+    track = _dl_track('Test Song')
+    matches = library.find_all(123456789, 'Test Song')
+    view = _DownloadConfirmView(cog, lctx, track, False, matches)
+    dl_file = tmp_path / 'abc123.mp3'
+    dl_file.write_bytes(b'x' * 1024)
+    interaction = MagicMock()
+    interaction.response.edit_message = AsyncMock()
+    with patch('cogs.library.Downloader.download', new=AsyncMock(return_value=dl_file)), \
+         patch('utils.library.probe_duration', new=AsyncMock(return_value=60)):
+        await view._on_download(interaction)
+    # A second track (suffix) or new entry should be in the library
+    assert len(library.track_list(123456789)) == 2
+
+
+async def test_download_confirm_view_on_use_library_plays(cog, lctx, tmp_path, write_off):
+    _add(123456789, 'Test Song')
+    track = _dl_track('Test Song')
+    matches = library.find_all(123456789, 'Test Song')
+    view = _DownloadConfirmView(cog, lctx, track, False, matches)
+    interaction = MagicMock()
+    interaction.response.edit_message = AsyncMock()
+    with patch.object(LibraryCog, 'play_slug', new=AsyncMock(return_value=True)) as mock_play:
+        await view._on_use_library(interaction)
+    mock_play.assert_awaited_once_with(lctx, 'test-song')

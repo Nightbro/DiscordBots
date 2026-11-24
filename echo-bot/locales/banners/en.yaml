@@ -60,6 +60,8 @@ help:
     body: |
       `{prefix}save <name>` — save an attached audio file to this server's library
       (also works when you reply to a message that has the file)
+      `{prefix}download <url|search>` (`{prefix}dl`) — download from YouTube and save to library
+      `{prefix}download play <url|search>` — download, save, then play immediately
       `{prefix}library` — browse: numbered list, dropdown to play, page buttons
       `{prefix}library <name|#N>` (or `{prefix}lib play <name|#N>`) — play an uploaded track
       `{prefix}lib remove <name|#N>` — remove a track

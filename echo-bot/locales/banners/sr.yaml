@@ -60,6 +60,8 @@ help:
     body: |
       `{prefix}save <ime>` — sačuvaj priloženi audio fajl u biblioteku servera
       (radi i kada odgovoriš na poruku koja sadrži fajl)
+      `{prefix}download <url|pretraga>` (`{prefix}dl`) — preuzmi sa YouTube-a i sačuvaj u biblioteci
+      `{prefix}download play <url|pretraga>` — preuzmi, sačuvaj i pusti odmah
       `{prefix}library` — pregledaj: numerisana lista, meni za puštanje, strane
       `{prefix}library <ime|#N>` (ili `{prefix}lib play <ime|#N>`) — pusti otpremljenu pesmu
       `{prefix}lib remove <ime|#N>` — ukloni pesmu

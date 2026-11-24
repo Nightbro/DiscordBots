@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 from pathlib import Path
 
 import discord
@@ -8,6 +9,8 @@ from discord.ext import commands
 
 from utils import library
 from utils.audio import AUDIO_EXTS, AudioFileManager
+from utils.downloader import Downloader
+from utils.guild_state import Track
 from utils.i18n import t
 from utils.message import MessageWriter
 from utils.notifier import Notifier
@@ -114,6 +117,61 @@ class _LibraryView(discord.ui.View):
             return
         await interaction.response.defer()
         await self._cog.queue_track(interaction, self._guild_id, slug)
+
+
+class _DownloadConfirmView(discord.ui.View):
+    """'Similar track found' confirmation shown by !download when the library has a match."""
+
+    def __init__(
+        self,
+        cog: 'LibraryCog',
+        ctx: commands.Context,
+        track: Track,
+        play_after: bool,
+        matches: list,
+    ) -> None:
+        super().__init__(timeout=60.0)
+        self._cog = cog
+        self._ctx = ctx
+        self._track = track
+        self._play_after = play_after
+        self._matches = matches
+        gid = ctx.guild.id
+        dl_btn = discord.ui.Button(
+            label=t('library.download_anyway', gid),
+            style=discord.ButtonStyle.primary,
+        )
+        dl_btn.callback = self._on_download
+        lib_btn = discord.ui.Button(
+            label=t('library.use_library_version', gid),
+            style=discord.ButtonStyle.secondary,
+        )
+        lib_btn.callback = self._on_use_library
+        self.add_item(dl_btn)
+        self.add_item(lib_btn)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self._ctx.author.id:
+            return True
+        await interaction.response.send_message(
+            t('library.not_yours', self._ctx.guild.id), ephemeral=True,
+        )
+        return False
+
+    def _disable(self) -> None:
+        for item in self.children:
+            item.disabled = True
+
+    async def _on_download(self, interaction: discord.Interaction) -> None:
+        self._disable()
+        await interaction.response.edit_message(view=self)
+        await self._cog._do_save(self._ctx, self._track, self._play_after)
+
+    async def _on_use_library(self, interaction: discord.Interaction) -> None:
+        self._disable()
+        await interaction.response.edit_message(view=self)
+        slug, _ = self._matches[0]
+        await self._cog.play_slug(self._ctx, slug)
 
 
 class LibraryCog(commands.Cog, name='Library'):
@@ -315,9 +373,149 @@ class LibraryCog(commands.Cog, name='Library'):
             slug=slug,
         )))
 
+    @commands.group(name='download', aliases=['dl'], invoke_without_command=True)
+    async def download_cmd(self, ctx: commands.Context, *, query: str = '') -> None:
+        """Download a track from YouTube and save it to this server's library."""
+        if not query:
+            await self._notifier(ctx).error(
+                ctx, t('library.download_no_query', ctx.guild.id),
+            )
+            return
+        await self._do_download(ctx, query, play_after=False)
+
+    @download_cmd.command(name='play')
+    async def download_play(self, ctx: commands.Context, *, query: str) -> None:
+        """Download a track from YouTube, save it to this server's library, then play it."""
+        await self._do_download(ctx, query, play_after=True)
+
     # -----------------------------------------------------------------------
     # Helpers
     # -----------------------------------------------------------------------
+
+    async def _do_download(self, ctx: commands.Context, query: str, play_after: bool) -> None:
+        """Resolve a query, check the library for similar tracks, then save."""
+        gid = ctx.guild.id
+        notifier = self._notifier(ctx)
+        loading = await notifier.loading(ctx, t('music.resolving', gid))
+        try:
+            track = await Downloader.resolve(query)
+        except Exception as exc:
+            log.error('Download resolve failed for "%s": %s', query, exc, exc_info=exc)
+            await notifier.error(ctx, t('music.error_resolve', gid), loading=loading)
+            return
+
+        matches = library.find_all(gid, track.title)
+        if matches:
+            _, meta = matches[0]
+            body = t('library.download_similar', gid, existing=meta['title'])
+            embed = MessageWriter.info(t('library.download_similar_title', gid), body)
+            view = _DownloadConfirmView(self, ctx, track, play_after, matches)
+            if loading is not None:
+                await loading.edit(embed=embed, view=view)
+            else:
+                await ctx.send(embed=embed, view=view)
+            return
+
+        await self._do_save(ctx, track, play_after, loading=loading)
+
+    async def _do_save(
+        self,
+        ctx: commands.Context,
+        track: Track,
+        play_after: bool,
+        loading: discord.Message | None = None,
+    ) -> None:
+        """Download audio, copy it into the library, register it, optionally play."""
+        gid = ctx.guild.id
+        notifier = self._notifier(ctx)
+
+        if len(library.get_tracks(gid)) >= library.MAX_TRACKS:
+            await notifier.error(
+                ctx,
+                t('library.limit_tracks', gid, max=library.MAX_TRACKS),
+                loading=loading,
+            )
+            return
+
+        # Transition or create the downloading indicator
+        if loading is not None:
+            try:
+                await loading.edit(
+                    embed=MessageWriter.info(t('library.downloading', gid)),
+                    view=None,
+                )
+            except Exception:
+                pass
+            dl_loading = loading
+        else:
+            dl_loading = await notifier.loading(ctx, t('library.downloading', gid))
+
+        try:
+            dl_path = await Downloader.download(track)
+        except Exception as exc:
+            log.error('Download failed for "%s": %s', track.title, exc, exc_info=exc)
+            await notifier.error(ctx, t('library.download_failed', gid), loading=dl_loading)
+            return
+
+        file_size = dl_path.stat().st_size
+
+        try:
+            library.check_quota(gid, file_size)
+        except library.LibraryError as exc:
+            await notifier.error(ctx, self._quota_message(gid, exc), loading=dl_loading)
+            return
+
+        title = track.title
+        slug = library.slugify(title)
+        if library.get_track(gid, slug):
+            for i in range(2, 100):
+                candidate = f'{slug}-{i}'
+                if not library.get_track(gid, candidate):
+                    slug = candidate
+                    title = f'{track.title} ({i})'
+                    break
+            else:
+                await notifier.error(
+                    ctx, t('library.name_taken', gid, title=track.title),
+                    loading=dl_loading,
+                )
+                return
+
+        dest = library.guild_dir(gid) / f'{slug}.mp3'
+        try:
+            shutil.copy2(dl_path, dest)
+            duration = await library.probe_duration(dest)
+            library.add_track(
+                gid, title, dest,
+                duration=duration,
+                added_by=ctx.author.id,
+                added_by_name=ctx.author.display_name,
+            )
+        except library.LibraryError as exc:
+            dest.unlink(missing_ok=True)
+            await notifier.error(ctx, self._quota_message(gid, exc), loading=dl_loading)
+            return
+        except Exception as exc:
+            dest.unlink(missing_ok=True)
+            log.error('Library download-save failed for "%s": %s', title, exc, exc_info=exc)
+            await notifier.error(ctx, t('library.download_failed', gid), loading=dl_loading)
+            return
+
+        log.info('Library: %s downloaded "%s" in guild %s', ctx.author, title, gid)
+        index = next(
+            (i for i, (s, _) in enumerate(library.track_list(gid), 1) if s == slug), 0,
+        )
+        await notifier.success(
+            ctx,
+            t('library.download_saved', gid, title=title),
+            t('library.download_saved_hint', gid, title=title, index=index,
+              size=f'{file_size / 1024 / 1024:.1f}',
+              duration=library.format_duration(duration)),
+            loading=dl_loading,
+        )
+
+        if play_after:
+            await self.play_slug(ctx, slug)
 
     @staticmethod
     async def _find_attachment(ctx: commands.Context) -> discord.Attachment | None:

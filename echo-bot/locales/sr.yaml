@@ -166,6 +166,16 @@ Podržano: {formats}"
   saved: "Sačuvano **{title}**"
   saved_hint: "`#{index}` u biblioteci · {duration} · {size} MB
 Pusti sa `!play {title}` ili `!lib play #{index}`."
+  downloading: "⏳ Preuzimanje…"
+  download_no_query: "Navedi ime pesme ili URL za preuzimanje."
+  download_similar_title: "Pesma pronađena u biblioteci"
+  download_similar: "**{existing}** već postoji u biblioteci ovog servera."
+  download_anyway: "Svejedno preuzmi"
+  use_library_version: "Koristi verziju iz biblioteke"
+  download_failed: "Nije moguće preuzeti tu pesmu."
+  download_saved: "Preuzeto **{title}**"
+  download_saved_hint: "`#{index}` u biblioteci · {duration} · {size} MB
+Pusti sa `!play {title}` ili `!lib play #{index}`."
   removed: "**{title}** je uklonjeno iz biblioteke."
   renamed: "**{old}** je preimenovano u **{new}**."
   info: "Dužina: {duration}

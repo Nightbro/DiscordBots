@@ -169,6 +169,16 @@ Supported: {formats}"
   saved: "Saved **{title}**"
   saved_hint: "`#{index}` in the library · {duration} · {size} MB
 Play it with `!play {title}` or `!lib play #{index}`."
+  downloading: "⏳ Downloading…"
+  download_no_query: "Provide a track name or URL to download."
+  download_similar_title: "Track found in library"
+  download_similar: "**{existing}** is already in this server's library."
+  download_anyway: "Download anyway"
+  use_library_version: "Use library version"
+  download_failed: "Could not download that track."
+  download_saved: "Downloaded **{title}**"
+  download_saved_hint: "`#{index}` in the library · {duration} · {size} MB
+Play it with `!play {title}` or `!lib play #{index}`."
   removed: "Removed **{title}** from the library."
   renamed: "Renamed **{old}** to **{new}**."
   info: "Length: {duration}

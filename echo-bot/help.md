@@ -38,6 +38,8 @@ Songs uploaded to the bot and kept on the server, so nothing depends on an outsi
 | Command | Aliases | Description |
 |---|---|---|
 | `!save [name]` | `!upload` | Save the attached audio file to this server's library. Works on a reply to a message with an attachment. Name defaults to the filename |
+| `!download <url\|search>` | `!dl` | Download a track from YouTube and save it to this server's library. Prompts to use an existing track if a similar one is already in the library |
+| `!download play <url\|search>` | — | Same as `!download`, then plays the track immediately |
 | `!library` | `!lib` | Browse the library: numbered list, a dropdown to play, page buttons |
 | `!library <name\|#N>` | `!lib` | Play a track straight away |
 | `!lib play <name\|#N>` | — | Same, spelled out |

@@ -51,6 +51,7 @@ outside this repo.
 | Command | Feature |
 |---|---|
 | `!save [name]` | Store an attached — or replied-to — audio file |
+| `!download <url\|search>`, `!download play` | Download from YouTube and save to library; prompts when a similar track exists |
 | `!library` | Browse: numbered list, dropdown picker, page buttons |
 | `!library <name\|#N>`, `!lib play` | Play an uploaded track |
 | `!lib remove`, `!lib rename`, `!lib info` | Manage entries |
