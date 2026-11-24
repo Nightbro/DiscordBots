@@ -25,6 +25,8 @@ help:
       Most commands also work as slash commands — type `/` to browse.
       `{prefix}save`, `{prefix}library`, `{prefix}devlog` and `{prefix}version` are prefix-only.
 
+      📖 **Full reference:** https://nightbro.github.io/DiscordBots/echo-bot/docs/reference.html
+
   music:
     title: "🎵 Music — Playback"
     body: |

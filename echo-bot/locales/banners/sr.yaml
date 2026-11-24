@@ -25,6 +25,8 @@ help:
       Većina komandi radi i kao slash komande — ukucaj `/` za pregled.
       `{prefix}save`, `{prefix}library`, `{prefix}devlog` i `{prefix}version` rade samo sa prefiksom.
 
+      📖 **Potpuna referenca:** https://nightbro.github.io/DiscordBots/echo-bot/docs/reference.html
+
   music:
     title: "🎵 Muzika — Reprodukcija"
     body: |
